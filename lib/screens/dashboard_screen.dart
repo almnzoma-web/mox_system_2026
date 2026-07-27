@@ -1479,7 +1479,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                           ),
                                                           SizedBox(width: 8),
                                                           Text(
-                                                            "تنبيه أمني",
+                                                            "تنبيه أمني سيادي",
                                                             style: TextStyle(
                                                               fontWeight:
                                                                   FontWeight
@@ -1491,7 +1491,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                         ],
                                                       ),
                                                       content: const Text(
-                                                        "عفواً انت لا تمتلك رقم MOX ام تدخل من نافذة رقم MOX المخصصة",
+                                                        "عفواً، لا يمكنك تعديل البطاقات إلا إذا امتلكت رقم MOX وسجلت الدخول به رسمياً.\n\nالرجاء تسجيل الخروج والدخول برقم MOX الخاص بك، أو الاتصال بالدعم لامتلاكه وتنشيط صلاحية التعديل.",
                                                         style: TextStyle(
                                                           fontSize: 14,
                                                           height: 1.6,
