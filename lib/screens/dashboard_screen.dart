@@ -1191,8 +1191,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       Row(
                         children: [
-                          // زر العودة للصفحة الرئيسية يظهر فقط إذا لم يكن الرابط خارجي بحت، أو زر إغلاق
-                          if (!isReadOnlyStore) ...[
+                          // زر الصفحة الرئيسية يظهر بوضوح للعميل القادم عبر الرابط الخارجي
+                          if (isReadOnlyStore) ...[
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF28A9CC),
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                // هنا يمكنك توجيهه للصفحة الرئيسية للتطبيق إذا لزم الأمر
+                              },
+                              icon: const Icon(
+                                Icons.home,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              label: const Text(
+                                "الصفحة الرئيسية",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ] else ...[
                             IconButton(
                               icon: const Icon(
                                 Icons.home,
@@ -1206,10 +1233,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                           Text(
                             isReadOnlyStore
-                                ? "🛒 تنشيط المتجر"
+                                ? "تنشيط المتجر"
                                 : "📁 أصول العميل الرقمية والبطاقات الـ 5",
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF28A9CC),
                             ),
@@ -1457,7 +1484,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           color: Colors.green,
                                         ),
                                       ),
-                                      // زر الترس يختفي تماماً إذا كان العميل دخل من رابط المتجر الخارجي
+                                      // الترس يظهر للعميل المحلي ويفك التعديل، ويختفي تماماً للعميل الخارجي
                                       if (!isReadOnlyStore)
                                         IconButton(
                                           icon: const Icon(
@@ -1580,18 +1607,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         const SizedBox(height: 15),
 
-                        // زر طلب نشر البطاقة يختفي تماماً عن العميل الخارجي
-                        if (!isReadOnlyStore) ...[
+                        // زر تنشيط المتجر يظهر فقط للعميل صاحب الرابط الخارجي في الأسفل
+                        if (isReadOnlyStore) ...[
                           OutlinedButton.icon(
                             onPressed: () {
-                              // كود إرسال الطلب للمدير
+                              // كود عملية تنشيط المتجر للعميل الخارجي
                             },
                             icon: const Icon(
-                              Icons.send,
+                              Icons.verified_outlined,
                               color: Color(0xFF28A9CC),
                             ),
                             label: const Text(
-                              "طلب نشر بطاقات المتجر (365 يوم)",
+                              "تنشيط المتجر",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF1B6B80),
