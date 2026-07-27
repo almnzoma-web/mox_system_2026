@@ -17,6 +17,51 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isPasswordVisible = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // التقاط الرابط الخارجي تلقائياً عند فتح التطبيق والتوجيه لمتجر العميل المعني
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkIncomingStoreLink();
+    });
+  }
+
+  // فحص دقيق وخالٍ من الأخطاء لالتقاط رقم هاتف المتجر الخارجي
+  void _checkIncomingStoreLink() {
+    try {
+      final Uri uri = Uri.base;
+      if (uri.queryParameters.containsKey('phone') ||
+          uri.path.contains('/store')) {
+        final String? targetPhone = uri.queryParameters['phone'];
+        if (targetPhone != null && targetPhone.isNotEmpty) {
+          final UserModel targetClientUser = UserModel(
+            phone: targetPhone,
+            password: "",
+            name: "العميل صاحب المتجر الرقمي",
+            moxId: "MOX249-00000001",
+            address: "متجر رقمي",
+            balance: 0.0,
+            gender: "ذكر",
+            accountType: "فردي",
+          );
+
+          // التوجيه المباشر للداشبورد مع تمرير مؤشر القراءة فقط للمتجر الخارجي
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DashboardScreen(
+                user: targetClientUser,
+                isReadOnlyStore: true,
+              ),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      // تفادي أي استثناء قد يظهر في بيئة الويب أو الموبايل أثناء قراءة الرابط
+    }
+  }
+
   void _validateAndLogin() {
     String input = _inputController.text.trim();
 
@@ -39,7 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => DashboardScreen(user: authenticatedUser),
+          builder: (context) =>
+              DashboardScreen(user: authenticatedUser, isReadOnlyStore: false),
         ),
         (route) => false,
       );

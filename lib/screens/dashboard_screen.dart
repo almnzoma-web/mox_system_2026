@@ -13,7 +13,11 @@ import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserModel user;
-  const DashboardScreen({super.key, required this.user});
+  const DashboardScreen({
+    super.key,
+    required this.user,
+    required bool isReadOnlyStore,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -1483,7 +1487,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           color: Colors.green,
                                         ),
                                       ),
-                                      // الترس موجود دائماً: إذا كان دخل برابط خارجي يظهر رسالة تنبيه، وإذا كان داخلي يفتح التعديل
+                                      // الترس موجود دائماً: إذا دخل برابط خارجي يظهر تنبيه، وإذا دخل من حسابه يفتح التعديل
                                       IconButton(
                                         icon: const Icon(
                                           Icons.settings,
@@ -1495,7 +1499,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             : "تعديل محتوى البطاقة",
                                         onPressed: () {
                                           if (isReadOnlyStore) {
-                                            // رسالة تقدل من الترس للعميل الداخل برابط خارجي
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
@@ -1507,7 +1510,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               ),
                                             );
                                           } else {
-                                            // العميل الداخل مباشرة يفتح معه الترس طبيعي بالمسطرة
                                             setStateModal(() {
                                               card['isEditing'] = true;
                                             });
@@ -1622,9 +1624,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         const SizedBox(height: 15),
 
-                        // زر تنشيط المتجر يظهر فقط للعميل صاحب الرابط الخارجي في الأسفل
+                        // زر تنشيط المتجر في الأسفل يظهر فقط للعميل القادم عبر الرابط الخارجي
                         if (isReadOnlyStore) ...[
                           OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 45),
+                              side: const BorderSide(color: Color(0xFF28A9CC)),
+                            ),
                             onPressed: () {
                               // كود عملية تنشيط المتجر للعميل الخارجي
                             },
