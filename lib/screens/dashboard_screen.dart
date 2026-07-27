@@ -1148,7 +1148,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 📁 أصول العميل الرقمية ومتجره الالكتروني
   void _showClientAssetsScreen(BuildContext context) {
     final String clientStoreUrl =
-        "https://web-navy-two-80.vercel.app/store?phone=${widget.user.phone}";
+        "https://mox-2026.vercel.app/store?phone=${widget.user.phone}";
 
     showModalBottomSheet(
       context: context,
@@ -1338,7 +1338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 SelectableText(
-                                  "https://mox-digital.net/invite/${widget.user.phone}",
+                                  "https://mox-2026.vercel.app/invite/${widget.user.phone}",
                                   style: const TextStyle(
                                     color: Colors.blue,
                                     fontWeight: FontWeight.bold,
@@ -2222,7 +2222,7 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
       ),
       builder: (context) {
         final String clientStoreUrl =
-            "https://web-navy-two-80.vercel.app/store?phone=${widget.currentUser.phone}";
+            "https://mox-2026.vercel.app/store?phone=${widget.currentUser.phone}";
         return Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -2269,7 +2269,7 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
   @override
   Widget build(BuildContext context) {
     final String clientStoreUrl =
-        "https://web-navy-two-80.vercel.app/store?phone=${widget.currentUser.phone}";
+        "https://mox-2026.vercel.app/store?phone=${widget.currentUser.phone}";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
