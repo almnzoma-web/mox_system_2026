@@ -1203,7 +1203,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               onPressed: () {
                                 Navigator.pop(context);
-                                // هنا يمكنك توجيهه للصفحة الرئيسية للتطبيق إذا لزم الأمر
                               },
                               icon: const Icon(
                                 Icons.home,
@@ -1449,7 +1448,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        // توليد البطاقات الـ 5 (قراءة فقط بدون تروس إذا كان المتجر خارجي)
+                        // توليد البطاقات الـ 5
                         ..._clientCards.map((card) {
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 8),
@@ -1484,21 +1483,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           color: Colors.green,
                                         ),
                                       ),
-                                      // الترس يظهر للعميل المحلي ويفك التعديل، ويختفي تماماً للعميل الخارجي
-                                      if (!isReadOnlyStore)
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.settings,
-                                            color: Colors.indigo,
-                                            size: 20,
-                                          ),
-                                          tooltip: "تعديل محتوى البطاقة",
-                                          onPressed: () {
+                                      // الترس موجود دائماً: إذا كان دخل برابط خارجي يظهر رسالة تنبيه، وإذا كان داخلي يفتح التعديل
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.settings,
+                                          color: Colors.indigo,
+                                          size: 20,
+                                        ),
+                                        tooltip: isReadOnlyStore
+                                            ? "تنبيه النظام"
+                                            : "تعديل محتوى البطاقة",
+                                        onPressed: () {
+                                          if (isReadOnlyStore) {
+                                            // رسالة تقدل من الترس للعميل الداخل برابط خارجي
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "هذا المتجر للعرض فقط. لتعديل البطاقات يرجى الدخول من حسابك الشخصي المعتمد.",
+                                                ),
+                                                backgroundColor: Colors.orange,
+                                              ),
+                                            );
+                                          } else {
+                                            // العميل الداخل مباشرة يفتح معه الترس طبيعي بالمسطرة
                                             setStateModal(() {
                                               card['isEditing'] = true;
                                             });
-                                          },
-                                        ),
+                                          }
+                                        },
+                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
