@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
-import 'welcome_screen.dart'; // أو شاشة الدخول الرئيسية حسب مسارك
+import 'welcome_screen.dart';
 
 class ClientAssetsScreen extends StatefulWidget {
   final UserModel user;
@@ -12,7 +12,6 @@ class ClientAssetsScreen extends StatefulWidget {
 }
 
 class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
-  // قائمة البطاقات الـ 5 الوهمية أو المستلمة من نموذج العميل
   final List<Map<String, dynamic>> _clientCards = List.generate(
     5,
     (index) => {
@@ -28,10 +27,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unused_local_variable
-    final String clientStoreUrl =
-        "https://mox-2026.vercel.app/store?phone=${widget.user.phone}";
-
     // ignore: unnecessary_nullable_for_final_variable_declarations
     final String? mox = widget.user.moxId;
     final String? gMox = widget.user.guardianMoxId;
@@ -60,7 +55,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          // زر "دخول التطبيق" في الأعلى للزائر القادم عبر الرابط
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: ElevatedButton.icon(
@@ -92,7 +86,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
         padding: const EdgeInsets.all(15),
         child: ListView(
           children: [
-            // بطاقة بيانات العميل
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -129,8 +122,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
               ),
             ),
             const SizedBox(height: 15),
-
-            // حالة الهوية السيادية
             if (!hasValidMoxAccess)
               Container(
                 padding: const EdgeInsets.all(15),
@@ -182,7 +173,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                   ],
                 ),
               ),
-
             const SizedBox(height: 20),
             const Text(
               "🛒 بطاقات المتجر الـ 5",
@@ -193,8 +183,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
               ),
             ),
             const SizedBox(height: 10),
-
-            // توليد البطاقات الـ 5 (للقراءة فقط مع زر الترس للتنبيه)
             ..._clientCards.map((card) {
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 8),
@@ -328,10 +316,7 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                 ),
               );
             }),
-
             const SizedBox(height: 20),
-
-            // زر تنشيط المتجر في الأسفل
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),

@@ -1205,7 +1205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: ListView(
                       children: [
-                        // مربع وزر نسخ رابط متجر العميل ومعاينة الصفحة B (ExternalStoreFrontScreen)
+                        // مربع وزر نسخ رابط متجر العميل ومعاينة الصفحة B (ExternalStoreFrontScreen) مباشرة
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -1232,12 +1232,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ),
                                   TextButton.icon(
                                     style: TextButton.styleFrom(
-                                      padding: EdgeInsets.zero,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       minimumSize: const Size(50, 30),
                                       tapTargetSize:
                                           MaterialTapTargetSize.shrinkWrap,
+                                      backgroundColor: const Color(0xFF28A9CC),
                                     ),
                                     onPressed: () {
+                                      // إغلاق المودال أولاً والانتقال بسلاسة تامة إلى الصفحة B (المتجر الخارجي)
+                                      Navigator.pop(context);
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
@@ -1251,13 +1257,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     icon: const Icon(
                                       Icons.visibility,
                                       size: 14,
-                                      color: Colors.indigo,
+                                      color: Colors.white,
                                     ),
                                     label: const Text(
-                                      "معاينة المتجر",
+                                      "معاينة المتجر (الصفحة B)",
                                       style: TextStyle(
                                         fontSize: 10,
-                                        color: Colors.indigo,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
