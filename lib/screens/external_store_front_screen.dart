@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+// ignore: unnecessary_import
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
+import '../services/storage_service.dart'; // الخزينة السيادية لجلب بيانات العميل الحقيقية
 import 'welcome_screen.dart';
 
-class ExternalStoreFrontScreen extends StatelessWidget {
+class ExternalStoreFrontScreen extends StatefulWidget {
   final UserModel? user;
   final List<Map<String, dynamic>> clientCards;
   final String? directPhone;
@@ -17,21 +20,83 @@ class ExternalStoreFrontScreen extends StatelessWidget {
     this.height,
   });
 
-  UserModel _resolveUser() {
-    if (user != null) return user!;
+  @override
+  State<ExternalStoreFrontScreen> createState() =>
+      _ExternalStoreFrontScreenState();
+}
 
-    String phoneToUse = directPhone ?? "0000000000";
-    // تمرير المعاملات الإجبارية المطلوبة في UserModel لضمان توافق المسطرة الهندسية
-    return UserModel(
-      name: "العميل السيادي",
-      phone: phoneToUse,
-      address: "المتجر الرقمي",
-      moxId: "MOX-ACTIVE",
-      password: "",
-      balance: 0.0,
-      gender: "غير محدد",
-      accountType: "external",
-    );
+class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
+  late UserModel? _resolvedUser;
+  late List<Map<String, dynamic>> _resolvedCards;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStoreData();
+  }
+
+  // دالة ذكية لتحليل الـ URL على الويب واستخراج الهاتف، أو جلب البيانات مباشرة
+  Future<void> _initializeStoreData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    UserModel? userToUse = widget.user;
+    List<Map<String, dynamic>> cardsToUse = widget.clientCards;
+    String? targetPhone = widget.directPhone;
+
+    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL (مثل ?phone=...)
+    if (userToUse == null && targetPhone == null && kIsWeb) {
+      try {
+        // استخراج الـ Uri الحالي للـ Web
+        final uri = Uri.base;
+        targetPhone = uri.queryParameters['phone'];
+      } catch (_) {}
+    }
+
+    // إذا وجدنا رقم هاتف قادم من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية!
+    if (userToUse == null && targetPhone != null && targetPhone.isNotEmpty) {
+      try {
+        // استدعاء الخزينة لجلب ملف العميل الحقيقي بواسطة الهاتف
+        userToUse = await StorageService.getUserByPhone(targetPhone);
+        // استدعاء بطاقات العميل الخاصة من الخزينة
+        cardsToUse = await StorageService.getClientCards(targetPhone);
+      } catch (_) {}
+    }
+
+    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن بالهاتف المستهدف لكي لا ينكسر التطبيق
+    _resolvedUser =
+        userToUse ??
+        UserModel(
+          name: targetPhone != null ? "متجر العميل الرقمي" : "العميل السيادي",
+          phone: targetPhone ?? "0000000000",
+          address: "المتجر الرقمي المفتوح",
+          moxId: targetPhone != null ? "MOX-WEB-ACTIVE" : "MOX-ACTIVE",
+          password: "",
+          balance: 0.0,
+          gender: "غير محدد",
+          accountType: "external",
+        );
+
+    _resolvedCards = cardsToUse.isNotEmpty
+        ? cardsToUse
+        : [
+            {
+              'title': 'بطاقة المتجر السيادي الافتراضية',
+              'description':
+                  'هذه البطاقة معتمدة وجاهزة للعرض التجاري الفاخر عبر الرابط المنسوخ للزوار.',
+              'price': 0.0,
+              'whatsapp': _resolvedUser!.phone,
+              'facebook': '',
+            },
+          ];
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   bool _hasActiveStore(UserModel activeUser) {
@@ -53,27 +118,31 @@ class ExternalStoreFrontScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (height != null &&
-        user == null &&
-        directPhone == null &&
-        clientCards.isEmpty) {
-      return Container(height: height, color: Colors.transparent);
+    if (widget.height != null &&
+        widget.user == null &&
+        widget.directPhone == null &&
+        widget.clientCards.isEmpty &&
+        !kIsWeb) {
+      return Container(height: widget.height, color: Colors.transparent);
     }
 
-    final UserModel resolvedUser = _resolveUser();
-    final List<Map<String, dynamic>> activeCards = clientCards.isNotEmpty
-        ? clientCards
-        : [
-            {
-              'title': 'بطاقة المتجر السيادي الافتراضية',
-              'description':
-                  'هذه البطاقة معتمدة وجاهزة للعرض التجاري الفاخر عبر الرابط المنسوخ.',
-              'price': 0.0,
-              'whatsapp': resolvedUser.phone,
-              'facebook': '',
-            },
-          ];
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF28A9CC),
+          title: const Text(
+            "جاري تحميل المتجر السيادي...",
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: Color(0xFF28A9CC)),
+        ),
+      );
+    }
 
+    final UserModel resolvedUser = _resolvedUser!;
+    final List<Map<String, dynamic>> activeCards = _resolvedCards;
     final bool isStoreActive = _hasActiveStore(resolvedUser);
 
     Widget content = Scaffold(
@@ -91,7 +160,16 @@ class ExternalStoreFrontScreen extends StatelessWidget {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+              );
+            }
+          },
         ),
       ),
       body: Padding(
@@ -111,7 +189,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "🌟 الواجهة الرقمية السيادية المعتمدة",
+                          "🌟 السوق المفتوح والواجهة السيادية المعتمدة",
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -140,7 +218,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    "🛒 العروض والبطاقات النشطة للعميل",
+                    "🛒 العروض والبطاقات النشطة للعميل (متاحة للعامة)",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
@@ -221,7 +299,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                                       size: 14,
                                     ),
                                     label: const Text(
-                                      "طلب منتج/خدمة",
+                                      "طلب منتج/خدمة عبر واتساب",
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 11,
@@ -347,8 +425,8 @@ class ExternalStoreFrontScreen extends StatelessWidget {
       ),
     );
 
-    if (height != null) {
-      return SizedBox(height: height, child: content);
+    if (widget.height != null) {
+      return SizedBox(height: widget.height, child: content);
     }
 
     return content;
