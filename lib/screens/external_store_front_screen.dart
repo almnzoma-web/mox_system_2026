@@ -1,24 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
-import 'welcome_screen.dart'; // الانتقال لشاشة الترحيب مباشرة عند عدم التنشيط
+import 'welcome_screen.dart';
 
 class ExternalStoreFrontScreen extends StatelessWidget {
-  final UserModel user;
-  final List<Map<String, dynamic>>
-  clientCards; // استقبال البطاقات الحقيقية الـ 5 بالمسطرة
+  final UserModel? user;
+  final List<Map<String, dynamic>> clientCards;
+  final String? directPhone;
+  final double? height;
 
   const ExternalStoreFrontScreen({
     super.key,
-    required this.user,
-    this.clientCards = const [], // تمرير افتراضي فارغ لضمان عدم حدوث أي خطأ
+    this.user,
+    this.clientCards = const [],
+    this.directPhone,
+    this.height,
   });
 
-  // فحص ما إذا كان العميل قد قام بإنشاء وتنشيط متجره وأصوله الرقمية
-  bool _hasActiveStore() {
+  UserModel _resolveUser() {
+    if (user != null) return user!;
+
+    String phoneToUse = directPhone ?? "0000000000";
+    // تمرير المعاملات الإجبارية المطلوبة في UserModel لضمان توافق المسطرة الهندسية
+    return UserModel(
+      name: "العميل السيادي",
+      phone: phoneToUse,
+      address: "المتجر الرقمي",
+      moxId: "MOX-ACTIVE",
+      password: "",
+      balance: 0.0,
+      gender: "غير محدد",
+      accountType: "external",
+    );
+  }
+
+  bool _hasActiveStore(UserModel activeUser) {
     // ignore: unnecessary_nullable_for_final_variable_declarations
-    final String? mox = user.moxId;
-    final String? gMox = user.guardianMoxId;
+    final String? mox = activeUser.moxId;
+    final String? gMox = activeUser.guardianMoxId;
 
     return (mox != null &&
             mox.trim().isNotEmpty &&
@@ -28,18 +47,42 @@ class ExternalStoreFrontScreen extends StatelessWidget {
             gMox.trim().isNotEmpty &&
             gMox != "لم يحدد" &&
             gMox.toLowerCase() != 'null' &&
-            !gMox.startsWith("MOX249-00010001"));
+            !gMox.startsWith("MOX249-00010001")) ||
+        activeUser.phone.isNotEmpty;
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isStoreActive = _hasActiveStore() && clientCards.isNotEmpty;
+    if (height != null &&
+        user == null &&
+        directPhone == null &&
+        clientCards.isEmpty) {
+      return Container(height: height, color: Colors.transparent);
+    }
 
-    return Scaffold(
+    final UserModel resolvedUser = _resolveUser();
+    final List<Map<String, dynamic>> activeCards = clientCards.isNotEmpty
+        ? clientCards
+        : [
+            {
+              'title': 'بطاقة المتجر السيادي الافتراضية',
+              'description':
+                  'هذه البطاقة معتمدة وجاهزة للعرض التجاري الفاخر عبر الرابط المنسوخ.',
+              'price': 0.0,
+              'whatsapp': resolvedUser.phone,
+              'facebook': '',
+            },
+          ];
+
+    final bool isStoreActive = _hasActiveStore(resolvedUser);
+
+    Widget content = Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF28A9CC),
         title: Text(
-          isStoreActive ? "متجر العميل: ${user.name}" : "المتجر الرقمي السيادي",
+          isStoreActive
+              ? "متجر العميل: ${resolvedUser.name}"
+              : "المتجر الرقمي السيادي",
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -77,7 +120,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "العميل: ${user.name}",
+                          "العميل: ${resolvedUser.name}",
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -86,7 +129,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "رقم الهاتف: ${user.phone}",
+                          "رقم الهاتف: ${resolvedUser.phone}",
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -105,9 +148,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-
-                  // عرض البطاقات الـ 5 الحقيقية المستلمة بدقة
-                  ...clientCards.map((card) {
+                  ...activeCards.map((card) {
                     return Card(
                       elevation: 2,
                       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -163,7 +204,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                                     onPressed: () async {
                                       final phoneNum =
                                           card['whatsapp'] ??
-                                          "249${user.phone}";
+                                          resolvedUser.phone;
                                       final url = Uri.parse(
                                         "https://wa.me/$phoneNum",
                                       );
@@ -271,7 +312,6 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // زر الدخول المباشر إلى شاشة الترحيب (WelcomeScreen)
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF28A9CC),
@@ -306,5 +346,11 @@ class ExternalStoreFrontScreen extends StatelessWidget {
               ),
       ),
     );
+
+    if (height != null) {
+      return SizedBox(height: height, child: content);
+    }
+
+    return content;
   }
 }

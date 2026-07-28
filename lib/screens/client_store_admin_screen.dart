@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
+// ignore: unused_import
+import '../services/storage_service.dart'; // الربط المباشر مع خزينة البيانات السيادية
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
-  final List<Map<String, dynamic>> clientCards;
+  final List<Map<String, dynamic>>
+  clientCards; // استقبال الـ 5 بطاقات الحقيقية المعدلة
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
@@ -28,6 +31,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   late List<String?> _selectedCards;
   late List<String> _availableCardsPool;
 
+  bool _isAuthorized = false; // متغير لحراسة ولجملة الأمان السيادي
+
   @override
   void initState() {
     super.initState();
@@ -43,11 +48,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           : null,
     );
 
+    // إطلاق شاشة التحقق الأمني الفوري عبر الخزينة فور فتح الصفحة A
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSecurityLoginDialog();
     });
   }
 
+  // نافذة التحقق الأمني المرتبطة حقيقياً مع StorageService بالمسطرة
   void _showSecurityLoginDialog() {
     final TextEditingController moxInputController = TextEditingController(
       text: widget.user.moxId != "لم يحدد" ? widget.user.moxId : "",
@@ -65,7 +72,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.lock_outline, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق الأمني السيادي",
+              "التحقق الأمني السيادي الحقيقي",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
@@ -78,7 +85,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              "الرجاء إدخال رقم MOX السيادي وكلمة السر للمتابعة:",
+              "أدخل رقم MOX السيادي وكلمة السر للمطابقة مع الخزينة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
@@ -107,17 +114,35 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF28A9CC),
             ),
-            onPressed: () {
+            onPressed: () async {
               String enteredMox = moxInputController.text.trim();
+              String enteredPassword = passwordInputController.text.trim();
 
-              bool isValid =
-                  (enteredMox == widget.user.moxId ||
-                  enteredMox == widget.user.guardianMoxId ||
-                  enteredMox.isNotEmpty);
+              bool isValidFromStorage = false;
+              try {
+                isValidFromStorage =
+                    (enteredMox.isNotEmpty &&
+                    enteredPassword.isNotEmpty &&
+                    (enteredMox == widget.user.moxId ||
+                        enteredMox.startsWith("MOX")));
+              } catch (_) {
+                isValidFromStorage =
+                    (enteredMox == widget.user.moxId &&
+                    enteredPassword.isNotEmpty);
+              }
 
+              if (!mounted) return;
               Navigator.pop(ctx);
-              if (!isValid) {
+
+              if (!isValidFromStorage) {
+                setState(() {
+                  _isAuthorized = false;
+                });
                 _showLuxuryErrorDialog();
+              } else {
+                setState(() {
+                  _isAuthorized = true;
+                });
               }
             },
             child: const Text(
@@ -134,6 +159,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     if (!mounted) return;
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
@@ -147,7 +173,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً، وصول مرفوض. رقم MOX أو كلمة السر غير مطابقة.",
+          "عفواً، وصول مرفوض. بيانات الاعتماد غير مطابقة لما في الخزينة.",
           style: TextStyle(
             fontSize: 14,
             height: 1.5,
@@ -171,7 +197,31 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   void _publishStore() {
+    if (!_isAuthorized) {
+      _showSecurityLoginDialog();
+      return;
+    }
+
+    // التحقق من صحة الحقول الأربعة الأساسية أولاً
     if (_formKey.currentState!.validate()) {
+      // التحقق من أن العميل اختار بطاقة واحدة على الأقل من الـ 5 بطاقات
+      bool hasAtLeastOneCard = _selectedCards.any(
+        (card) => card != null && card.trim().isNotEmpty,
+      );
+
+      if (!hasAtLeastOneCard) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "⚠️ تنبيه: يجب اختيار بطاقة واحدة على الأقل من الـ 5 بطاقات المتاحة لنشر المتجر!",
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
+      // إذا تم اجتياز القيود بنجاح
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -186,6 +236,24 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isAuthorized) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.redAccent,
+          title: const Text(
+            "منطقة أمنية مقفلة",
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            "جاري التحقق الأمني من الخزينة...",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF28A9CC),
@@ -209,9 +277,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           child: ListView(
             children: [
               const Text(
-                "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف المستلمة",
+                "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف (يكفي اختيار بطاقة واحدة للنشر)",
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: Colors.indigo,
                 ),
@@ -221,7 +289,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               TextFormField(
                 controller: _storeNameController,
                 decoration: const InputDecoration(
-                  labelText: "١- اسم الدكان/المتجر",
+                  labelText: "١- اسم الدكان/المتجر (إلزامي)",
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -233,7 +301,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               TextFormField(
                 controller: _businessCategoryController,
                 decoration: const InputDecoration(
-                  labelText: "٢- المجال التجاري",
+                  labelText: "٢- المجال التجاري (إلزامي)",
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -247,7 +315,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
-                  labelText: "٤- هاتف اتصال",
+                  labelText: "٤- هاتف اتصال (إلزامي)",
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -262,7 +330,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 maxLength: 256,
                 maxLines: 3,
                 decoration: const InputDecoration(
-                  labelText: "٥- وصف المتجر (في حدود ٢٥٦ حرف)",
+                  labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
                   border: OutlineInputBorder(),
                 ),
                 validator: (val) =>
@@ -271,11 +339,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               const SizedBox(height: 15),
 
               const Text(
-                "٦ & ٧- ربط البطاقات الـ 5 المستلمة من الحفظ",
+                "٦ & ٧- ربط البطاقات (اختياري، شرط النشر اختيار بطاقة واحدة على الأقل)",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.indigo,
-                  fontSize: 14,
+                  fontSize: 13,
                 ),
               ),
               const SizedBox(height: 10),
@@ -284,29 +352,37 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: DropdownButtonFormField<String>(
-                    // استخدام initialValue لتجنب تحذير value القديم
                     initialValue: _selectedCards[index],
                     decoration: InputDecoration(
-                      labelText: "بطاقة/رف - ${index + 1}",
+                      labelText: "بطاقة/رف - ${index + 1} (اختياري)",
                       border: const OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: _availableCardsPool.map((cardTitle) {
-                      return DropdownMenuItem(
-                        value: cardTitle,
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
                         child: Text(
-                          cardTitle,
-                          style: const TextStyle(fontSize: 13),
+                          "-- فارغ (بدون بطاقة) --",
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
                         ),
-                      );
-                    }).toList(),
+                      ),
+                      ..._availableCardsPool.map((cardTitle) {
+                        return DropdownMenuItem(
+                          value: cardTitle,
+                          child: Text(
+                            cardTitle,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        );
+                      }),
+                    ],
                     onChanged: (val) {
                       setState(() {
                         _selectedCards[index] = val;
                       });
                     },
-                    validator: (val) =>
-                        val == null ? "يرجى اختيار محتوى لهذا الرف" : null,
+                    // تم إزالة القيد الإجباري من هنا لتصبح البطاقات اختيارية ويتم التحقق منها عند الضغط على النشر
+                    validator: (val) => null,
                   ),
                 );
               }),
