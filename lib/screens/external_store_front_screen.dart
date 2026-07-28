@@ -9,14 +9,14 @@ import 'welcome_screen.dart';
 class ExternalStoreFrontScreen extends StatefulWidget {
   final UserModel? user;
   final List<Map<String, dynamic>> clientCards;
-  final String? directPhone;
+  final String? directMoxId; // تم التعديل للاعتماد على moxId بالمسطرة
   final double? height;
 
   const ExternalStoreFrontScreen({
     super.key,
     this.user,
     this.clientCards = const [],
-    this.directPhone,
+    this.directMoxId,
     this.height,
   });
 
@@ -36,7 +36,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // دالة ذكية لتحليل الـ URL على الويب واستخراج الهاتف، أو جلب البيانات مباشرة
+  // دالة ذكية لتحليل الـ URL على الويب واستخراج الـ moxId، أو جلب البيانات مباشرة
   Future<void> _initializeStoreData() async {
     setState(() {
       _isLoading = true;
@@ -44,35 +44,33 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
 
     UserModel? userToUse = widget.user;
     List<Map<String, dynamic>> cardsToUse = widget.clientCards;
-    String? targetPhone = widget.directPhone;
+    String? targetMoxId = widget.directMoxId;
 
-    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL (مثل ?phone=...)
-    if (userToUse == null && targetPhone == null && kIsWeb) {
+    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL (مثل ?mox=...)
+    if (userToUse == null && targetMoxId == null && kIsWeb) {
       try {
-        // استخراج الـ Uri الحالي للـ Web
         final uri = Uri.base;
-        targetPhone = uri.queryParameters['phone'];
+        targetMoxId =
+            uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
       } catch (_) {}
     }
 
-    // إذا وجدنا رقم هاتف قادم من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية!
-    if (userToUse == null && targetPhone != null && targetPhone.isNotEmpty) {
+    // إذا وجدنا الـ moxId قادماً من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية!
+    if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
       try {
-        // استدعاء الخزينة لجلب ملف العميل الحقيقي بواسطة الهاتف
-        userToUse = await StorageService.getUserByPhone(targetPhone);
-        // استدعاء بطاقات العميل الخاصة من الخزينة
-        cardsToUse = await StorageService.getClientCards(targetPhone);
+        userToUse = await StorageService.getUserByMoxId(targetMoxId);
+        cardsToUse = await StorageService.getClientCards(targetMoxId);
       } catch (_) {}
     }
 
-    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن بالهاتف المستهدف لكي لا ينكسر التطبيق
+    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن بالمعرف المستهدف لكي لا ينكسر التطبيق
     _resolvedUser =
         userToUse ??
         UserModel(
-          name: targetPhone != null ? "متجر العميل الرقمي" : "العميل السيادي",
-          phone: targetPhone ?? "0000000000",
+          name: targetMoxId != null ? "متجر العميل الرقمي" : "العميل السيادي",
+          phone: "0000000000",
           address: "المتجر الرقمي المفتوح",
-          moxId: targetPhone != null ? "MOX-WEB-ACTIVE" : "MOX-ACTIVE",
+          moxId: targetMoxId ?? "MOX-ACTIVE",
           password: "",
           balance: 0.0,
           gender: "غير محدد",
@@ -120,7 +118,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
   Widget build(BuildContext context) {
     if (widget.height != null &&
         widget.user == null &&
-        widget.directPhone == null &&
+        widget.directMoxId == null &&
         widget.clientCards.isEmpty &&
         !kIsWeb) {
       return Container(height: widget.height, color: Colors.transparent);
@@ -131,7 +129,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF28A9CC),
           title: const Text(
-            "جاري تحميل المتجر السيادي...",
+            "جاري تحميل المتجر...",
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
         ),
@@ -207,7 +205,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "رقم الهاتف: ${resolvedUser.phone}",
+                          "معرف MOX: ${resolvedUser.moxId}",
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -299,7 +297,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                       size: 14,
                                     ),
                                     label: const Text(
-                                      "طلب منتج/خدمة عبر واتساب",
+                                      "طلب عبر واتساب",
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 11,

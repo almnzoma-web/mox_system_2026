@@ -1149,8 +1149,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النهائية المقفولة وبها ترس التعديل وزر الحفظ)
   void _showClientAssetsScreen(BuildContext context) {
+    // تحديد الـ moxId الآمن للرابط بالمسطرة
+    final String activeMoxForUrl =
+        (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
+        ? widget.user.moxId
+        : (widget.user.guardianMoxId ?? "MOX249-00010001");
+
     final String clientStoreUrl =
-        "https://mox-2026.vercel.app/store?phone=${widget.user.phone}";
+        "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
 
     showModalBottomSheet(
       context: context,

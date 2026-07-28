@@ -28,13 +28,14 @@ class UserModel {
     this.myAssets = const [],
   });
 
-  // دالة آمنة لتحديث بيانات المستخدم (مثل النقاط) دون المساس ببقية الكود
+  // دالة آمنة لتحديث بيانات المستخدم دون المساس ببقية الكود
   UserModel copyWith({
     int? points,
     double? balance,
     double? commission,
     String? name,
     String? address,
+    List<MarketingCard>? myAssets,
   }) {
     return UserModel(
       phone: phone,
@@ -50,7 +51,7 @@ class UserModel {
       customWhatsApp: customWhatsApp,
       guardianMoxId: guardianMoxId,
       points: points ?? this.points,
-      myAssets: myAssets,
+      myAssets: myAssets ?? this.myAssets,
     );
   }
 

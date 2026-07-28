@@ -72,7 +72,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.lock_outline, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق الأمني السيادي الحقيقي",
+              "التحقق الأمني",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
@@ -202,7 +202,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
-    // التحقق من صحة الحقول الأربعة الأساسية أولاً
+    // التحقق من صحة الحقول الأساسية أولاً
     if (_formKey.currentState!.validate()) {
       // التحقق من أن العميل اختار بطاقة واحدة على الأقل من الـ 5 بطاقات
       bool hasAtLeastOneCard = _selectedCards.any(
@@ -241,7 +241,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         appBar: AppBar(
           backgroundColor: Colors.redAccent,
           title: const Text(
-            "منطقة أمنية مقفلة",
+            "منطقة مقفلة",
             style: TextStyle(color: Colors.white),
           ),
         ),
@@ -258,7 +258,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF28A9CC),
         title: const Text(
-          "لوحة إعداد ونشر الدكان (الصفحة A)",
+          "لوحة النشر (الصفحة A)",
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -381,7 +381,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         _selectedCards[index] = val;
                       });
                     },
-                    // تم إزالة القيد الإجباري من هنا لتصبح البطاقات اختيارية ويتم التحقق منها عند الضغط على النشر
                     validator: (val) => null,
                   ),
                 );
@@ -400,7 +399,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 onPressed: _publishStore,
                 icon: const Icon(Icons.verified_rounded, color: Colors.white),
                 label: const Text(
-                  "نشر الدكان/المتجر وتوليد رابط العميل (365 يوم)",
+                  "نشر الدكان والمتجر وتوليد رابط العميل (365 يوم)",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
