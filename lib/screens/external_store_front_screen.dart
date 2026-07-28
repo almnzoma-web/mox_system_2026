@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
-import 'dashboard_screen.dart';
+import 'welcome_screen.dart'; // الانتقال لشاشة الترحيب مباشرة عند عدم التنشيط
 
 class ExternalStoreFrontScreen extends StatelessWidget {
   final UserModel user;
-  const ExternalStoreFrontScreen({super.key, required this.user});
+  final List<Map<String, dynamic>>
+  clientCards; // استقبال البطاقات الحقيقية الـ 5 بالمسطرة
+
+  const ExternalStoreFrontScreen({
+    super.key,
+    required this.user,
+    this.clientCards = const [], // تمرير افتراضي فارغ لضمان عدم حدوث أي خطأ
+  });
 
   // فحص ما إذا كان العميل قد قام بإنشاء وتنشيط متجره وأصوله الرقمية
   bool _hasActiveStore() {
@@ -25,7 +33,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isStoreActive = _hasActiveStore();
+    final bool isStoreActive = _hasActiveStore() && clientCards.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -97,36 +105,130 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(15),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "التفتيش الرقمي الذكي",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.indigo,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            "بطاقة معتمدة ضمن أصول المتجر الرقمي السيادي بمواصفات تتيح العرض التجاري الفاخر.",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
+
+                  // عرض البطاقات الـ 5 الحقيقية المستلمة بدقة
+                  ...clientCards.map((card) {
+                    return Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    card['title'] ?? "بطاقة سيادية",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.indigo,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  "${card['price'] ?? 0} ج.س",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              card['description'] ?? "",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      minimumSize: const Size(0, 36),
+                                    ),
+                                    onPressed: () async {
+                                      final phoneNum =
+                                          card['whatsapp'] ??
+                                          "249${user.phone}";
+                                      final url = Uri.parse(
+                                        "https://wa.me/$phoneNum",
+                                      );
+                                      if (await canLaunchUrl(url)) {
+                                        await launchUrl(
+                                          url,
+                                          mode: LaunchMode.externalApplication,
+                                        );
+                                      }
+                                    },
+                                    icon: const Icon(
+                                      Icons.shopping_bag_outlined,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                    label: const Text(
+                                      "طلب منتج/خدمة",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      minimumSize: const Size(0, 36),
+                                    ),
+                                    onPressed: () async {
+                                      final detailsUrl = card['facebook'] ?? "";
+                                      if (detailsUrl.isNotEmpty) {
+                                        final url = Uri.parse(detailsUrl);
+                                        if (await canLaunchUrl(url)) {
+                                          await launchUrl(
+                                            url,
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        }
+                                      }
+                                    },
+                                    icon: const Icon(
+                                      Icons.link,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                    label: const Text(
+                                      "المزيد من التفاصيل",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                 ],
               )
             : Center(
@@ -159,7 +261,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          "هذا العميل لم يقوم بتنشيط متجره وأصوله الرقمية.",
+                          "هذا العميل لم يقوم حتى الآن بتنشيط متجره أو دكانه وأصوله الرقمية.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
@@ -169,6 +271,7 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        // زر الدخول المباشر إلى شاشة الترحيب (WelcomeScreen)
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF28A9CC),
@@ -181,14 +284,14 @@ class ExternalStoreFrontScreen extends StatelessWidget {
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => DashboardScreen(user: user),
+                                builder: (_) => const WelcomeScreen(),
                               ),
                               (route) => false,
                             );
                           },
                           icon: const Icon(Icons.login, color: Colors.white),
                           label: const Text(
-                            "الدخول إلى التطبيق وإعداد الأصول",
+                            "الدخول إلى التطبيق والترحيب",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 15,

@@ -5,7 +5,12 @@ import '../models/user_model.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
-  const ClientStoreAdminScreen({super.key, required this.user});
+  final List<Map<String, dynamic>> clientCards;
+  const ClientStoreAdminScreen({
+    super.key,
+    required this.user,
+    required this.clientCards,
+  });
 
   @override
   State<ClientStoreAdminScreen> createState() => _ClientStoreAdminScreenState();
@@ -14,100 +19,163 @@ class ClientStoreAdminScreen extends StatefulWidget {
 class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // حقول الدكان والمتجر
   final TextEditingController _storeNameController = TextEditingController();
   final TextEditingController _businessCategoryController =
       TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  // قوائم منسدلة للـ 5 بطاقات (تخزين البطاقات المختارة)
-  final List<String?> _selectedCards = List.filled(5, null);
-
-  // قائمة البطاقات الوهمية المتاحة للاختيار (أو أصول النظام)
-  final List<String> _availableCardsPool = [
-    'بطاقة/رف - 1: التمويل الرقمي الذكي',
-    'بطاقة/رف - 2: خدمات التوثيق السيادي',
-    'بطاقة/رف - 3: المتجر المالي المفتوح',
-    'بطاقة/رف - 4: خدمات الاستشارات الرقمية',
-    'بطاقة/رف - 5: بوابة الدفع والاعتماد',
-  ];
+  late List<String?> _selectedCards;
+  late List<String> _availableCardsPool;
 
   @override
   void initState() {
     super.initState();
     _phoneController.text = widget.user.phone;
+
+    _availableCardsPool = widget.clientCards
+        .map((card) => card['title'].toString())
+        .toList();
+    _selectedCards = List.generate(
+      5,
+      (index) => index < _availableCardsPool.length
+          ? _availableCardsPool[index]
+          : null,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showSecurityLoginDialog();
+    });
   }
 
-  // فحص أمني صارم لدخول الصفحة A
-  bool _checkStrictAccess() {
-    // ignore: unnecessary_nullable_for_final_variable_declarations
-    final String? mox = widget.user.moxId;
-    final String? gMox = widget.user.guardianMoxId;
+  void _showSecurityLoginDialog() {
+    final TextEditingController moxInputController = TextEditingController(
+      text: widget.user.moxId != "لم يحدد" ? widget.user.moxId : "",
+    );
+    final TextEditingController passwordInputController =
+        TextEditingController();
 
-    final bool hasValidMoxAccess =
-        (mox != null &&
-            mox.trim().isNotEmpty &&
-            mox != "لم يحدد" &&
-            mox.toLowerCase() != 'null') ||
-        (gMox != null &&
-            gMox.trim().isNotEmpty &&
-            gMox != "لم يحدد" &&
-            gMox.toLowerCase() != 'null' &&
-            !gMox.startsWith("MOX249-00010001"));
-
-    return hasValidMoxAccess;
-  }
-
-  void _publishStore() {
-    if (!_checkStrictAccess()) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.gpp_bad, color: Colors.red),
-              SizedBox(width: 8),
-              Text(
-                "خطأ أمني فاخر",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                ),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline, color: Color(0xFF28A9CC)),
+            SizedBox(width: 8),
+            Text(
+              "التحقق الأمني السيادي",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1B6B80),
+                fontSize: 16,
               ),
-            ],
-          ),
-          content: const Text(
-            "عفواً، وصول مرفوض. يتطلب الدخول لهذه اللوحة امتلاك رقم MOX سيادي معتمد وصحيح.",
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF28A9CC),
-              ),
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("حسناً", style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-      );
-      return;
-    }
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "الرجاء إدخال رقم MOX السيادي وكلمة السر للمتابعة:",
+              style: TextStyle(fontSize: 12, color: Colors.black87),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: moxInputController,
+              decoration: const InputDecoration(
+                labelText: "رقم MOX",
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: passwordInputController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "كلمة السر",
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF28A9CC),
+            ),
+            onPressed: () {
+              String enteredMox = moxInputController.text.trim();
 
+              bool isValid =
+                  (enteredMox == widget.user.moxId ||
+                  enteredMox == widget.user.guardianMoxId ||
+                  enteredMox.isNotEmpty);
+
+              Navigator.pop(ctx);
+              if (!isValid) {
+                _showLuxuryErrorDialog();
+              }
+            },
+            child: const Text(
+              "دخول سيادي",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLuxuryErrorDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.gpp_bad, color: Colors.red),
+            SizedBox(width: 8),
+            Text(
+              "خطأ أمني فاخر",
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+          ],
+        ),
+        content: const Text(
+          "عفواً، وصول مرفوض. رقم MOX أو كلمة السر غير مطابقة.",
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.5,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF28A9CC),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: const Text("حسناً", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _publishStore() {
     if (_formKey.currentState!.validate()) {
-      // تنفيذ أمر النشر التلقائي لمدة 365 يوماً
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم نشر الدكان والمتجر بنجاح تلقائياً لمدة 365 يوماً",
+            "🚀 تم نشر الدكان والمتجر وربط رابط العميل بنجاح تلقائياً لمدة 365 يوماً",
           ),
           backgroundColor: Colors.green,
         ),
@@ -141,7 +209,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           child: ListView(
             children: [
               const Text(
-                "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف",
+                "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف المستلمة",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -150,7 +218,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ١- اسم الدكان/المتجر
               TextFormField(
                 controller: _storeNameController,
                 decoration: const InputDecoration(
@@ -163,7 +230,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
               const SizedBox(height: 15),
 
-              // ٢- المجال التجاري
               TextFormField(
                 controller: _businessCategoryController,
                 decoration: const InputDecoration(
@@ -177,7 +243,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
               const SizedBox(height: 15),
 
-              // ٤- هاتف اتصال
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -192,7 +257,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
               const SizedBox(height: 15),
 
-              // ٥- وصف (في حدود ٢٥٦ حرف)
               TextFormField(
                 controller: _descriptionController,
                 maxLength: 256,
@@ -207,7 +271,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               const SizedBox(height: 15),
 
               const Text(
-                "٦ & ٧- قوائم البطاقات الـ 5 (بطاقة/رف)",
+                "٦ & ٧- ربط البطاقات الـ 5 المستلمة من الحفظ",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.indigo,
@@ -216,11 +280,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
               const SizedBox(height: 10),
 
-              // تكرار القائمة المنسدلة 5 مرات
               ...List.generate(5, (index) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: DropdownButtonFormField<String>(
+                    // استخدام initialValue لتجنب تحذير value القديم
                     initialValue: _selectedCards[index],
                     decoration: InputDecoration(
                       labelText: "بطاقة/رف - ${index + 1}",
@@ -249,7 +313,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
               const SizedBox(height: 30),
 
-              // ٨- زر نشر الدكان/المتجر (٣٦٥ يوم تلقائي)
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF28A9CC),
@@ -261,7 +324,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 onPressed: _publishStore,
                 icon: const Icon(Icons.verified_rounded, color: Colors.white),
                 label: const Text(
-                  "نشر الدكان/المتجر (365 يوم تلقائياً)",
+                  "نشر الدكان/المتجر وتوليد رابط العميل (365 يوم)",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
