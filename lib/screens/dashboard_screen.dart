@@ -1155,9 +1155,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ? widget.user.moxId
         : (widget.user.guardianMoxId ?? "MOX249-00010001");
 
-    // بناء الرابط السيادي الجديد مع الـ mox بدلاً من الهاتف ليتطابق مع الصفحة B بالملي
+    // بناء الرابط السيادي المتوافق تماماً مع إستراتيجية الويب والـ Hash
     final String clientStoreUrl =
-        "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
 
     showModalBottomSheet(
       context: context,
@@ -1390,7 +1390,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 SelectableText(
-                                  "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl",
+                                  "https://mox-2026.vercel.app/#/invite/${widget.user.phone}",
                                   style: const TextStyle(
                                     color: Colors.blue,
                                     fontWeight: FontWeight.bold,
@@ -2204,7 +2204,9 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
 
   // 📁 دالة أصول العميل الرقمية المعرفة محلياً بالمسطرة
   void _showClientAssetsScreen(BuildContext context) {
-    final String activeMoxForUrl = (widget.currentUser.moxId != "لم يحدد" && widget.currentUser.moxId.trim().isNotEmpty)
+    final String activeMoxForUrl =
+        (widget.currentUser.moxId != "لم يحدد" &&
+            widget.currentUser.moxId.trim().isNotEmpty)
         ? widget.currentUser.moxId
         : (widget.currentUser.guardianMoxId ?? "MOX249-00010001");
 
@@ -2264,7 +2266,9 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
 
   @override
   Widget build(BuildContext context) {
-    final String activeMoxForUrl = (widget.currentUser.moxId != "لم يحدد" && widget.currentUser.moxId.trim().isNotEmpty)
+    final String activeMoxForUrl =
+        (widget.currentUser.moxId != "لم يحدد" &&
+            widget.currentUser.moxId.trim().isNotEmpty)
         ? widget.currentUser.moxId
         : (widget.currentUser.guardianMoxId ?? "MOX249-00010001");
 

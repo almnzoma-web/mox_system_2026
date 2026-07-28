@@ -1,24 +1,43 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web_plugins/url_strategy.dart'; // حزمة استراتيجية الروابط
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'screens/welcome_screen.dart';
+import 'screens/external_store_front_screen.dart'; // شاشة متجر العميل الخارجي
 import 'data/user_data.dart';
 
 void main() async {
-  // تفعيل الربط السيادي قبل الإقلاع بالمسطرة
   WidgetsFlutterBinding.ensureInitialized();
 
-  // فرض نظام الـ Hash بالملي لتدمير مشكلة 404 على Vercel نهائياً
+  // تفعيل استراتيجية الروابط النظيفة أو الـ Hash لضمان توافقية Vercel
   setUrlStrategy(HashUrlStrategy());
 
-  // تحميل سجل الدولة (قاعدة البيانات المركزية) في الذاكرة بالكامل قبل فتح البوابة
+  // تحميل سجل الدولة (قاعدة البيانات المركزية)
   await loadUsers();
 
-  // انطلاق المنظومة السيادية
-  runApp(const MyApp());
+  // فحص ما إذا كان الرابط يحتوي على باراميتر متجر (mox أو phone) للزوار الخارجيين
+  Widget initialScreen = const WelcomeScreen();
+
+  if (kIsWeb) {
+    try {
+      final uri = Uri.base;
+      // التحقق من وجود معرف المتجر في الرابط (سواء في الـ queryParameters أو الـ fragment)
+      String? targetMox =
+          uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
+
+      // إذا كان هناك محاولة وصول لرابط متجر مباشر، نوجه الزائر لمتجر العميل مباشرة دون تمريره بشاشة الترحيب
+      if (targetMox != null && targetMox.isNotEmpty) {
+        initialScreen = ExternalStoreFrontScreen(directMoxId: targetMox);
+      }
+    } catch (_) {}
+  }
+
+  runApp(MyApp(initialScreen: initialScreen));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Widget initialScreen;
+
+  const MyApp({super.key, required this.initialScreen});
 
   @override
   Widget build(BuildContext context) {
@@ -26,18 +45,16 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MOX Digital',
       theme: ThemeData(
-        // الألوان السيادية للمنظومة
         primaryColor: const Color(0xFF28A9CC),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF28A9CC),
           primary: const Color(0xFF28A9CC),
         ),
         useMaterial3: true,
-        // اعتماد خط Cairo السيادي بأمان تام دون تداخل
         fontFamily: 'Cairo',
       ),
-      // البوابة السيادية الأولى للإقلاع
-      home: const WelcomeScreen(),
+      // التوجيه الذكي للبوابة الأولى بناءً على حالة الرابط
+      home: initialScreen,
     );
   }
 }

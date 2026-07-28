@@ -31,7 +31,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   late List<String?> _selectedCards;
   late List<String> _availableCardsPool;
 
-  bool _isAuthorized = false; // متغير لحراسة ولجملة الأمان السيادي
+  bool _isAuthorized = false; // متغير لحراسة وجملة الأمان السيادي
 
   @override
   void initState() {
@@ -202,9 +202,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
-    // التحقق من صحة الحقول الأساسية أولاً
     if (_formKey.currentState!.validate()) {
-      // التحقق من أن العميل اختار بطاقة واحدة على الأقل من الـ 5 بطاقات
       bool hasAtLeastOneCard = _selectedCards.any(
         (card) => card != null && card.trim().isNotEmpty,
       );
@@ -221,7 +219,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         return;
       }
 
-      // إذا تم اجتياز القيود بنجاح
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -285,7 +282,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-
               TextFormField(
                 controller: _storeNameController,
                 decoration: const InputDecoration(
@@ -297,7 +293,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     val == null || val.isEmpty ? "يرجى إدخال اسم الدكان" : null,
               ),
               const SizedBox(height: 15),
-
               TextFormField(
                 controller: _businessCategoryController,
                 decoration: const InputDecoration(
@@ -310,7 +305,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     : null,
               ),
               const SizedBox(height: 15),
-
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -324,7 +318,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     : null,
               ),
               const SizedBox(height: 15),
-
               TextFormField(
                 controller: _descriptionController,
                 maxLength: 256,
@@ -337,7 +330,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     val == null || val.isEmpty ? "يرجى كتابة وصف موجز" : null,
               ),
               const SizedBox(height: 15),
-
               const Text(
                 "٦ & ٧- ربط البطاقات (اختياري، شرط النشر اختيار بطاقة واحدة على الأقل)",
                 style: TextStyle(
@@ -347,7 +339,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-
               ...List.generate(5, (index) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -385,9 +376,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                 );
               }),
-
               const SizedBox(height: 30),
-
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF28A9CC),
