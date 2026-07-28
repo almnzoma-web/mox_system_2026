@@ -1149,12 +1149,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النهائية المقفولة وبها ترس التعديل وزر الحفظ)
   void _showClientAssetsScreen(BuildContext context) {
-    // تحديد الـ moxId الآمن للرابط بالمسطرة
+    // تحديد الـ moxId الآمن للرابط بالمسطرة الهندسية
     final String activeMoxForUrl =
         (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
         ? widget.user.moxId
         : (widget.user.guardianMoxId ?? "MOX249-00010001");
 
+    // بناء الرابط السيادي الجديد مع الـ mox بدلاً من الهاتف ليتطابق مع الصفحة B بالملي
     final String clientStoreUrl =
         "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
 
@@ -1252,10 +1253,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) =>
-                                              ExternalStoreFrontScreen(
-                                                user: widget.user,
-                                              ),
+                                          builder: (_) => ExternalStoreFrontScreen(
+                                            user: widget.user,
+                                            directMoxId:
+                                                activeMoxForUrl, // تمرير الـ moxId المباشر بالملي
+                                          ),
                                         ),
                                       );
                                     },
@@ -1388,7 +1390,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 SelectableText(
-                                  "https://mox-2026.vercel.app/invite/${widget.user.phone}",
+                                  "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl",
                                   style: const TextStyle(
                                     color: Colors.blue,
                                     fontWeight: FontWeight.bold,
@@ -2202,6 +2204,13 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
 
   // 📁 دالة أصول العميل الرقمية المعرفة محلياً بالمسطرة
   void _showClientAssetsScreen(BuildContext context) {
+    final String activeMoxForUrl = (widget.currentUser.moxId != "لم يحدد" && widget.currentUser.moxId.trim().isNotEmpty)
+        ? widget.currentUser.moxId
+        : (widget.currentUser.guardianMoxId ?? "MOX249-00010001");
+
+    final String clientStoreUrl =
+        "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2210,8 +2219,6 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        final String clientStoreUrl =
-            "https://mox-2026.vercel.app/store?phone=${widget.currentUser.phone}";
         return Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -2257,8 +2264,12 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
 
   @override
   Widget build(BuildContext context) {
+    final String activeMoxForUrl = (widget.currentUser.moxId != "لم يحدد" && widget.currentUser.moxId.trim().isNotEmpty)
+        ? widget.currentUser.moxId
+        : (widget.currentUser.guardianMoxId ?? "MOX249-00010001");
+
     final String clientStoreUrl =
-        "https://mox-2026.vercel.app/store?phone=${widget.currentUser.phone}";
+        "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2358,7 +2369,6 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
                       style: TextStyle(fontSize: 11, color: Colors.indigo),
                     ),
                     onPressed: () {
-                      // استدعاء الدالة المحلية المباشرة بالمسطرة
                       _showClientAssetsScreen(context);
                     },
                   ),
