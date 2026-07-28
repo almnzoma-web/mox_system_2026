@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
 import 'package:mox_digital_app/admin_panel/services_manager_tab.dart';
+import 'package:mox_digital_app/screens/client_store_admin_screen.dart';
 import 'package:mox_digital_app/screens/digital_map_screen.dart';
 import '../models/user_model.dart';
 import 'admin_screen.dart';
@@ -1147,6 +1148,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 📁 أصول العميل الرقمية ومتجره الالكتروني
   void _showClientAssetsScreen(BuildContext context) {
+    // رابط العميل المخصص ليفتح الصفحة B الخاصة بعرض المتجر الخارجي
     final String clientStoreUrl =
         "https://mox-2026.vercel.app/store?phone=${widget.user.phone}";
 
@@ -1204,7 +1206,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: ListView(
                       children: [
-                        // مربع وزر نسخ رابط متجر العميل في الأعلى (يعمل فوراً للجميع)
+                        // مربع وزر نسخ رابط متجر العميل (يفتح الصفحة B عند استخدامه خارجياً)
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -1218,7 +1220,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                "🔗 رابط متجر العميل الخاص (يعمل مباشرة)",
+                                "🔗 رابط متجر العميل الخاص (يفتح الصفحة B)",
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
@@ -1479,7 +1481,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                           ),
                                                           SizedBox(width: 8),
                                                           Text(
-                                                            "تنبيه أمني سيادي",
+                                                            "تنبيه أمني",
                                                             style: TextStyle(
                                                               fontWeight:
                                                                   FontWeight
@@ -1491,7 +1493,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                         ],
                                                       ),
                                                       content: const Text(
-                                                        "عفواً، لا يمكنك تعديل البطاقات إلا إذا امتلكت رقم MOX وسجلت الدخول به رسمياً.\n\nالرجاء تسجيل الخروج والدخول برقم MOX الخاص بك، أو الاتصال بالدعم لامتلاكه وتنشيط صلاحية التعديل.",
+                                                        "عفواً انت لا تمتلك رقم MOX ام تدخل من نافذة رقم MOX المخصصة",
                                                         style: TextStyle(
                                                           fontSize: 14,
                                                           height: 1.6,
@@ -1561,7 +1563,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         const SizedBox(height: 12),
                                         Row(
                                           children: [
-                                            // زر طلب منتج/خدمة (بدل واتساب)
+                                            // زر طلب منتج/خدمة
                                             Expanded(
                                               child: ElevatedButton.icon(
                                                 style: ElevatedButton.styleFrom(
@@ -1605,7 +1607,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            // زر المزيد من التفاصيل (يدعم رابط الفيسبوك أو أي موقع تواصل/فيديو)
+                                            // زر المزيد من التفاصيل
                                             Expanded(
                                               child: ElevatedButton.icon(
                                                 style: ElevatedButton.styleFrom(
@@ -1787,65 +1789,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         const SizedBox(height: 15),
 
-                        // زر طلب نشر البطاقة وتفعيل المتجر
+                        // زر طلب نشر البطاقة وتفعيل المتجر (يفتح الصفحة A مباشرة)
                         OutlinedButton.icon(
                           onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                title: const Row(
-                                  children: [
-                                    Icon(Icons.verified, color: Colors.teal),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      "طلب نشر بطاقات المتجر",
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                content: const Text(
-                                  "سيتم إرسال طلب اعتماد نشر المتجر والبطاقات إلى قبة المدير في المالية.\n\nبعد المراجعة واعتماد الطلب، سيتم تفعيل نشر البطاقات تلقائياً للعميل لمدة 365 يوماً.",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    height: 1.6,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                ),
-                                actions: [
-                                  Center(
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF28A9CC,
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.pop(ctx);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "🚀 تم إرسال طلب نشر البطاقات إلى لوحة المدير بنجاح",
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      child: const Text(
-                                        "إرسال الطلب للمدير",
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ClientStoreAdminScreen(user: widget.user),
                               ),
                             );
                           },
@@ -1854,7 +1806,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: Color(0xFF28A9CC),
                           ),
                           label: const Text(
-                            "طلب نشر بطاقات المتجر (365 يوم)",
+                            "فتح لوحة إعداد ونشر المتجر (الصفحة A)",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF1B6B80),
