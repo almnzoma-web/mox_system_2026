@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
-// ربط خزينة البيانات السيادية لجلب واستعلام الحسابات المسجلة
+// ربط خزينة البيانات السيادية لجلاستعلام الحسابات المسجلة
 import '../data/user_data.dart';
+// ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
+import '../services/storage_service.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
@@ -54,13 +56,23 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المرتبطة حقيقياً مع الخزينة السيادية وفحص رقم موكس وكلمة السر بدقة
-  void _showSecurityLoginDialog() {
-    final TextEditingController moxInputController = TextEditingController(
-      text: widget.user.moxId != "لم يحدد" ? widget.user.moxId : "",
-    );
+  // نافذة التحقق الأمني المرتبطة بـ guardianMoxId المدفوع برسوم وكلمة السر بدقة
+  void _showSecurityLoginDialog() async {
+    // ضمان تحميل السجلات السيادية تماماً قبل فتح نافذة التحقق
+    await StorageService.ensureLoaded();
+
+    final TextEditingController guardianMoxInputController =
+        TextEditingController(
+          text:
+              widget.user.guardianMoxId != null &&
+                  widget.user.guardianMoxId!.isNotEmpty
+              ? widget.user.guardianMoxId!
+              : "MOX249-00010001",
+        );
     final TextEditingController passwordInputController =
         TextEditingController();
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -69,14 +81,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: [
-            Icon(Icons.lock_outline, color: Color(0xFF28A9CC)),
+            Icon(Icons.verified_user, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق الأمني السيادي المحكم",
+              "التحقق من رقم الوصي المدفوع (guardianMoxId)",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
-                fontSize: 16,
+                fontSize: 14,
               ),
             ),
           ],
@@ -86,14 +98,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم MOX السيادي الحقيقي وكلمة السر المرتبطة به بدقة للمتابعة:",
+              "أدخل رقم الوصي المدفوع (guardianMoxId) مثل MOX249-00010001 وكلمة السر للمتابعة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
             TextField(
-              controller: moxInputController,
+              controller: guardianMoxInputController,
               decoration: const InputDecoration(
-                labelText: "رقم MOX السيادي",
+                labelText: "رقم الوصي (guardianMoxId)",
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -116,31 +128,39 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               backgroundColor: const Color(0xFF28A9CC),
             ),
             onPressed: () async {
-              String enteredMox = moxInputController.text.trim();
+              String enteredGuardianMox = guardianMoxInputController.text
+                  .trim();
               String enteredPassword = passwordInputController.text.trim();
 
-              // فحص دقيق وشامل للمطابقة مع الخزينة السيادية registeredUsers والكلمة المرتبطة
               bool isValidFromStorage = false;
               try {
+                // فحص دقيق ومطابقة مع guardianMoxId المسجل في الخزينة أو ملف العميل
                 for (var u in registeredUsers) {
-                  // التحقق من تطابق رقم الـ MOX وكلمة السر معاً في الخزينة
-                  if (u.moxId == enteredMox && u.password == enteredPassword) {
+                  if (u.guardianMoxId != null &&
+                      u.guardianMoxId!.trim().toUpperCase() ==
+                          enteredGuardianMox.toUpperCase() &&
+                      u.password == enteredPassword) {
                     isValidFromStorage = true;
                     break;
                   }
                 }
-                // مطابقة احتياطية مع العميل الحالي المرسل إذا تطابق رقمه وكلمة سره
+
+                // مطابقة مباشرة مع العميل الحالي المرسل للشاشة
                 if (!isValidFromStorage &&
-                    enteredMox == widget.user.moxId &&
-                    enteredPassword == widget.user.password &&
-                    enteredMox.isNotEmpty) {
+                    widget.user.guardianMoxId != null &&
+                    widget.user.guardianMoxId!.trim().toUpperCase() ==
+                        enteredGuardianMox.toUpperCase() &&
+                    widget.user.password == enteredPassword &&
+                    enteredGuardianMox.isNotEmpty) {
                   isValidFromStorage = true;
                 }
               } catch (_) {
                 isValidFromStorage =
-                    (enteredMox == widget.user.moxId &&
-                    enteredPassword == widget.user.password &&
-                    enteredMox.isNotEmpty);
+                    (widget.user.guardianMoxId != null &&
+                    widget.user.guardianMoxId!.trim().toUpperCase() ==
+                        enteredGuardianMox.toUpperCase() &&
+                    widget.user.password == enteredPassword &&
+                    enteredGuardianMox.isNotEmpty);
               }
 
               if (!mounted) return;
@@ -158,7 +178,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم التحقق الأمني السيادي بنجاح - مرحباً بك",
+                      "✅ تم التحقق من رقم الوصي (guardianMoxId) بنجاح - مرحباً بك",
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -166,7 +186,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               }
             },
             child: const Text(
-              "دخول سيادي",
+              "تحقق معتمد",
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -187,15 +207,19 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.gpp_bad, color: Colors.red),
             SizedBox(width: 8),
             Text(
-              "خطأ أمني فاخر",
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              "خطأ في الاعتماد المالي والسيادي",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+                fontSize: 14,
+              ),
             ),
           ],
         ),
         content: const Text(
-          "عفواً، وصول مرفوض. رقم MOX السيادي أو كلمة السر غير مطابقة لما هو مسجل في الخزينة.",
+          "عفواً، وصول مرفوض. رقم الوصي (guardianMoxId) المدفوع برسوم أو كلمة السر غير مطابقة لما هو محفوظ في ملف العميل.",
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             height: 1.5,
             fontWeight: FontWeight.bold,
           ),
@@ -258,13 +282,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         appBar: AppBar(
           backgroundColor: Colors.redAccent,
           title: const Text(
-            "منطقة مقفلة سيادياً",
+            "منطقة مقفلة برهون الوصي",
             style: TextStyle(color: Colors.white),
           ),
         ),
         body: const Center(
           child: Text(
-            "جاري التحقق الأمني من الخزينة...",
+            "جاري التحقق من رقم الوصي المدفوع (guardianMoxId)...",
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
           ),
         ),

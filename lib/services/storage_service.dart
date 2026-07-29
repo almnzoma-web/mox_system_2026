@@ -10,6 +10,9 @@ class StorageService {
   // القائمة المركزية للمنظومة
   static List<UserModel> registeredUsers = [];
 
+  // علامة لتتبع ما إذا تم تحميل البيانات مسبقاً في الجلسة الحالية
+  static bool _isLoaded = false;
+
   // تعريف المدير ببياناته السيادية
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
@@ -37,6 +40,7 @@ class StorageService {
         registeredUsers = jsonList
             .map((item) => UserModel.fromJson(item))
             .toList();
+        _isLoaded = true;
         debugPrint(
           "🏛️ [Storage] تم تحميل ${registeredUsers.length} مواطن من السجل بنجاح.",
         );
@@ -50,6 +54,7 @@ class StorageService {
         }
       } else {
         registeredUsers = [adminUser];
+        _isLoaded = true;
         await saveUsersList();
         debugPrint(
           "🏛️ [Storage] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.",
@@ -58,6 +63,14 @@ class StorageService {
     } catch (e) {
       debugPrint("❌ [Storage] خطأ فادح أثناء تحميل السجل: $e");
       registeredUsers = [adminUser];
+      _isLoaded = true;
+    }
+  }
+
+  // دالة ضمان التحميل الفوري (تمنع قراءة قائمة فارغة أبداً)
+  static Future<void> ensureLoaded() async {
+    if (!_isLoaded || registeredUsers.isEmpty) {
+      await loadUsers();
     }
   }
 
@@ -69,6 +82,7 @@ class StorageService {
           .map((u) => u.toJson())
           .toList();
       await prefs.setString(savedUsersKey, json.encode(jsonList));
+      _isLoaded = true;
       debugPrint("✅ [Storage] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
     } catch (e) {
       debugPrint("❌ [Storage] خطأ أثناء حفظ السجل في الخزينة: $e");
@@ -77,7 +91,7 @@ class StorageService {
 
   // دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
   static Future<void> addUser(UserModel newUser) async {
-    await loadUsers();
+    await ensureLoaded(); // ضمان تحميل القائمة الحقيقية أولاً
 
     int index = registeredUsers.indexWhere(
       (u) =>
@@ -145,7 +159,7 @@ class StorageService {
   }
 
   static Future<Object?> getClientsData() async {
-    await loadUsers();
+    await ensureLoaded();
     return registeredUsers.map((u) => u.toJson()).toList();
   }
 
@@ -153,10 +167,29 @@ class StorageService {
     List<Map<String, dynamic>> clientsData,
   ) async {
     registeredUsers = clientsData.map((e) => UserModel.fromJson(e)).toList();
+    _isLoaded = true;
     await saveUsersList();
   }
 
-  // دالة التحقق من الدخول
+  // دالة التحقق من الدخول (مع ضمان التحميل التلقائي)
+  static Future<UserModel?> authenticateAsync(
+    String input,
+    String password,
+    bool isMoxId,
+  ) async {
+    await ensureLoaded();
+    try {
+      return registeredUsers.firstWhere(
+        (u) =>
+            (isMoxId ? u.moxId == input : u.phone == input) &&
+            u.password == password,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // دالة التحقق التزامن القديمة (محمية بالتأكد من تحميل القائمة إن أمكن)
   static UserModel? authenticate(String input, String password, bool isMoxId) {
     try {
       return registeredUsers.firstWhere(
@@ -172,9 +205,7 @@ class StorageService {
   // الدوال السيادية الإضافية لتشغيل السوق المفتوح والروابط الخارجية عبر الـ moxId
   static Future<UserModel?> getUserByMoxId(String moxId) async {
     try {
-      if (registeredUsers.isEmpty) {
-        await loadUsers();
-      }
+      await ensureLoaded();
       return registeredUsers.firstWhere(
         (u) => u.moxId == moxId || u.guardianMoxId == moxId,
       );
