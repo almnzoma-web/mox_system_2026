@@ -6,6 +6,9 @@ import '../models/user_model.dart';
 // القائمة المركزية للمنظومة
 List<UserModel> registeredUsers = [];
 
+// علامة لتتبع حالة التحميل في الذاكرة الحية
+bool _isLoaded = false;
+
 // تعريف المدير ببياناته السيادية الموحدة
 final UserModel adminUser = UserModel(
   phone: "249115855164",
@@ -33,6 +36,7 @@ Future<void> loadUsers() async {
       registeredUsers = jsonList
           .map((item) => UserModel.fromJson(item))
           .toList();
+      _isLoaded = true;
       debugPrint(
         "🏛️ [Data] تم تحميل ${registeredUsers.length} مواطن من السجل بنجاح.",
       );
@@ -45,12 +49,21 @@ Future<void> loadUsers() async {
       }
     } else {
       registeredUsers = [adminUser];
+      _isLoaded = true;
       await saveUsers();
       debugPrint("🏛️ [Data] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.");
     }
   } catch (e) {
     debugPrint("❌ [Data] خطأ فادح أثناء تحميل السجل: $e");
     registeredUsers = [adminUser];
+    _isLoaded = true;
+  }
+}
+
+// دالة ضمان التحميل الفوري المتوافقة مع StorageService
+Future<void> ensureLoaded() async {
+  if (!_isLoaded || registeredUsers.isEmpty) {
+    await loadUsers();
   }
 }
 
@@ -62,15 +75,21 @@ Future<void> saveUsers() async {
         .map((u) => u.toJson())
         .toList();
     await prefs.setString('saved_users', json.encode(jsonList));
+    _isLoaded = true;
     debugPrint("✅ [Data] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
   } catch (e) {
     debugPrint("❌ [Data] خطأ أثناء الحفظ في الخزينة: $e");
   }
 }
 
+// دالة توافقية بديلة لاسم saveUsersList
+Future<void> saveUsersList() async {
+  await saveUsers();
+}
+
 // دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
 Future<void> addUser(UserModel newUser) async {
-  await loadUsers(); // التأكد من تحميل أحدث نسخة قبل التعديل
+  await ensureLoaded(); // التأكد من تحميل أحدث نسخة قبل التعديل
 
   int index = registeredUsers.indexWhere(
     (u) =>
@@ -89,7 +108,37 @@ Future<void> addUser(UserModel newUser) async {
   await saveUsers();
 }
 
-// دالة التحقق من الدخول
+// دوال مساعدة للتوافق الشامل مع باقي الملفات والخدمات
+Future<Object?> getClientsData() async {
+  await ensureLoaded();
+  return registeredUsers.map((u) => u.toJson()).toList();
+}
+
+Future<void> saveClientsData(List<Map<String, dynamic>> clientsData) async {
+  registeredUsers = clientsData.map((e) => UserModel.fromJson(e)).toList();
+  _isLoaded = true;
+  await saveUsers();
+}
+
+// دالة التحقق من الدخول (غير المتزامنة)
+Future<UserModel?> authenticateAsync(
+  String input,
+  String password,
+  bool isMoxId,
+) async {
+  await ensureLoaded();
+  try {
+    return registeredUsers.firstWhere(
+      (u) =>
+          (isMoxId ? u.moxId == input : u.phone == input) &&
+          u.password == password,
+    );
+  } catch (e) {
+    return null;
+  }
+}
+
+// دالة التحقق من الدخول (المتزامنة القديمة للتوافق)
 UserModel? authenticate(String input, String password, bool isMoxId) {
   try {
     return registeredUsers.firstWhere(

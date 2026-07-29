@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
-// ربط خزينة البيانات السيادية لجلاستعلام الحسابات المسجلة
+// ربط خزينة البيانات السيادية للاستعلام الحسابات المسجلة
 import '../data/user_data.dart';
 // ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
 import '../services/storage_service.dart';
@@ -61,14 +61,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     // ضمان تحميل السجلات السيادية تماماً قبل فتح نافذة التحقق
     await StorageService.ensureLoaded();
 
+    // القيمة الافتراضية فارغة تماماً مع نص إرشادي دقيق لمنع تداخل رقم المدير
     final TextEditingController guardianMoxInputController =
-        TextEditingController(
-          text:
-              widget.user.guardianMoxId != null &&
-                  widget.user.guardianMoxId!.isNotEmpty
-              ? widget.user.guardianMoxId!
-              : "MOX249-00010001",
-        );
+        TextEditingController();
     final TextEditingController passwordInputController =
         TextEditingController();
 
@@ -105,7 +100,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             TextField(
               controller: guardianMoxInputController,
               decoration: const InputDecoration(
-                labelText: "رقم الوصي (guardianMoxId)",
+                labelText: "أدرج رقم موكس (guardianMoxId)",
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -134,39 +129,58 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
               bool isValidFromStorage = false;
               try {
-                // فحص دقيق ومطابقة مع guardianMoxId المسجل في الخزينة أو ملف العميل
+                // فحص دقيق ومطابقة مع السجل في الخزينة (مقارنة مع حساب العميل نفسه حصرياً أو الوصي المرتبط به)
                 for (var u in registeredUsers) {
-                  if (u.guardianMoxId != null &&
-                      u.guardianMoxId!.trim().toUpperCase() ==
-                          enteredGuardianMox.toUpperCase() &&
-                      u.password == enteredPassword) {
-                    isValidFromStorage = true;
-                    break;
+                  // منع استخدام حساب المدير المطلق إلا إذا كان هو المدير الفعلي الممرر
+                  if (u.role == 'admin' && widget.user.role != 'admin') {
+                    continue;
+                  }
+
+                  bool matchesMox =
+                      (u.moxId.trim().toUpperCase() ==
+                          enteredGuardianMox.toUpperCase()) ||
+                      (u.guardianMoxId != null &&
+                          u.guardianMoxId!.trim().toUpperCase() ==
+                              enteredGuardianMox.toUpperCase());
+
+                  if (matchesMox &&
+                      u.password == enteredPassword &&
+                      enteredGuardianMox.isNotEmpty) {
+                    // التأكد من أن الحساب المدخل يخص العميل الحالي أو وصيه المعتمد
+                    if (u.moxId == widget.user.moxId ||
+                        u.moxId == widget.user.guardianMoxId ||
+                        widget.user.guardianMoxId == u.moxId) {
+                      isValidFromStorage = true;
+                      break;
+                    }
                   }
                 }
 
-                // مطابقة مباشرة مع العميل الحالي المرسل للشاشة
+                // مطابقة مباشرة إضافية مع العميل الحالي المرسل للشاشة لضمان سلاسة الاعتماد
                 if (!isValidFromStorage &&
-                    widget.user.guardianMoxId != null &&
-                    widget.user.guardianMoxId!.trim().toUpperCase() ==
-                        enteredGuardianMox.toUpperCase() &&
-                    widget.user.password == enteredPassword &&
-                    enteredGuardianMox.isNotEmpty) {
-                  isValidFromStorage = true;
+                    enteredGuardianMox.isNotEmpty &&
+                    enteredPassword.isNotEmpty) {
+                  bool isUserMatch =
+                      (widget.user.moxId.trim().toUpperCase() ==
+                          enteredGuardianMox.toUpperCase()) ||
+                      (widget.user.guardianMoxId != null &&
+                          widget.user.guardianMoxId!.trim().toUpperCase() ==
+                              enteredGuardianMox.toUpperCase());
+
+                  if (isUserMatch && widget.user.password == enteredPassword) {
+                    isValidFromStorage = true;
+                  }
                 }
               } catch (_) {
-                isValidFromStorage =
-                    (widget.user.guardianMoxId != null &&
-                    widget.user.guardianMoxId!.trim().toUpperCase() ==
-                        enteredGuardianMox.toUpperCase() &&
-                    widget.user.password == enteredPassword &&
-                    enteredGuardianMox.isNotEmpty);
+                isValidFromStorage = false;
               }
 
               if (!mounted) return;
               Navigator.pop(ctx);
 
-              if (!isValidFromStorage || enteredPassword.isEmpty) {
+              if (!isValidFromStorage ||
+                  enteredPassword.isEmpty ||
+                  enteredGuardianMox.isEmpty) {
                 setState(() {
                   _isAuthorized = false;
                 });
@@ -217,7 +231,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً، وصول مرفوض. رقم الوصي (guardianMoxId) المدفوع برسوم أو كلمة السر غير مطابقة لما هو محفوظ في ملف العميل.",
+          "عفواً عميلنا الكريم.. الرجاء إدراج بيانات حقيقية أو الذهاب إلى متجر موكس لامتلاك رقم حساب بنك موكس الرقمي🤚",
           style: TextStyle(
             fontSize: 13,
             height: 1.5,

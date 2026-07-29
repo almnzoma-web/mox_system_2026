@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/external_store_front_screen.dart'; // شاشة متجر العميل الخارجي
-import 'data/user_data.dart';
+// استيراد خدمة التخزين السيادية الموحدة لضمان قراءة السجل الحقيقي للأبد
+import 'services/storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,8 +12,8 @@ void main() async {
   // تفعيل استراتيجية الروابط النظيفة أو الـ Hash لضمان توافقية Vercel
   setUrlStrategy(HashUrlStrategy());
 
-  // تحميل سجل الدولة (قاعدة البيانات المركزية)
-  await loadUsers();
+  // تحميل سجل الدولة (قاعدة البيانات المركزية) من الخزينة الدائمة حصرياً
+  await StorageService.loadUsers();
 
   // فحص ما إذا كان الرابط يحتوي على باراميتر متجر (mox أو phone) للزوار الخارجيين
   Widget initialScreen = const WelcomeScreen();
