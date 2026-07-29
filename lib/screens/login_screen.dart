@@ -49,28 +49,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      UserModel? authenticatedUser;
-
-      // ضمان تحميل السجل من الخزينة أولاً وبشكل مؤكد
-      await StorageService.ensureLoaded();
-
-      if (widget.isMoxIdLogin) {
-        // البحث بالمعرف السيادي
-        authenticatedUser = await StorageService.getUserByMoxId(input);
-      } else {
-        // البحث برقم الهاتف من القائمة المركزية للخرزينة بالمسطرة ودون أخطاء
-        try {
-          authenticatedUser = StorageService.registeredUsers.firstWhere(
-            (u) => u.phone.trim() == input,
-          );
-        } catch (_) {
-          authenticatedUser = null;
-        }
-      }
+      // الاعتماد على دالة التحقق الهجينة التي تتأكد من السجل المحلي والشيت معاً بالمسطرة
+      UserModel? authenticatedUser = await StorageService.authenticateAsync(
+        input,
+        password,
+        widget.isMoxIdLogin,
+      );
 
       // 2. التحقق من وجود المستخدم وسلامة كلمة السر
-      if (authenticatedUser == null ||
-          authenticatedUser.password.trim() != password) {
+      if (authenticatedUser == null) {
         setState(() {
           _isLoading = false;
         });
@@ -80,11 +67,15 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // حفظ الجلسة النشطة الحالية للمستخدم
+      await StorageService.saveUser(authenticatedUser);
+
       // 3. نجاح التحقق بالكامل والعبور للوحة التحكم السيادية
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
+            // ignore: unnecessary_non_null_assertion
             builder: (context) => DashboardScreen(user: authenticatedUser!),
           ),
           (route) => false,

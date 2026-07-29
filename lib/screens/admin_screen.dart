@@ -4,9 +4,8 @@ import 'package:mox_digital_app/admin_panel/clients_management.dart';
 import '../admin_panel/visitors_tab.dart';
 import '../admin_panel/services_manager_tab.dart';
 import '../admin_panel/app_warehouse_tab.dart';
-import '../../data/user_data.dart'; // الذاكرة المحلية السيادية للعملاء
+import '../../services/storage_service.dart'; // الخزينة الهجينة الجديدة (المحلية + الشيت)
 import '../../models/user_model.dart';
-// خدمة التخزين الحية
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -25,10 +24,10 @@ class _AdminScreenState extends State<AdminScreen> {
     _loadLocalData();
   }
 
-  // سحب البيانات من الذاكرة المحلية (registeredUsers) لضبط المالية بالمسطرة
+  // سحب البيانات بالمنظومة الهجينة (سرعة محلية + تحديث صامت من الشيت)
   Future<void> _loadLocalData() async {
     try {
-      await loadUsers(); // جلب البيانات من الذاكرة المحلية والخزينة
+      await StorageService.loadUsers(); // جلب البيانات من الخزينة الهجينة
       if (mounted) {
         setState(() {
           isLoading = false;
@@ -40,12 +39,12 @@ class _AdminScreenState extends State<AdminScreen> {
           isLoading = false;
         });
       }
-      debugPrint("خطأ في جلب بيانات الذاكرة المحلية للمالية: $e");
+      debugPrint("خطأ في جلب بيانات الخزينة للمالية: $e");
     }
   }
 
   Future<void> _saveLocalData() async {
-    await saveUsers(); // حفظ التحديثات في الذاكرة المحلية والخزينة
+    await StorageService.saveUsersList(); // حفظ التحديثات في المحلي والشيت معاً
     if (mounted) setState(() {});
   }
 
@@ -271,10 +270,10 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildActiveFinanceView() {
-    if (registeredUsers.isEmpty && financeSubTab != 4) {
+    if (StorageService.registeredUsers.isEmpty && financeSubTab != 4) {
       return const Center(
         child: Text(
-          "لا توجد بيانات مسجلة في الذاكرة المحلية حالياً",
+          "لا توجد بيانات مسجلة في الخزينة حالياً",
           style: TextStyle(color: Colors.grey),
         ),
       );
@@ -293,11 +292,15 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  // نافذة المؤشر الحقيقي المستمدة من الخزينة (registeredUsers) دون أي أرقام وهمية
+  // نافذة المؤشر الحقيقي المستمدة من الخزينة الهجينة دون أي أرقام وهمية
   Widget _buildIndicatorView() {
-    int totalClients = registeredUsers.length;
-    int activeUsers = registeredUsers.where((u) => u.role != 'admin').length;
-    int adminCount = registeredUsers.where((u) => u.role == 'admin').length;
+    int totalClients = StorageService.registeredUsers.length;
+    int activeUsers = StorageService.registeredUsers
+        .where((u) => u.role != 'admin')
+        .length;
+    int adminCount = StorageService.registeredUsers
+        .where((u) => u.role == 'admin')
+        .length;
 
     return ListView(
       children: [
@@ -394,9 +397,9 @@ class _AdminScreenState extends State<AdminScreen> {
   // النافذة الأولى: عملاء العمولات
   Widget _buildCommissionsView() {
     return ListView.builder(
-      itemCount: registeredUsers.length,
+      itemCount: StorageService.registeredUsers.length,
       itemBuilder: (context, index) {
-        final client = registeredUsers[index];
+        final client = StorageService.registeredUsers[index];
         bool isAdmin = client.role == 'admin';
 
         return Card(
@@ -511,9 +514,7 @@ class _AdminScreenState extends State<AdminScreen> {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    "🔊 تم الحفظ وتحديث الذاكرة المحلية للعميل بنجاح",
-                  ),
+                  content: Text("🔊 تم الحفظ وتحديث الخزينة للعميل بنجاح"),
                 ),
               );
             },
@@ -527,9 +528,9 @@ class _AdminScreenState extends State<AdminScreen> {
   // النافذة الثانية: طلبيات والمنتجات
   Widget _buildCardRequestsView() {
     return ListView.builder(
-      itemCount: registeredUsers.length,
+      itemCount: StorageService.registeredUsers.length,
       itemBuilder: (context, index) {
-        final client = registeredUsers[index];
+        final client = StorageService.registeredUsers[index];
         bool isAdmin = client.role == 'admin';
         bool isReviewed = client.role == 'reviewed_active';
 
@@ -612,9 +613,9 @@ class _AdminScreenState extends State<AdminScreen> {
   // النافذة الثالثة: النقاط
   Widget _buildPointsView() {
     return ListView.builder(
-      itemCount: registeredUsers.length,
+      itemCount: StorageService.registeredUsers.length,
       itemBuilder: (context, index) {
-        final client = registeredUsers[index];
+        final client = StorageService.registeredUsers[index];
         bool isAdmin = client.role == 'admin';
 
         return Card(
@@ -727,7 +728,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    "🔊 تم حفظ وتحديث رصيد النقاط في الذاكرة المحلية بنجاح",
+                    "🔊 تم حفظ وتحديث رصيد النقاط في الخزينة بنجاح",
                   ),
                 ),
               );

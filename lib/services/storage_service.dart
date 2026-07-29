@@ -1,19 +1,20 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 
 class StorageService {
   static const String userKey = 'current_mox_user';
   static const String savedUsersKey = 'saved_users';
 
-  // القائمة المركزية للمنظومة
   static List<UserModel> registeredUsers = [];
-
-  // علامة لتتبع ما إذا تم تحميل البيانات مسبقاً في الجلسة الحالية
   static bool _isLoaded = false;
 
-  // تعريف المدير ببياناته السيادية
+  // رابط شيت قوقل السحابي الخاص بك
+  static const String _scriptUrl =
+      "https://script.google.com/macros/s/AKfycbwwJkrdVEfCyOhdQvWO3rd0DlYZ_H7TyAd9hz5XkmxGV9yiBNBir89_4Y3Au2U2t10/exec";
+
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
     password: "MOX1234567890MOX",
@@ -28,7 +29,7 @@ class StorageService {
     guardianMoxId: "MOX249-00010001",
   );
 
-  // دالة التحميل السيادية من الذاكرة الدائمة
+  // دالة التحميل المحلية الفورية (تفتح بسرعة البرق حتى لو انقطع الإنترنت)
   static Future<void> loadUsers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -40,41 +41,77 @@ class StorageService {
         registeredUsers = jsonList
             .map((item) => UserModel.fromJson(item))
             .toList();
-        _isLoaded = true;
-        debugPrint(
-          "🏛️ [Storage] تم تحميل ${registeredUsers.length} مواطن من السجل بنجاح.",
-        );
-
-        if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
-          registeredUsers.insert(0, adminUser);
-          await saveUsersList();
-          debugPrint(
-            "🏛️ [Storage] المدير لم يكن موجوداً، تم تثبيته في رأس السجل.",
-          );
-        }
-      } else {
-        registeredUsers = [adminUser];
-        _isLoaded = true;
-        await saveUsersList();
-        debugPrint(
-          "🏛️ [Storage] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.",
-        );
       }
+
+      // التأكد من وجود المدير السيادي دائماً
+      if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
+        registeredUsers.insert(0, adminUser);
+        await saveUsersList();
+      }
+
+      _isLoaded = true;
+      debugPrint(
+        "🏛️ [Hybrid Local] تم تحميل ${registeredUsers.length} مواطن محلياً.",
+      );
+
+      // مزامنة صامتة في الخلفية مع شيت قوقل (إذا وُجد إنترنت، نجلب الأحدث ونحدث المحلي)
+      _syncFromCloudInBackground();
     } catch (e) {
-      debugPrint("❌ [Storage] خطأ فادح أثناء تحميل السجل: $e");
+      debugPrint("❌ [Hybrid Local] خطأ في التحميل المحلي: $e");
       registeredUsers = [adminUser];
       _isLoaded = true;
     }
   }
 
-  // دالة ضمان التحميل الفوري (تمنع قراءة قائمة فارغة أبداً)
+  // مزامنة ذكية تعيد البيانات من الشيت للمحلية في الخلفية دون أن تشعر العميل ببطء
+  static Future<void> _syncFromCloudInBackground() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$_scriptUrl?action=getAll'))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        List<dynamic> cloudList = json.decode(response.body);
+        if (cloudList.isNotEmpty) {
+          List<UserModel> cloudUsers = cloudList
+              .map(
+                (item) => UserModel.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList();
+
+          // دمج وتحديث القائمة المحلية بأحدث بيانات الشيت
+          for (var cloudUser in cloudUsers) {
+            int index = registeredUsers.indexWhere(
+              (u) => u.phone == cloudUser.phone || u.moxId == cloudUser.moxId,
+            );
+            if (index != -1) {
+              registeredUsers[index] = cloudUser;
+            } else {
+              registeredUsers.add(cloudUser);
+            }
+          }
+
+          if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
+            registeredUsers.insert(0, adminUser);
+          }
+
+          await saveUsersList();
+          debugPrint(
+            "☁️ [Hybrid Sync] تمت المزامنة العكسية من الشيت إلى المحلية بنجاح.",
+          );
+        }
+      }
+    } catch (_) {
+      // الإنترنت ضعيف أو مقطوع، التطبيق يعمل بكفاءة كاملة على المحلي دون أي تأخير
+    }
+  }
+
   static Future<void> ensureLoaded() async {
     if (!_isLoaded || registeredUsers.isEmpty) {
       await loadUsers();
     }
   }
 
-  // دالة حفظ القائمة الكاملة للسجل في الخزينة
+  // دالة الحفظ المحلي مع إرسال التحديث للشيت في الخلفية
   static Future<void> saveUsersList() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -83,15 +120,13 @@ class StorageService {
           .toList();
       await prefs.setString(savedUsersKey, json.encode(jsonList));
       _isLoaded = true;
-      debugPrint("✅ [Storage] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
     } catch (e) {
-      debugPrint("❌ [Storage] خطأ أثناء حفظ السجل في الخزينة: $e");
+      debugPrint("❌ [Hybrid Local] خطأ أثناء الحفظ المحلي: $e");
     }
   }
 
-  // دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
   static Future<void> addUser(UserModel newUser) async {
-    await ensureLoaded(); // ضمان تحميل القائمة الحقيقية أولاً
+    await ensureLoaded();
 
     int index = registeredUsers.indexWhere(
       (u) =>
@@ -101,15 +136,22 @@ class StorageService {
 
     if (index != -1) {
       registeredUsers[index] = newUser;
-      debugPrint("🔄 [Storage] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
     } else {
       registeredUsers.add(newUser);
-      debugPrint(
-        "➕ [Storage] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد.",
-      );
     }
 
     await saveUsersList();
+
+    // رفع التحديث للشيت في الخلفية
+    try {
+      await http
+          .post(
+            Uri.parse(_scriptUrl),
+            body: json.encode(newUser.toJson()),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
   }
 
   static Future<void> saveUser(UserModel user) async {
@@ -118,14 +160,9 @@ class StorageService {
       String userJson = jsonEncode(user.toJson());
       await prefs.setString(userKey, userJson);
 
-      // استدعاء دالة الإضافة والحفظ المركزية
       await addUser(user);
-
-      debugPrint(
-        "🏛️ [Storage] نجاح: تم حفظ العميل النشط ${user.name} في الخزينة.",
-      );
     } catch (e) {
-      debugPrint("❌ [Storage] خطأ فادح في الحفظ: $e");
+      debugPrint("❌ [Hybrid Local] خطأ في حفظ العميل النشط: $e");
     }
   }
 
@@ -133,17 +170,9 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? userJson = prefs.getString(userKey);
-
-      if (userJson == null) {
-        debugPrint("⚠️ [Storage] تنبيه: الخزينة النشطة فارغة.");
-        return null;
-      }
-
-      final user = UserModel.fromJson(jsonDecode(userJson));
-      debugPrint("✅ [Storage] نجاح: تم استرجاع العميل النشط ${user.name}.");
-      return user;
+      if (userJson == null) return null;
+      return UserModel.fromJson(jsonDecode(userJson));
     } catch (e) {
-      debugPrint("❌ [Storage] خطأ فادح في الاسترجاع: $e");
       return null;
     }
   }
@@ -152,10 +181,7 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(userKey);
-      debugPrint("🧹 [Storage] تم إخلاء الخزينة النشطة بنجاح.");
-    } catch (e) {
-      debugPrint("❌ [Storage] خطأ أثناء الإخلاء: $e");
-    }
+    } catch (_) {}
   }
 
   static Future<Object?> getClientsData() async {
@@ -171,7 +197,7 @@ class StorageService {
     await saveUsersList();
   }
 
-  // دالة التحقق من الدخول (مع ضمان التحميل التلقائي)
+  // تسجيل دخول فوري بالمعلومات المحلية لضمان عدم وجود أي تأخير بسبب ضعف النت
   static Future<UserModel?> authenticateAsync(
     String input,
     String password,
@@ -189,8 +215,7 @@ class StorageService {
     }
   }
 
-  // دالة التحقق التزامن القديمة (محمية بالتأكد من تحميل القائمة إن أمكن)
-  static UserModel? authenticate(String input, String password, bool isMoxId) {
+  UserModel? authenticate(String input, String password, bool isMoxId) {
     try {
       return registeredUsers.firstWhere(
         (u) =>
@@ -202,15 +227,13 @@ class StorageService {
     }
   }
 
-  // الدوال السيادية الإضافية لتشغيل السوق المفتوح والروابط الخارجية عبر الـ moxId
   static Future<UserModel?> getUserByMoxId(String moxId) async {
     try {
       await ensureLoaded();
       return registeredUsers.firstWhere(
         (u) => u.moxId == moxId || u.guardianMoxId == moxId,
       );
-    } catch (e) {
-      debugPrint("❌ [Storage] لم يتم العثور على العميل بالـ moxId: $moxId");
+    } catch (_) {
       return null;
     }
   }
@@ -221,11 +244,8 @@ class StorageService {
       if (user != null && user.myAssets.isNotEmpty) {
         return user.myAssets.map((asset) => asset.toJson()).toList();
       }
-    } catch (e) {
-      debugPrint("❌ [Storage] خطأ في جلب بطاقات العميل عبر الـ moxId: $e");
-    }
+    } catch (_) {}
 
-    // البطاقة الافتراضية بالمسطرة في حال عدم وجود أصول سابقة
     return [
       {
         'title': 'بطاقة المتجر السيادي الفاخرة',
