@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
 
 class StoreOrdersScreen extends StatefulWidget {
@@ -46,9 +47,37 @@ class _StoreOrdersScreenState extends State<StoreOrdersScreen> {
     super.dispose();
   }
 
-  void _submitOrder() {
+  Future<void> _submitOrder() async {
     if (_formKey.currentState!.validate()) {
+      final String currentDate = DateTime.now().toString().substring(0, 10);
+
+      // تجهيز نص الرسالة المراد إرسالها إلى الواتساب مع نسخ البيانات المدرجة
+      final String whatsappMessage =
+          '''
+📦 *طلب جديد من متجر موكس الرقمي*
+--------------------------------
+👤 *الاسم:* ${_nameController.text}
+📅 *التاريخ:* $currentDate
+📌 *نوع الطلب:* $_requestType
+📱 *رقم الواتس:* ${_whatsappController.text}
+🏢 *نوع الكيان:* $_entityType
+${_entityType == "فرد" ? "▫️ تمتلك منتج موكس؟: $_hasMoxProduct\n▫️ ترغب بامتلاك منتج؟: $_wantsMoxProduct" : "▫️ اسم المؤسسة: ${_orgNameController.text}\n▫️ نوع النشاط: ${_orgActivityController.text}"}
+--------------------------------
+📝 *نص الطلب:*
+${_requestDetailsController.text}
+''';
+
+      // رقم الواتساب المطلوب للإرسال (تم إزالة const لتفادي خطأ الـ Compiler)
+      final String targetWhatsAppUrl =
+          "https://wa.me/249115855164?text=${Uri.encodeComponent(whatsappMessage)}";
+
+      final Uri uri = Uri.parse(targetWhatsAppUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+
       // إظهار رسالة النجاح الفاخرة
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -357,7 +386,7 @@ class _StoreOrdersScreenState extends State<StoreOrdersScreen> {
                     ),
                     onPressed: _submitOrder,
                     child: const Text(
-                      "أرسل طلبك الآن",
+                      "أرسل طلبك الآن عبر الواتساب",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,

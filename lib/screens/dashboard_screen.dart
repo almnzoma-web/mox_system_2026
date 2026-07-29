@@ -1147,7 +1147,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النهائية المقفولة وبها ترس التعديل وزر الحفظ)
+  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النهائية المقفولة وبها ترس التعديل وزر الحفظ والتمرير السليم للصفحة A)
   void _showClientAssetsScreen(BuildContext context) {
     // تحديد الـ moxId الآمن للرابط بالمسطرة الهندسية
     final String activeMoxForUrl =
@@ -1253,11 +1253,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) => ExternalStoreFrontScreen(
-                                            user: widget.user,
-                                            directMoxId:
-                                                activeMoxForUrl, // تمرير الـ moxId المباشر بالملي
-                                          ),
+                                          builder: (_) =>
+                                              ExternalStoreFrontScreen(
+                                                user: widget.user,
+                                                directMoxId: activeMoxForUrl,
+                                              ),
                                         ),
                                       );
                                     },
@@ -1598,7 +1598,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         const SizedBox(height: 12),
                                         Row(
                                           children: [
-                                            // زر طلب منتج/خدمة (واتساب)
                                             Expanded(
                                               child: ElevatedButton.icon(
                                                 style: ElevatedButton.styleFrom(
@@ -1638,7 +1637,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 8),
-                                            // زر المزيد من التفاصيل (رابط خارجي طويل / فيسبوك)
                                             Expanded(
                                               child: ElevatedButton.icon(
                                                 style: ElevatedButton.styleFrom(
@@ -1772,7 +1770,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           ),
                                         ),
                                         const SizedBox(height: 15),
-                                        // زر حفظ البطاقة الذي يغذي البيانات ويهيئها للصفحة A
                                         Row(
                                           children: [
                                             Expanded(
@@ -1826,7 +1823,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         const SizedBox(height: 15),
 
-                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A)
+                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ _clientCards الحقيقية بالملي
                         OutlinedButton.icon(
                           onPressed: () {
                             Navigator.pop(context);
@@ -1835,7 +1832,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               MaterialPageRoute(
                                 builder: (_) => ClientStoreAdminScreen(
                                   user: widget.user,
-                                  clientCards: [],
+                                  clientCards:
+                                      _clientCards, // تمرير الـ 5 بطاقات الحقيقية المعدلة بالمسطرة
                                 ),
                               ),
                             );

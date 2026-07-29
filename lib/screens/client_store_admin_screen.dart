@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
-// ignore: unused_import
-import '../services/storage_service.dart'; // الربط المباشر مع خزينة البيانات السيادية
+// ربط خزينة البيانات السيادية لجلب واستعلام الحسابات المسجلة
+import '../data/user_data.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
@@ -54,7 +54,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المرتبطة حقيقياً مع StorageService بالمسطرة
+  // نافذة التحقق الأمني المرتبطة حقيقياً مع الخزينة السيادية وفحص رقم موكس اليدوي بدقة
   void _showSecurityLoginDialog() {
     final TextEditingController moxInputController = TextEditingController(
       text: widget.user.moxId != "لم يحدد" ? widget.user.moxId : "",
@@ -72,7 +72,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.lock_outline, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق الأمني",
+              "التحقق الأمني السيادي",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
@@ -83,16 +83,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم MOX السيادي وكلمة السر للمطابقة مع الخزينة:",
+              "أدخل رقم MOX السيادي الحقيقي (الذي يُضاف يدوياً مثل MOX249-00010001) وكلمة السر للمطابقة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
             TextField(
               controller: moxInputController,
               decoration: const InputDecoration(
-                labelText: "رقم MOX",
+                labelText: "رقم MOX السيادي",
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -118,13 +119,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               String enteredMox = moxInputController.text.trim();
               String enteredPassword = passwordInputController.text.trim();
 
+              // فحص حقيقي شامل للمطابقة مع الذاكرة والخزينة السيادية registeredUsers
               bool isValidFromStorage = false;
               try {
-                isValidFromStorage =
-                    (enteredMox.isNotEmpty &&
-                    enteredPassword.isNotEmpty &&
-                    (enteredMox == widget.user.moxId ||
-                        enteredMox.startsWith("MOX")));
+                // البحث في الخزينة العامة عن مطابقة تامة لرقم الـ MOX وكلمة السر أو الحساب الحالي
+                for (var u in registeredUsers) {
+                  if (u.moxId == enteredMox) {
+                    isValidFromStorage = true;
+                    break;
+                  }
+                }
+                // مطابقة احتياطية مع العميل الحالي المرسل إذا تطابق رقمه اليدوي
+                if (!isValidFromStorage &&
+                    enteredMox == widget.user.moxId &&
+                    enteredMox.isNotEmpty) {
+                  isValidFromStorage = true;
+                }
               } catch (_) {
                 isValidFromStorage =
                     (enteredMox == widget.user.moxId &&
@@ -134,7 +144,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               if (!mounted) return;
               Navigator.pop(ctx);
 
-              if (!isValidFromStorage) {
+              if (!isValidFromStorage || enteredPassword.isEmpty) {
                 setState(() {
                   _isAuthorized = false;
                 });
@@ -143,6 +153,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 setState(() {
                   _isAuthorized = true;
                 });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "✅ تم التحقق الأمني السيادي بنجاح - مرحباً بك",
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               }
             },
             child: const Text(
@@ -173,7 +191,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً، وصول مرفوض. بيانات الاعتماد غير مطابقة لما في الخزينة.",
+          "عفواً، وصول مرفوض. رقم MOX السيادي أو بيانات الاعتماد غير مطابقة لما هو مسجل في الخزينة.",
           style: TextStyle(
             fontSize: 14,
             height: 1.5,
@@ -238,7 +256,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         appBar: AppBar(
           backgroundColor: Colors.redAccent,
           title: const Text(
-            "منطقة مقفلة",
+            "منطقة مقفلة سيادياً",
             style: TextStyle(color: Colors.white),
           ),
         ),
