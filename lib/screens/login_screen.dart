@@ -206,7 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           onPressed: _validateAndLogin,
                           child: const Text(
-                            "دخول المنظومة",
+                            "دخول بنك موكس الرقمي",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
