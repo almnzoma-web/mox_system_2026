@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
+import '../services/storage_service.dart';
 import 'dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -16,39 +17,83 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
-  void _validateAndLogin() {
+  Future<void> _validateAndLogin() async {
     String input = _inputController.text.trim();
+    String password = _passwordController.text.trim();
 
-    bool isValid = widget.isMoxIdLogin
+    if (input.isEmpty || password.isEmpty) {
+      _showError(
+        "⚠️ تنبيه: يرجى إدخال البيانات كاملة (المعرف/الهاتف وكلمة السر)",
+      );
+      return;
+    }
+
+    // 1. التحقق من صحة الصيغة بالمسطرة (RegExp)
+    bool isFormatValid = widget.isMoxIdLogin
         ? RegExp(r'^MOX249-\d{8}$').hasMatch(input)
         : RegExp(r'^249\d{9}$').hasMatch(input);
 
-    if (isValid) {
-      final UserModel authenticatedUser = UserModel(
-        phone: widget.isMoxIdLogin ? "0000000000" : input,
-        password: _passwordController.text.trim(),
-        name: "المستخدم السيادي",
-        moxId: widget.isMoxIdLogin ? input : "MOX249-00000000",
-        address: "الخرطوم",
-        balance: 0.0,
-        gender: "ذكر",
-        accountType: "فردي",
-      );
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DashboardScreen(user: authenticatedUser),
-        ),
-        (route) => false,
-      );
-    } else {
+    if (!isFormatValid) {
       _showError(
         widget.isMoxIdLogin
             ? "رقم MOX غير مطابق للمعايير (مثال: MOX249-12345678)"
             : "رقم الهاتف يجب أن يبدأ بـ 249 ويتكون من 12 رقماً",
       );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      UserModel? authenticatedUser;
+
+      // ضمان تحميل السجل من الخزينة أولاً
+      await StorageService.loadUsers();
+
+      if (widget.isMoxIdLogin) {
+        // البحث بالمعرف السيادي
+        authenticatedUser = await StorageService.getUserByMoxId(input);
+      } else {
+        // البحث برقم الهاتف من القائمة المركزية للخرزينة بالمسطرة
+        try {
+          authenticatedUser = StorageService.registeredUsers.firstWhere(
+            (u) => u.phone == input,
+          );
+        } catch (_) {
+          authenticatedUser = null;
+        }
+      }
+
+      // 2. التحقق من وجود المستخدم وسلامة كلمة السر
+      if (authenticatedUser == null || authenticatedUser.password != password) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showError(
+          "❌ خطأ أمني: البيانات المدخلة غير مسجلة أو كلمة السر غير صحيحة!",
+        );
+        return;
+      }
+
+      // 3. نجاح التحقق بالكامل والعبور للوحة التحكم السيادية
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DashboardScreen(user: authenticatedUser!),
+          ),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      _showError("⚠️ حدث خطأ أثناء الاتصال بالخزينة السيادية: $e");
     }
   }
 
@@ -87,6 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.shield_moon, size: 80, color: Colors.white),
+                  SizedBox(height: 10),
                   Text(
                     "بوابة الدخول السيادية",
                     style: TextStyle(
@@ -115,8 +161,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           : "رقم الهاتف",
                       prefixIcon: Icon(
                         widget.isMoxIdLogin ? Icons.badge : Icons.phone_android,
+                        color: moxBlue,
                       ),
                       border: const OutlineInputBorder(),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: moxBlue, width: 2),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -125,13 +175,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: !_isPasswordVisible,
                     decoration: InputDecoration(
                       labelText: "كلمة السر",
-                      prefixIcon: const Icon(Icons.lock),
+                      prefixIcon: Icon(Icons.lock, color: moxBlue),
                       border: const OutlineInputBorder(),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: moxBlue, width: 2),
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _isPasswordVisible
                               ? Icons.visibility
                               : Icons.visibility_off,
+                          color: moxBlue,
                         ),
                         onPressed: () => setState(
                           () => _isPasswordVisible = !_isPasswordVisible,
@@ -140,21 +194,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: moxBlue,
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
-                    onPressed: _validateAndLogin,
-                    child: const Text(
-                      "دخول المنظومة",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  _isLoading
+                      ? CircularProgressIndicator(color: moxBlue)
+                      : ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: moxBlue,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: _validateAndLogin,
+                          child: const Text(
+                            "دخول المنظومة",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                   const Spacer(),
                   // التوقيع السيادي
                   Text(
