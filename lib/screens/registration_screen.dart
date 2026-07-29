@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-// ربط الخزينة المركزية لضمان الاعتماد المباشر لدالة الإضافة
 import '../data/user_data.dart';
 // ربط خدمة التخزين السيادية لضمان الحفظ الفوري الدائم
 import '../services/storage_service.dart';
@@ -67,7 +66,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       points: 0,
     );
 
-    // إضافة العميل وتحديث نقاط الوصي وتثبيته في الذاكرة الدائمة عبر الخزينة وStorageService
+    // إضافة العميل وتحديث نقاط الوصي وتثبيته في الذاكرة الدائمة
     await addUserWithReferral(newUser, finalGuardianId);
 
     if (mounted) {
@@ -79,7 +78,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Future<void> addUserWithReferral(UserModel newUser, String guardianId) async {
     // ضمان تحميل السجلات السيادية أولاً لمنع أي فراغ
     await StorageService.ensureLoaded();
-    await ensureLoaded();
+    await loadUsers();
 
     // البحث عن الوصي في السجل لمنحه 100 نقطة
     int guardianIndex = registeredUsers.indexWhere(
@@ -104,6 +103,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         points: guardian.points + 100, // إضافة 100 نقطة تلقائياً للوصي
         myAssets: guardian.myAssets,
       );
+      await saveUsers(); // حفظ تحديث النقاط فوراً
       debugPrint(
         "🎯 [Referral] تم منح 100 نقطة للوصي: ${guardian.name} (${guardian.moxId})",
       );
@@ -130,10 +130,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           points: admin.points + 100,
           myAssets: admin.myAssets,
         );
+        await saveUsers();
       }
     }
 
-    // إدراج العميل الجديد وحفظه قطعيًا عبر دالة الخزينة المعتمدة
+    // إدراج العميل الجديد رسمياً وحفظه في الذاكرة الدائمة عبر الخزينة وStorageService
     await addUser(newUser);
     await StorageService.saveUsersList();
 

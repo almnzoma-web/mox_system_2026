@@ -6,9 +6,6 @@ import '../models/user_model.dart';
 // القائمة المركزية للمنظومة
 List<UserModel> registeredUsers = [];
 
-// علامة لتتبع حالة التحميل في الذاكرة الحية
-bool _isLoaded = false;
-
 // تعريف المدير ببياناته السيادية الموحدة
 final UserModel adminUser = UserModel(
   phone: "249115855164",
@@ -24,7 +21,7 @@ final UserModel adminUser = UserModel(
   guardianMoxId: "MOX249-00010001",
 );
 
-// دالة التحميل السيادية من الذاكرة الدائمة (محصنة بالمسطرة لضمان عدم مسح العملاء)
+// دالة التحميل السيادية من الذاكرة الدائمة
 Future<void> loadUsers() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -36,36 +33,23 @@ Future<void> loadUsers() async {
       registeredUsers = jsonList
           .map((item) => UserModel.fromJson(item))
           .toList();
-      _isLoaded = true;
       debugPrint(
-        "🏛️ [Data] تم تحميل ${registeredUsers.length} مواطن وعميل من السجل بنجاح.",
+        "🏛️ [Data] تم تحميل ${registeredUsers.length} مواطن من السجل بنجاح.",
       );
 
-      // التأكد من وجود المدير في القائمة دون المساس بالعملاء الآخرين
+      // التأكد من وجود المدير في القائمة دون الإخلال بباقي المواطنين
       if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
         registeredUsers.insert(0, adminUser);
         await saveUsers();
-        debugPrint("🏛️ [Data] المدير لم يكن موجوداً، تم تثبيته في رأس السجل.");
       }
     } else {
       registeredUsers = [adminUser];
-      _isLoaded = true;
       await saveUsers();
       debugPrint("🏛️ [Data] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.");
     }
   } catch (e) {
     debugPrint("❌ [Data] خطأ فادح أثناء تحميل السجل: $e");
-    if (registeredUsers.isEmpty) {
-      registeredUsers = [adminUser];
-    }
-    _isLoaded = true;
-  }
-}
-
-// دالة ضمان التحميل الفوري المتوافقة مع StorageService
-Future<void> ensureLoaded() async {
-  if (!_isLoaded || registeredUsers.isEmpty) {
-    await loadUsers();
+    registeredUsers = [adminUser];
   }
 }
 
@@ -77,90 +61,40 @@ Future<void> saveUsers() async {
         .map((u) => u.toJson())
         .toList();
     await prefs.setString('saved_users', json.encode(jsonList));
-    _isLoaded = true;
-    debugPrint("✅ [Data] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
+    debugPrint(
+      "✅ [Data] تم حفظ السجل الكامل (${registeredUsers.length} عميل) في الخزينة بنجاح.",
+    );
   } catch (e) {
     debugPrint("❌ [Data] خطأ أثناء الحفظ في الخزينة: $e");
   }
 }
 
-// دالة توافقية بديلة لاسم saveUsersList
-Future<void> saveUsersList() async {
-  await saveUsers();
-}
-
-// دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه مطلقاً
+// دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
 Future<void> addUser(UserModel newUser) async {
-  await ensureLoaded(); // التأكد من تحميل أحدث نسخة قبل التعديل
+  await loadUsers(); // التأكد من تحميل أحدث نسخة قبل التعديل
 
   int index = registeredUsers.indexWhere(
-    (u) =>
-        u.phone.trim() == newUser.phone.trim() ||
-        (newUser.moxId != "لم يحدد" &&
-            newUser.moxId.isNotEmpty &&
-            u.moxId.trim() == newUser.moxId.trim()),
+    (u) => u.phone == newUser.phone || u.moxId == newUser.moxId,
   );
 
   if (index != -1) {
     registeredUsers[index] = newUser;
-    debugPrint(
-      "🔄 [Data] العميل موجود مسبقاً (${newUser.name})، تم تحديث بياناته بنجاح دون ضياع.",
-    );
+    debugPrint("🔄 [Data] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
   } else {
     registeredUsers.add(newUser);
-    debugPrint(
-      "➕ [Data] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد في السجل.",
-    );
+    debugPrint("➕ [Data] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد.");
   }
 
   await saveUsers();
 }
 
-// دوال مساعدة للتوافق الشامل مع باقي الملفات والخدمات
-Future<Object?> getClientsData() async {
-  await ensureLoaded();
-  return registeredUsers.map((u) => u.toJson()).toList();
-}
-
-Future<void> saveClientsData(List<Map<String, dynamic>> clientsData) async {
-  registeredUsers = clientsData.map((e) => UserModel.fromJson(e)).toList();
-  _isLoaded = true;
-  await saveUsers();
-}
-
-// دالة التحقق من الدخول (غير المتزامنة)
-Future<UserModel?> authenticateAsync(
-  String input,
-  String password,
-  bool isMoxId,
-) async {
-  await ensureLoaded();
-  try {
-    String cleanInput = input.trim();
-    String cleanPass = password.trim();
-    return registeredUsers.firstWhere(
-      (u) =>
-          (isMoxId
-              ? u.moxId.trim() == cleanInput
-              : u.phone.trim() == cleanInput) &&
-          u.password.trim() == cleanPass,
-    );
-  } catch (e) {
-    return null;
-  }
-}
-
-// دالة التحقق من الدخول (المتزامنة القديمة للتوافق)
+// دالة التحقق من الدخول
 UserModel? authenticate(String input, String password, bool isMoxId) {
   try {
-    String cleanInput = input.trim();
-    String cleanPass = password.trim();
     return registeredUsers.firstWhere(
       (u) =>
-          (isMoxId
-              ? u.moxId.trim() == cleanInput
-              : u.phone.trim() == cleanInput) &&
-          u.password.trim() == cleanPass,
+          (isMoxId ? u.moxId == input : u.phone == input) &&
+          u.password == password,
     );
   } catch (e) {
     return null;
