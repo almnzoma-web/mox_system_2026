@@ -12,7 +12,7 @@ class StorageService {
 
   // تعريف المدير ببياناته السيادية
   static final UserModel adminUser = UserModel(
-    phone: "249115855164",
+    phone: "249123240711",
     password: "MOX1234567890MOX",
     name: "مدير النظام",
     address: "المركز الرئيسي",
