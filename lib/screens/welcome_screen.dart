@@ -31,7 +31,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
             const Text(
-              "نظامك الرقمي السيادي",
+              "بنك موكس الرقمي - نظامك الرقمي السيادي",
               style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 50),
