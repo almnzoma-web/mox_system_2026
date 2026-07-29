@@ -51,17 +51,17 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       UserModel? authenticatedUser;
 
-      // ضمان تحميل السجل من الخزينة أولاً
-      await StorageService.loadUsers();
+      // ضمان تحميل السجل من الخزينة أولاً وبشكل مؤكد
+      await StorageService.ensureLoaded();
 
       if (widget.isMoxIdLogin) {
         // البحث بالمعرف السيادي
         authenticatedUser = await StorageService.getUserByMoxId(input);
       } else {
-        // البحث برقم الهاتف من القائمة المركزية للخرزينة بالمسطرة
+        // البحث برقم الهاتف من القائمة المركزية للخرزينة بالمسطرة ودون أخطاء
         try {
           authenticatedUser = StorageService.registeredUsers.firstWhere(
-            (u) => u.phone == input,
+            (u) => u.phone.trim() == input,
           );
         } catch (_) {
           authenticatedUser = null;
@@ -69,7 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // 2. التحقق من وجود المستخدم وسلامة كلمة السر
-      if (authenticatedUser == null || authenticatedUser.password != password) {
+      if (authenticatedUser == null ||
+          authenticatedUser.password.trim() != password) {
         setState(() {
           _isLoading = false;
         });

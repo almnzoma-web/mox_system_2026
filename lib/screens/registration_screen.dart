@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
-import '../data/user_data.dart';
+import '../services/storage_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -15,8 +15,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _guardianController =
-      TextEditingController(); // حقل الوصي الاختياري
+  final TextEditingController _guardianController = TextEditingController();
 
   String _selectedGender = "ذكر";
   String _selectedAccountType = "فردي";
@@ -25,7 +24,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Future<void> _register() async {
     String phoneInput = _phoneController.text.trim();
 
-    // التحقق بالمسطرة من أن رقم الهاتف يبدأ بـ 249 ويتكون من 12 رقماً تماماً دون أي تكرار
+    // التحقق بالمسطرة من أن رقم الهاتف يبدأ بـ 249 ويتكون من 12 رقماً
     bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
 
     if (_nameController.text.trim().isEmpty || !isPhoneValid) {
@@ -43,13 +42,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
     String newMoxId = "MOX${timestamp.substring(timestamp.length - 8)}";
 
-    // معالجة رقم الوصي (المرشد): إذا ترك فارغاً أو خطأ، يُسند تلقائياً للمدير السيادي
+    // معالجة رقم الوصي (المرشد): إذا ترك فارغاً، يُسند تلقائياً للمدير السيادي
     String inputGuardian = _guardianController.text.trim();
     String finalGuardianId = inputGuardian.isEmpty
         ? "MOX249-00010001"
         : inputGuardian;
 
-    // حفظ رقم الهاتف كما كتبه المستخدم تماماً (بدون أي تكرار لـ 249)
     final newUser = UserModel(
       phone: phoneInput,
       password: _passwordController.text.trim(),
@@ -60,29 +58,34 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       gender: _selectedGender,
       accountType: _selectedAccountType,
       role: "user",
-      guardianMoxId: finalGuardianId, // ربط الوصي بالبيانات
+      guardianMoxId: finalGuardianId,
       points: 0,
     );
 
-    // إضافة العميل ومنح الـ 100 نقطة للوصي تلقائياً عبر الخزينة
-    await addUserWithReferral(newUser, finalGuardianId);
+    // إضافة العميل وتحديث نقاط الوصي عبر الخزينة السيادية الموحدة
+    await _addUserWithReferral(newUser, finalGuardianId);
 
     if (mounted) {
       _showSovereignCertificate(newMoxId);
     }
   }
 
-  // دالة مخصصة لإضافة العميل وتحديث نقاط الوصي بـ 100 نقطة بالمسطرة
-  Future<void> addUserWithReferral(UserModel newUser, String guardianId) async {
-    if (!registeredUsers.any((u) => u.moxId == newUser.moxId)) {
+  // دالة مخصصة لإضافة العميل وتحديث نقاط الوصي بـ 100 نقطة عبر StorageService
+  Future<void> _addUserWithReferral(
+    UserModel newUser,
+    String guardianId,
+  ) async {
+    await StorageService.ensureLoaded();
+
+    if (!StorageService.registeredUsers.any((u) => u.moxId == newUser.moxId)) {
       // البحث عن الوصي في السجل لمنحه 100 نقطة
-      int guardianIndex = registeredUsers.indexWhere(
+      int guardianIndex = StorageService.registeredUsers.indexWhere(
         (u) => u.moxId == guardianId,
       );
 
       if (guardianIndex != -1) {
-        var guardian = registeredUsers[guardianIndex];
-        registeredUsers[guardianIndex] = UserModel(
+        var guardian = StorageService.registeredUsers[guardianIndex];
+        StorageService.registeredUsers[guardianIndex] = UserModel(
           phone: guardian.phone,
           password: guardian.password,
           name: guardian.name,
@@ -95,20 +98,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           role: guardian.role,
           customWhatsApp: guardian.customWhatsApp,
           guardianMoxId: guardian.guardianMoxId,
-          points: guardian.points + 100, // إضافة 100 نقطة تلقائياً للوصي
+          points: guardian.points + 100, // إضافة 100 نقطة للوصي
           myAssets: guardian.myAssets,
         );
         debugPrint(
           "🎯 [Referral] تم منح 100 نقطة للوصي: ${guardian.name} (${guardian.moxId})",
         );
       } else {
-        // إذا كان رقم الوصي خطأ تماماً، تذهب الـ 100 نقطة للمدير كصمام أمان سيادي
-        int adminIndex = registeredUsers.indexWhere(
+        // إذا كان رقم الوصي خطأ، تذهب الـ 100 نقطة للمدير كصمام أمان سيادي
+        int adminIndex = StorageService.registeredUsers.indexWhere(
           (u) => u.moxId == "MOX249-00010001",
         );
         if (adminIndex != -1) {
-          var admin = registeredUsers[adminIndex];
-          registeredUsers[adminIndex] = UserModel(
+          var admin = StorageService.registeredUsers[adminIndex];
+          StorageService.registeredUsers[adminIndex] = UserModel(
             phone: admin.phone,
             password: admin.password,
             name: admin.name,
@@ -127,9 +130,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         }
       }
 
-      registeredUsers.add(newUser);
-      await saveUsers();
-      debugPrint("➕ [Data] تم تسجيل المواطن بنجاح وتحديث شبكة النقاط.");
+      StorageService.registeredUsers.add(newUser);
+      await StorageService.saveUsersList();
+      debugPrint(
+        "➕ [Storage] تم تسجيل المواطن بنجاح وتحديث شبكة النقاط في الخزينة.",
+      );
     }
   }
 
@@ -144,9 +149,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             borderRadius: BorderRadius.circular(25),
           ),
           child: Container(
-            constraints: const BoxConstraints(
-              maxHeight: 550,
-            ), // تقييد الارتفاع لمنع الخروج عن الشاشة
+            constraints: const BoxConstraints(maxHeight: 550),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -154,7 +157,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               border: Border.all(color: moxBlue, width: 3),
             ),
             child: SingleChildScrollView(
-              // السماح بالتمرير برطوبة وسلاسة التامة
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
