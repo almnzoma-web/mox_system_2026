@@ -21,12 +21,27 @@ final UserModel adminUser = UserModel(
   guardianMoxId: "MOX249-00010001",
 );
 
-// دالة التحميل السيادية من الذاكرة الدائمة (محصنة بالمسطرة)
+// دالة التحميل السيادية من الذاكرة الدائمة (محصنة بالمسطرة والبحث الشامل للمفاتيح)
 Future<void> loadUsers() async {
   try {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    String? encodedData = prefs.getString('saved_users');
+
+    // قائمة المفاتيح المحتملة لضمان العثور على بيانات العملاء المسجلين مسبقاً
+    List<String> possibleKeys = [
+      'saved_users',
+      'registered_users',
+      'mox_sovereign_db_v1',
+    ];
+    String? encodedData;
+
+    for (String key in possibleKeys) {
+      encodedData = prefs.getString(key);
+      if (encodedData != null && encodedData.isNotEmpty) {
+        debugPrint("🔍 [Data] تم العثور على السجلات في المفتاح: $key");
+        break;
+      }
+    }
 
     if (encodedData != null && encodedData.isNotEmpty) {
       List<dynamic> jsonList = json.decode(encodedData);
@@ -40,9 +55,11 @@ Future<void> loadUsers() async {
       // التأكد من وجود المدير في القائمة دون الإخلال بباقي المواطنين
       if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
         registeredUsers.insert(0, adminUser);
-        await saveUsers();
         debugPrint("🏛️ [Data] المدير لم يكن موجوداً، تم تثبيته في رأس السجل.");
       }
+
+      // إعادة الحفظ بالمفتاح المعياري الموحد لضمان الاستقرار التام
+      await saveUsers();
     } else {
       registeredUsers = [adminUser];
       await saveUsers();
