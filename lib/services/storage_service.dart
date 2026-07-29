@@ -54,7 +54,7 @@ class StorageService {
         "🏛️ [Hybrid Local] تم تحميل ${registeredUsers.length} مواطن محلياً.",
       );
 
-      // مزامنة صامتة في الخلفية مع شيت قوقل (إذا وُجد إنترنت، نجلب الأحدث ونحدث المحلي)
+      // مزامنة صامتة في الخلفية مع شيت قوقل
       _syncFromCloudInBackground();
     } catch (e) {
       debugPrint("❌ [Hybrid Local] خطأ في التحميل المحلي: $e");
@@ -63,7 +63,7 @@ class StorageService {
     }
   }
 
-  // مزامنة ذكية تعيد البيانات من الشيت للمحلية في الخلفية دون أن تشعر العميل ببطء
+  // مزامنة ذكية تعيد البيانات من الشيت للمحلية في الخلفية
   static Future<void> _syncFromCloudInBackground() async {
     try {
       final response = await http
@@ -101,7 +101,7 @@ class StorageService {
         }
       }
     } catch (_) {
-      // الإنترنت ضعيف أو مقطوع، التطبيق يعمل بكفاءة كاملة على المحلي دون أي تأخير
+      // الإنترنت ضعيف أو مقطوع، التطبيق يعمل بكفاءة كاملة على المحلي
     }
   }
 
@@ -142,7 +142,7 @@ class StorageService {
 
     await saveUsersList();
 
-    // رفع التحديث للشيت في الخلفية
+    // رفع التحديث للشيت فوراً في الخلفية
     try {
       await http
           .post(
@@ -151,7 +151,9 @@ class StorageService {
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 4));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
+    }
   }
 
   static Future<void> saveUser(UserModel user) async {
@@ -197,7 +199,7 @@ class StorageService {
     await saveUsersList();
   }
 
-  // تسجيل دخول فوري بالمعلومات المحلية لضمان عدم وجود أي تأخير بسبب ضعف النت
+  // تسجيل دخول فوري بالمعلومات المحلية
   static Future<UserModel?> authenticateAsync(
     String input,
     String password,
