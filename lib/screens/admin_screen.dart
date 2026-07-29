@@ -56,7 +56,7 @@ class _AdminScreenState extends State<AdminScreen> {
         "title": "المؤشر",
         "icon": Icons.analytics,
         "color": Colors.indigo,
-        "page": null, // نافذة داخلية ضمن القبة المالية/التبويبات أو تفعيل العرض
+        "page": null,
         "isIndicator": true,
       },
       {
@@ -144,12 +144,12 @@ class _AdminScreenState extends State<AdminScreen> {
                             onTap: () {
                               if (item["isIndicator"] == true) {
                                 setState(() {
-                                  financeSubTab = 4; // تبويب المؤشر الخاص
+                                  financeSubTab = 4; // تبويب المؤشر
                                 });
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                      "📊 تم تفعيل نافذة المؤشر السيادي بنجاح",
+                                      "📊 تم تفعيل نافذة المؤشر السيادي الحقيقي بنجاح",
                                     ),
                                   ),
                                 );
@@ -287,23 +287,22 @@ class _AdminScreenState extends State<AdminScreen> {
       case 3:
         return _buildPointsView();
       case 4:
-        return _buildIndicatorView(); // النافذة الجديدة المطلوبة
+        return _buildIndicatorView(); // نافذة المؤشر الحقيقي بالمسطرة
       default:
         return _buildCommissionsView();
     }
   }
 
-  // نافذة المؤشر الجديدة (جملة العملاء، زوار اليوم، زوار آخر شهر)
+  // نافذة المؤشر الحقيقي المستمدة من الخزينة (registeredUsers) دون أي أرقام وهمية
   Widget _buildIndicatorView() {
     int totalClients = registeredUsers.length;
-    // حساب افتراضي أو واقعي مبني على الذاكرة للزوار (يمكن ربطه بقاعدة VisitorsTab لاحقاً)
-    int visitorsToday = 42; // عينة حية أو قابلة للربط اللاحق
-    int visitorsLastMonth = 1280; // عينة حية أو قابلة للربط اللاحق
+    int activeUsers = registeredUsers.where((u) => u.role != 'admin').length;
+    int adminCount = registeredUsers.where((u) => u.role == 'admin').length;
 
     return ListView(
       children: [
         const Text(
-          "📈 مؤشرات الأداء والعدّاد التلقائي السيادي",
+          "📈 مؤشرات الأداء والعدّاد الحقيقي من الخزينة",
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -316,23 +315,23 @@ class _AdminScreenState extends State<AdminScreen> {
           totalClients.toString(),
           Icons.people_alt,
           Colors.orange,
-          "إجمالي المواطنين والعملاء المسجلين في الذاكرة المحلية",
+          "إجمالي المواطنين والعملاء المسجلين فعلياً في الخزينة",
         ),
         const SizedBox(height: 12),
         _buildIndicatorCard(
-          "جملة الزوار اليوم",
-          visitorsToday.toString(),
-          Icons.today,
+          "جملة الزوار / العملاء النشطين",
+          activeUsers.toString(),
+          Icons.visibility,
           Colors.teal,
-          "عدد الزيارات النشطة للمنظومة خلال الـ 24 ساعة الماضية",
+          "عدد العملاء والزوار المسجلين في سجل المنظومة",
         ),
         const SizedBox(height: 12),
         _buildIndicatorCard(
-          "جملة الزوار في آخر شهر",
-          visitorsLastMonth.toString(),
-          Icons.calendar_month,
+          "الإداريون والمسؤولون",
+          adminCount.toString(),
+          Icons.admin_panel_settings,
           Colors.purple,
-          "إجمالي حركة المرور والزوار خلال الثلاثين يوماً الأخيرة",
+          "عدد الحسابات ذات الصلاحيات السيادية والإدارية",
         ),
       ],
     );
@@ -392,7 +391,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // النافذة الأولى: عملاء العمولات (من الذاكرة المحلية UserModel)
+  // النافذة الأولى: عملاء العمولات
   Widget _buildCommissionsView() {
     return ListView.builder(
       itemCount: registeredUsers.length,
@@ -525,7 +524,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // النافذة الثانية: طلبيات والمنتجات (من الذاكرة المحلية UserModel) - المنطق السيادي لنشر البطاقة لـ 365 يوم
+  // النافذة الثانية: طلبيات والمنتجات
   Widget _buildCardRequestsView() {
     return ListView.builder(
       itemCount: registeredUsers.length,
@@ -578,12 +577,9 @@ class _AdminScreenState extends State<AdminScreen> {
                   onPressed: () async {
                     setState(() {
                       if (client.role == 'reviewed_active') {
-                        // إلغاء المراجعة وإيقاف النشر
                         client.role = 'free';
                       } else {
-                        // تحويل الحالة إلى تمت المراجعة وتفعيل أمر النشر الخلفي لمدة 365 يوماً
                         client.role = 'reviewed_active';
-                        // هنا يتم جدولة النشر الخلفي وتفعيل صلاحية البطاقة لمدة 365 يوماً تلقائياً
                       }
                     });
                     await _saveLocalData();
@@ -613,7 +609,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // النافذة الثالثة: النقاط (من الذاكرة المحلية UserModel)
+  // النافذة الثالثة: النقاط
   Widget _buildPointsView() {
     return ListView.builder(
       itemCount: registeredUsers.length,
