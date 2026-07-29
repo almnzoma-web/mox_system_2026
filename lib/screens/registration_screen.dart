@@ -66,7 +66,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       points: 0,
     );
 
-    // إضافة العميل وتحديث نقاط الوصي وتثبيته في الذاكرة الدائمة
+    // إضافة العميل وتحديث نقاط الوصي وتثبيته في الذاكرة الدائمة عبر StorageService
     await addUserWithReferral(newUser, finalGuardianId);
 
     if (mounted) {
@@ -78,69 +78,71 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Future<void> addUserWithReferral(UserModel newUser, String guardianId) async {
     // ضمان تحميل السجلات السيادية أولاً لمنع أي فراغ
     await StorageService.ensureLoaded();
-    await loadUsers();
 
-    // البحث عن الوصي في السجل لمنحه 100 نقطة
-    int guardianIndex = registeredUsers.indexWhere(
-      (u) => u.moxId.trim().toUpperCase() == guardianId.trim().toUpperCase(),
-    );
+    if (!registeredUsers.any(
+      (u) => u.moxId == newUser.moxId || u.phone == newUser.phone,
+    )) {
+      // البحث عن الوصي في السجل لمنحه 100 نقطة
+      int guardianIndex = registeredUsers.indexWhere(
+        (u) => u.moxId == guardianId,
+      );
 
-    if (guardianIndex != -1) {
-      var guardian = registeredUsers[guardianIndex];
-      registeredUsers[guardianIndex] = UserModel(
-        phone: guardian.phone,
-        password: guardian.password,
-        name: guardian.name,
-        address: guardian.address,
-        balance: guardian.balance,
-        commission: guardian.commission,
-        gender: guardian.gender,
-        accountType: guardian.accountType,
-        moxId: guardian.moxId,
-        role: guardian.role,
-        customWhatsApp: guardian.customWhatsApp,
-        guardianMoxId: guardian.guardianMoxId,
-        points: guardian.points + 100, // إضافة 100 نقطة تلقائياً للوصي
-        myAssets: guardian.myAssets,
-      );
-      await saveUsers(); // حفظ تحديث النقاط فوراً
-      debugPrint(
-        "🎯 [Referral] تم منح 100 نقطة للوصي: ${guardian.name} (${guardian.moxId})",
-      );
-    } else {
-      // إذا كان رقم الوصي خطأ تماماً، تذهب الـ 100 نقطة للمدير كصمام أمان سيادي
-      int adminIndex = registeredUsers.indexWhere(
-        (u) => u.moxId == "MOX249-00010001",
-      );
-      if (adminIndex != -1) {
-        var admin = registeredUsers[adminIndex];
-        registeredUsers[adminIndex] = UserModel(
-          phone: admin.phone,
-          password: admin.password,
-          name: admin.name,
-          address: admin.address,
-          balance: admin.balance,
-          commission: admin.commission,
-          gender: admin.gender,
-          accountType: admin.accountType,
-          moxId: admin.moxId,
-          role: admin.role,
-          customWhatsApp: admin.customWhatsApp,
-          guardianMoxId: admin.guardianMoxId,
-          points: admin.points + 100,
-          myAssets: admin.myAssets,
+      if (guardianIndex != -1) {
+        var guardian = registeredUsers[guardianIndex];
+        registeredUsers[guardianIndex] = UserModel(
+          phone: guardian.phone,
+          password: guardian.password,
+          name: guardian.name,
+          address: guardian.address,
+          balance: guardian.balance,
+          commission: guardian.commission,
+          gender: guardian.gender,
+          accountType: guardian.accountType,
+          moxId: guardian.moxId,
+          role: guardian.role,
+          customWhatsApp: guardian.customWhatsApp,
+          guardianMoxId: guardian.guardianMoxId,
+          points: guardian.points + 100, // إضافة 100 نقطة تلقائياً للوصي
+          myAssets: guardian.myAssets,
         );
-        await saveUsers();
+        debugPrint(
+          "🎯 [Referral] تم منح 100 نقطة للوصي: ${guardian.name} (${guardian.moxId})",
+        );
+      } else {
+        // إذا كان رقم الوصي خطأ تماماً، تذهب الـ 100 نقطة للمدير كصمام أمان سيادي
+        int adminIndex = registeredUsers.indexWhere(
+          (u) => u.moxId == "MOX249-00010001",
+        );
+        if (adminIndex != -1) {
+          var admin = registeredUsers[adminIndex];
+          registeredUsers[adminIndex] = UserModel(
+            phone: admin.phone,
+            password: admin.password,
+            name: admin.name,
+            address: admin.address,
+            balance: admin.balance,
+            commission: admin.commission,
+            gender: admin.gender,
+            accountType: admin.accountType,
+            moxId: admin.moxId,
+            role: admin.role,
+            customWhatsApp: admin.customWhatsApp,
+            guardianMoxId: admin.guardianMoxId,
+            points: admin.points + 100,
+            myAssets: admin.myAssets,
+          );
+        }
       }
+
+      // إدراج العميل الجديد في القائمة المركزية
+      registeredUsers.add(newUser);
+
+      // حفظ القائمة بالكامل وبشكل دائم في الخزينة عبر StorageService
+      await StorageService.saveUsersList();
+      debugPrint(
+        "➕ [Data] تم تسجيل المواطن بنجاح وحفظه للأبد في الذاكرة الدائمة.",
+      );
     }
-
-    // إدراج العميل الجديد رسمياً وحفظه في الذاكرة الدائمة عبر الخزينة وStorageService
-    await addUser(newUser);
-    await StorageService.saveUsersList();
-
-    debugPrint(
-      "➕ [Data] تم تسجيل المواطن بنجاح وحفظه للأبد في الذاكرة الدائمة.",
-    );
   }
 
   void _showSovereignCertificate(String moxId) {

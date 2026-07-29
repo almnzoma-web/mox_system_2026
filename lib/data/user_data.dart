@@ -21,7 +21,7 @@ final UserModel adminUser = UserModel(
   guardianMoxId: "MOX249-00010001",
 );
 
-// دالة التحميل السيادية من الذاكرة الدائمة
+// دالة التحميل السيادية من الذاكرة الدائمة (محصنة بالمسطرة)
 Future<void> loadUsers() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -41,6 +41,7 @@ Future<void> loadUsers() async {
       if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
         registeredUsers.insert(0, adminUser);
         await saveUsers();
+        debugPrint("🏛️ [Data] المدير لم يكن موجوداً، تم تثبيته في رأس السجل.");
       }
     } else {
       registeredUsers = [adminUser];
@@ -61,9 +62,7 @@ Future<void> saveUsers() async {
         .map((u) => u.toJson())
         .toList();
     await prefs.setString('saved_users', json.encode(jsonList));
-    debugPrint(
-      "✅ [Data] تم حفظ السجل الكامل (${registeredUsers.length} عميل) في الخزينة بنجاح.",
-    );
+    debugPrint("✅ [Data] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
   } catch (e) {
     debugPrint("❌ [Data] خطأ أثناء الحفظ في الخزينة: $e");
   }
@@ -74,7 +73,9 @@ Future<void> addUser(UserModel newUser) async {
   await loadUsers(); // التأكد من تحميل أحدث نسخة قبل التعديل
 
   int index = registeredUsers.indexWhere(
-    (u) => u.phone == newUser.phone || u.moxId == newUser.moxId,
+    (u) =>
+        u.phone == newUser.phone ||
+        (newUser.moxId != "لم يحدد" && u.moxId == newUser.moxId),
   );
 
   if (index != -1) {
