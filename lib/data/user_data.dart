@@ -6,7 +6,7 @@ import '../models/user_model.dart';
 // القائمة المركزية للمنظومة
 List<UserModel> registeredUsers = [];
 
-// تعريف المدير ببياناته السيادية
+// تعريف المدير ببياناته السيادية الموحدة
 final UserModel adminUser = UserModel(
   phone: "249115855164",
   password: "MOX1234567890MOX",
@@ -68,28 +68,25 @@ Future<void> saveUsers() async {
   }
 }
 
-// دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة
+// دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
 Future<void> addUser(UserModel newUser) async {
-  bool exists = registeredUsers.any(
+  await loadUsers(); // التأكد من تحميل أحدث نسخة قبل التعديل
+
+  int index = registeredUsers.indexWhere(
     (u) =>
         u.phone == newUser.phone ||
         (newUser.moxId != "لم يحدد" && u.moxId == newUser.moxId),
   );
 
-  if (!exists) {
-    registeredUsers.add(newUser);
-    await saveUsers();
-    debugPrint(
-      "➕ [Data] تم إضافة العميل ${newUser.name} وحفظه في الذاكرة الدائمة للأبد.",
-    );
+  if (index != -1) {
+    registeredUsers[index] = newUser;
+    debugPrint("🔄 [Data] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
   } else {
-    int index = registeredUsers.indexWhere((u) => u.phone == newUser.phone);
-    if (index != -1) {
-      registeredUsers[index] = newUser;
-      await saveUsers();
-      debugPrint("🔄 [Data] العميل موجود مسبقاً، تم تحديث بياناته وحفظها.");
-    }
+    registeredUsers.add(newUser);
+    debugPrint("➕ [Data] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد.");
   }
+
+  await saveUsers();
 }
 
 // دالة التحقق من الدخول

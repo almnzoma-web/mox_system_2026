@@ -12,7 +12,7 @@ class StorageService {
 
   // تعريف المدير ببياناته السيادية
   static final UserModel adminUser = UserModel(
-    phone: "249123240711",
+    phone: "249115855164",
     password: "MOX1234567890MOX",
     name: "مدير النظام",
     address: "المركز الرئيسي",
@@ -75,27 +75,41 @@ class StorageService {
     }
   }
 
+  // دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
+  static Future<void> addUser(UserModel newUser) async {
+    await loadUsers();
+
+    int index = registeredUsers.indexWhere(
+      (u) =>
+          u.phone == newUser.phone ||
+          (newUser.moxId != "لم يحدد" && u.moxId == newUser.moxId),
+    );
+
+    if (index != -1) {
+      registeredUsers[index] = newUser;
+      debugPrint("🔄 [Storage] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
+    } else {
+      registeredUsers.add(newUser);
+      debugPrint(
+        "➕ [Storage] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد.",
+      );
+    }
+
+    await saveUsersList();
+  }
+
   static Future<void> saveUser(UserModel user) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String userJson = jsonEncode(user.toJson());
       await prefs.setString(userKey, userJson);
 
-      // تحديث أو إضافة المستخدم في القائمة المركزية تلقائياً
-      await loadUsers();
-      int index = registeredUsers.indexWhere(
-        (u) =>
-            u.phone == user.phone ||
-            (user.moxId != "لم يحدد" && u.moxId == user.moxId),
-      );
-      if (index != -1) {
-        registeredUsers[index] = user;
-      } else {
-        registeredUsers.add(user);
-      }
-      await saveUsersList();
+      // استدعاء دالة الإضافة والحفظ المركزية
+      await addUser(user);
 
-      debugPrint("🏛️ [Storage] نجاح: تم حفظ العميل ${user.name} في الخزينة.");
+      debugPrint(
+        "🏛️ [Storage] نجاح: تم حفظ العميل النشط ${user.name} في الخزينة.",
+      );
     } catch (e) {
       debugPrint("❌ [Storage] خطأ فادح في الحفظ: $e");
     }
@@ -107,12 +121,12 @@ class StorageService {
       String? userJson = prefs.getString(userKey);
 
       if (userJson == null) {
-        debugPrint("⚠️ [Storage] تنبيه: الخزينة فارغة.");
+        debugPrint("⚠️ [Storage] تنبيه: الخزينة النشطة فارغة.");
         return null;
       }
 
       final user = UserModel.fromJson(jsonDecode(userJson));
-      debugPrint("✅ [Storage] نجاح: تم استرجاع العميل ${user.name}.");
+      debugPrint("✅ [Storage] نجاح: تم استرجاع العميل النشط ${user.name}.");
       return user;
     } catch (e) {
       debugPrint("❌ [Storage] خطأ فادح في الاسترجاع: $e");
@@ -124,7 +138,7 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(userKey);
-      debugPrint("🧹 [Storage] تم إخلاء الخزينة بنجاح.");
+      debugPrint("🧹 [Storage] تم إخلاء الخزينة النشطة بنجاح.");
     } catch (e) {
       debugPrint("❌ [Storage] خطأ أثناء الإخلاء: $e");
     }
@@ -140,6 +154,19 @@ class StorageService {
   ) async {
     registeredUsers = clientsData.map((e) => UserModel.fromJson(e)).toList();
     await saveUsersList();
+  }
+
+  // دالة التحقق من الدخول
+  static UserModel? authenticate(String input, String password, bool isMoxId) {
+    try {
+      return registeredUsers.firstWhere(
+        (u) =>
+            (isMoxId ? u.moxId == input : u.phone == input) &&
+            u.password == password,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 
   // الدوال السيادية الإضافية لتشغيل السوق المفتوح والروابط الخارجية عبر الـ moxId

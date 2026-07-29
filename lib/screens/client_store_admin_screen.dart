@@ -54,7 +54,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المرتبطة حقيقياً مع الخزينة السيادية وفحص رقم موكس اليدوي بدقة
+  // نافذة التحقق الأمني المرتبطة حقيقياً مع الخزينة السيادية وفحص رقم موكس وكلمة السر بدقة
   void _showSecurityLoginDialog() {
     final TextEditingController moxInputController = TextEditingController(
       text: widget.user.moxId != "لم يحدد" ? widget.user.moxId : "",
@@ -72,7 +72,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.lock_outline, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق الأمني السيادي",
+              "التحقق الأمني السيادي المحكم",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
@@ -86,7 +86,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم MOX السيادي الحقيقي (الذي يُضاف يدوياً مثل MOX249-00010001) وكلمة السر للمطابقة:",
+              "أدخل رقم MOX السيادي الحقيقي وكلمة السر المرتبطة به بدقة للمتابعة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
@@ -119,26 +119,28 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               String enteredMox = moxInputController.text.trim();
               String enteredPassword = passwordInputController.text.trim();
 
-              // فحص حقيقي شامل للمطابقة مع الذاكرة والخزينة السيادية registeredUsers
+              // فحص دقيق وشامل للمطابقة مع الخزينة السيادية registeredUsers والكلمة المرتبطة
               bool isValidFromStorage = false;
               try {
-                // البحث في الخزينة العامة عن مطابقة تامة لرقم الـ MOX وكلمة السر أو الحساب الحالي
                 for (var u in registeredUsers) {
-                  if (u.moxId == enteredMox) {
+                  // التحقق من تطابق رقم الـ MOX وكلمة السر معاً في الخزينة
+                  if (u.moxId == enteredMox && u.password == enteredPassword) {
                     isValidFromStorage = true;
                     break;
                   }
                 }
-                // مطابقة احتياطية مع العميل الحالي المرسل إذا تطابق رقمه اليدوي
+                // مطابقة احتياطية مع العميل الحالي المرسل إذا تطابق رقمه وكلمة سره
                 if (!isValidFromStorage &&
                     enteredMox == widget.user.moxId &&
+                    enteredPassword == widget.user.password &&
                     enteredMox.isNotEmpty) {
                   isValidFromStorage = true;
                 }
               } catch (_) {
                 isValidFromStorage =
                     (enteredMox == widget.user.moxId &&
-                    enteredPassword.isNotEmpty);
+                    enteredPassword == widget.user.password &&
+                    enteredMox.isNotEmpty);
               }
 
               if (!mounted) return;
@@ -191,7 +193,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً، وصول مرفوض. رقم MOX السيادي أو بيانات الاعتماد غير مطابقة لما هو مسجل في الخزينة.",
+          "عفواً، وصول مرفوض. رقم MOX السيادي أو كلمة السر غير مطابقة لما هو مسجل في الخزينة.",
           style: TextStyle(
             fontSize: 14,
             height: 1.5,
