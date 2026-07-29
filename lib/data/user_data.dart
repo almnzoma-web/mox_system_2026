@@ -1,10 +1,13 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 import '../models/user_model.dart';
 
 // القائمة المركزية للمنظومة
 List<UserModel> registeredUsers = [];
+
+// مرجع قاعدة البيانات السيادية
+Database? _database;
 
 // تعريف المدير ببياناته السيادية الموحدة
 final UserModel adminUser = UserModel(
@@ -21,71 +24,99 @@ final UserModel adminUser = UserModel(
   guardianMoxId: "MOX249-00010001",
 );
 
-// دالة التحميل السيادية من الذاكرة الدائمة (محصنة بالمسطرة والبحث الشامل للمفاتيح)
+// دالة تهيئة وفتح قاعدة البيانات المحلية عبر sqflite بالمسطرة
+Future<Database> get database async {
+  if (_database != null) return _database!;
+  _database = await _initDB('mox_sovereign_db.db');
+  return _database!;
+}
+
+Future<Database> _initDB(String filePath) async {
+  final dbPath = await getDatabasesPath();
+  const dbFolder = 'mox_vault';
+  // التأكد من المسار
+  final path = join(dbPath, dbFolder, filePath);
+
+  return await openDatabase(path, version: 1, onCreate: _createDB);
+}
+
+Future<void> _createDB(Database db, int version) async {
+  await db.execute('''
+    CREATE TABLE users (
+      phone TEXT PRIMARY KEY,
+      password TEXT,
+      name TEXT,
+      address TEXT,
+      balance REAL,
+      gender TEXT,
+      accountType TEXT,
+      moxId TEXT,
+      role TEXT,
+      points INTEGER,
+      guardianMoxId TEXT
+    )
+  ''');
+
+  // إدراج المدير الافتراضي عند الإنشاء الأول
+  await db.insert(
+    'users',
+    adminUser.toJson(),
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+}
+
+// دالة التحميل السيادية من قاعدة البيانات المحلية الحقيقية
 Future<void> loadUsers() async {
   try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('users');
 
-    // قائمة المفاتيح المحتملة لضمان العثور على بيانات العملاء المسجلين مسبقاً
-    List<String> possibleKeys = [
-      'saved_users',
-      'registered_users',
-      'mox_sovereign_db_v1',
-    ];
-    String? encodedData;
-
-    for (String key in possibleKeys) {
-      encodedData = prefs.getString(key);
-      if (encodedData != null && encodedData.isNotEmpty) {
-        debugPrint("🔍 [Data] تم العثور على السجلات في المفتاح: $key");
-        break;
-      }
-    }
-
-    if (encodedData != null && encodedData.isNotEmpty) {
-      List<dynamic> jsonList = json.decode(encodedData);
-      registeredUsers = jsonList
-          .map((item) => UserModel.fromJson(item))
-          .toList();
+    if (maps.isNotEmpty) {
+      registeredUsers = maps.map((item) => UserModel.fromJson(item)).toList();
       debugPrint(
-        "🏛️ [Data] تم تحميل ${registeredUsers.length} مواطن من السجل بنجاح.",
+        "🏛️ [SQLite Data] تم تحميل ${registeredUsers.length} مواطن من قاعدة البيانات بنجاح.",
       );
 
-      // التأكد من وجود المدير في القائمة دون الإخلال بباقي المواطنين
+      // التأكد من وجود المدير في رأس السجل
       if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
         registeredUsers.insert(0, adminUser);
-        debugPrint("🏛️ [Data] المدير لم يكن موجوداً، تم تثبيته في رأس السجل.");
+        await saveUsers();
+        debugPrint("🏛️ [SQLite Data] المدير لم يكن موجوداً، تم تثبيته.");
       }
-
-      // إعادة الحفظ بالمفتاح المعياري الموحد لضمان الاستقرار التام
-      await saveUsers();
     } else {
       registeredUsers = [adminUser];
       await saveUsers();
-      debugPrint("🏛️ [Data] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.");
+      debugPrint(
+        "🏛️ [SQLite Data] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.",
+      );
     }
   } catch (e) {
-    debugPrint("❌ [Data] خطأ فادح أثناء تحميل السجل: $e");
+    debugPrint("❌ [SQLite Data] خطأ فادح أثناء تحميل السجل: $e");
     registeredUsers = [adminUser];
   }
 }
 
-// دالة الحفظ الدائم في الخزينة المركزية
+// دالة الحفظ الدائم في قاعدة البيانات المحلية
 Future<void> saveUsers() async {
   try {
-    final prefs = await SharedPreferences.getInstance();
-    List<Map<String, dynamic>> jsonList = registeredUsers
-        .map((u) => u.toJson())
-        .toList();
-    await prefs.setString('saved_users', json.encode(jsonList));
-    debugPrint("✅ [Data] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
+    final db = await database;
+    // حفظ أو تحديث كافة المستخدمين في قاعدة البيانات
+    for (var user in registeredUsers) {
+      await db.insert(
+        'users',
+        user.toJson(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    debugPrint(
+      "✅ [SQLite Data] تم حفظ السجل الكامل للعملاء في قاعدة البيانات المحلية بنجاح.",
+    );
   } catch (e) {
-    debugPrint("❌ [Data] خطأ أثناء الحفظ في الخزينة: $e");
+    debugPrint("❌ [SQLite Data] خطأ أثناء الحفظ في قاعدة البيانات: $e");
   }
 }
 
-// دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
+// دالة إضافة عميل جديد وتثبيته فوراً بالخزينة الحديدية للأبد
 Future<void> addUser(UserModel newUser) async {
   await loadUsers(); // التأكد من تحميل أحدث نسخة قبل التعديل
 
@@ -97,10 +128,12 @@ Future<void> addUser(UserModel newUser) async {
 
   if (index != -1) {
     registeredUsers[index] = newUser;
-    debugPrint("🔄 [Data] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
+    debugPrint("🔄 [SQLite Data] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
   } else {
     registeredUsers.add(newUser);
-    debugPrint("➕ [Data] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد.");
+    debugPrint(
+      "➕ [SQLite Data] تم إضافة العميل الجديد ${newUser.name} وحفظه في القاعدة للأبد.",
+    );
   }
 
   await saveUsers();
