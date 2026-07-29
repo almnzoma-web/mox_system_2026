@@ -15,18 +15,22 @@ class StorageService {
   static const String _scriptUrl =
       "https://script.google.com/macros/s/AKfycbwwJkrdVEfCyOhdQvWO3rd0DlYZ_H7TyAd9hz5XkmxGV9yiBNBir89_4Y3Au2U2t10/exec";
 
+  // تعريف المدير السيادي بكافة الحقول الشاملة (الواتساب، العمولات، الأصول، وغيرها)
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
     password: "MOX1234567890MOX",
     name: "مدير النظام",
     address: "المركز الرئيسي",
     balance: 5000.0,
+    commission: 0.0,
     gender: "ذكر",
     accountType: "إدارة",
     moxId: "MOX249-00010001",
     role: "admin",
-    points: 0,
+    customWhatsApp: "249115855164",
     guardianMoxId: "MOX249-00010001",
+    points: 0,
+    myAssets: [],
   );
 
   // دالة التحميل المحلية الفورية (تفتح بسرعة البرق حتى لو انقطع الإنترنت)
@@ -142,7 +146,7 @@ class StorageService {
 
     await saveUsersList();
 
-    // رفع التحديث للشيت فوراً في الخلفية
+    // رفع التحديث للشيت فوراً في الخلفية مع كامل الحقول
     try {
       await http
           .post(
