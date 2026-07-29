@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../models/marketing_model.dart';
 
 class UserModel {
@@ -90,4 +91,55 @@ class UserModel {
         .map((e) => MarketingCard.fromJson(e))
         .toList(),
   );
+
+  // ==========================================
+  // الدوال السيادية الخاصة بـ SQLite (الجديدة)
+  // ==========================================
+  Map<String, dynamic> toMap() => {
+    'phone': phone,
+    'moxId': moxId,
+    'password': password,
+    'name': name,
+    'address': address,
+    'balance': balance,
+    'commission': commission,
+    'gender': gender,
+    'accountType': accountType,
+    'role': role,
+    'customWhatsApp': customWhatsApp,
+    'guardianMoxId': guardianMoxId,
+    'points': points,
+    'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
+  };
+
+  factory UserModel.fromMap(Map<String, dynamic> map) {
+    List<MarketingCard> parsedAssets = [];
+    try {
+      if (map['myAssets'] != null && map['myAssets'].toString().isNotEmpty) {
+        List<dynamic> decodedList = jsonDecode(map['myAssets']);
+        parsedAssets = decodedList
+            .map((e) => MarketingCard.fromJson(e))
+            .toList();
+      }
+    } catch (_) {
+      parsedAssets = [];
+    }
+
+    return UserModel(
+      phone: map['phone'] ?? '',
+      moxId: map['moxId'] ?? "لم يحدد",
+      password: map['password'] ?? '',
+      name: map['name'] ?? '',
+      address: map['address'] ?? '',
+      balance: (map['balance'] as num? ?? 0.0).toDouble(),
+      commission: (map['commission'] as num? ?? 0.0).toDouble(),
+      gender: map['gender'] ?? '',
+      accountType: map['accountType'] ?? '',
+      role: map['role'] ?? "free",
+      customWhatsApp: map['customWhatsApp'],
+      guardianMoxId: map['guardianMoxId'] ?? "MOX249-00010001",
+      points: map['points'] ?? 0,
+      myAssets: parsedAssets,
+    );
+  }
 }
