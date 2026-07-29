@@ -23,11 +23,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isPasswordVisible = false;
 
   Future<void> _register() async {
-    if (_nameController.text.trim().isEmpty ||
-        _phoneController.text.trim().length < 9) {
+    String phoneInput = _phoneController.text.trim();
+
+    // التحقق بالمسطرة من أن رقم الهاتف يبدأ بـ 249 ويتكون من 12 رقماً تماماً دون أي تكرار
+    bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
+
+    if (_nameController.text.trim().isEmpty || !isPhoneValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("يرجى إدخال رقم الهاتف كاملاً."),
+          content: Text(
+            "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249 تبدأ بـ وتتكون من 12 رقماً).",
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -43,8 +49,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ? "MOX249-00010001"
         : inputGuardian;
 
+    // حفظ رقم الهاتف كما كتبه المستخدم تماماً (بدون أي تكرار لـ 249)
     final newUser = UserModel(
-      phone: "249${_phoneController.text.trim()}",
+      phone: phoneInput,
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
       moxId: newMoxId,

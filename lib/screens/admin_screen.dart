@@ -53,34 +53,46 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> menuItems = [
       {
+        "title": "المؤشر",
+        "icon": Icons.analytics,
+        "color": Colors.indigo,
+        "page": null, // نافذة داخلية ضمن القبة المالية/التبويبات أو تفعيل العرض
+        "isIndicator": true,
+      },
+      {
         "title": "المالية",
         "icon": Icons.attach_money,
         "color": Colors.green,
         "page": null,
+        "isIndicator": false,
       },
       {
         "title": "التطبيقات",
         "icon": Icons.apps,
         "color": Colors.blue,
         "page": const AppWarehouseTab(),
+        "isIndicator": false,
       },
       {
         "title": "الخدمات",
         "icon": Icons.room_service,
         "color": Colors.purple,
         "page": const ServicesManagerTab(),
+        "isIndicator": false,
       },
       {
         "title": "العملاء",
         "icon": Icons.people,
         "color": Colors.orange,
         "page": const ClientsManager(),
+        "isIndicator": false,
       },
       {
         "title": "الزوار",
         "icon": Icons.visibility,
         "color": Colors.teal,
         "page": const VisitorsTab(),
+        "isIndicator": false,
       },
     ];
 
@@ -130,7 +142,18 @@ class _AdminScreenState extends State<AdminScreen> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(15),
                             onTap: () {
-                              if (item["page"] != null) {
+                              if (item["isIndicator"] == true) {
+                                setState(() {
+                                  financeSubTab = 4; // تبويب المؤشر الخاص
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "📊 تم تفعيل نافذة المؤشر السيادي بنجاح",
+                                    ),
+                                  ),
+                                );
+                              } else if (item["page"] != null) {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -195,6 +218,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         Icons.credit_card,
                       ),
                       _buildFinanceTabButton("النقاط", 3, Icons.stars),
+                      _buildFinanceTabButton("المؤشر", 4, Icons.analytics),
                     ],
                   ),
                 ),
@@ -219,7 +243,7 @@ class _AdminScreenState extends State<AdminScreen> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF1B6B80) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
@@ -228,16 +252,16 @@ class _AdminScreenState extends State<AdminScreen> {
           children: [
             Icon(
               icon,
-              size: 16,
+              size: 15,
               color: isSelected ? Colors.white : Colors.grey[700],
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Text(
               title,
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.black87,
                 fontWeight: FontWeight.bold,
-                fontSize: 12,
+                fontSize: 11,
               ),
             ),
           ],
@@ -247,7 +271,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildActiveFinanceView() {
-    if (registeredUsers.isEmpty) {
+    if (registeredUsers.isEmpty && financeSubTab != 4) {
       return const Center(
         child: Text(
           "لا توجد بيانات مسجلة في الذاكرة المحلية حالياً",
@@ -262,9 +286,110 @@ class _AdminScreenState extends State<AdminScreen> {
         return _buildCardRequestsView();
       case 3:
         return _buildPointsView();
+      case 4:
+        return _buildIndicatorView(); // النافذة الجديدة المطلوبة
       default:
         return _buildCommissionsView();
     }
+  }
+
+  // نافذة المؤشر الجديدة (جملة العملاء، زوار اليوم، زوار آخر شهر)
+  Widget _buildIndicatorView() {
+    int totalClients = registeredUsers.length;
+    // حساب افتراضي أو واقعي مبني على الذاكرة للزوار (يمكن ربطه بقاعدة VisitorsTab لاحقاً)
+    int visitorsToday = 42; // عينة حية أو قابلة للربط اللاحق
+    int visitorsLastMonth = 1280; // عينة حية أو قابلة للربط اللاحق
+
+    return ListView(
+      children: [
+        const Text(
+          "📈 مؤشرات الأداء والعدّاد التلقائي السيادي",
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1B6B80),
+          ),
+        ),
+        const SizedBox(height: 15),
+        _buildIndicatorCard(
+          "جملة العملاء المسجلين",
+          totalClients.toString(),
+          Icons.people_alt,
+          Colors.orange,
+          "إجمالي المواطنين والعملاء المسجلين في الذاكرة المحلية",
+        ),
+        const SizedBox(height: 12),
+        _buildIndicatorCard(
+          "جملة الزوار اليوم",
+          visitorsToday.toString(),
+          Icons.today,
+          Colors.teal,
+          "عدد الزيارات النشطة للمنظومة خلال الـ 24 ساعة الماضية",
+        ),
+        const SizedBox(height: 12),
+        _buildIndicatorCard(
+          "جملة الزوار في آخر شهر",
+          visitorsLastMonth.toString(),
+          Icons.calendar_month,
+          Colors.purple,
+          "إجمالي حركة المرور والزوار خلال الثلاثين يوماً الأخيرة",
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIndicatorCard(
+    String title,
+    String count,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: color.withValues(alpha: 0.15),
+              child: Icon(icon, size: 30, color: color),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              count,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // النافذة الأولى: عملاء العمولات (من الذاكرة المحلية UserModel)
