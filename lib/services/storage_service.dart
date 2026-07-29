@@ -1,18 +1,19 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
 import '../models/user_model.dart';
 
 class StorageService {
   static const String userKey = 'current_mox_user';
   static const String savedUsersKey = 'saved_users';
 
+  // القائمة المركزية للمنظومة
   static List<UserModel> registeredUsers = [];
-  static bool _isLoaded = false;
-  static Database? _database;
 
+  // علامة لتتبع ما إذا تم تحميل البيانات مسبقاً في الجلسة الحالية
+  static bool _isLoaded = false;
+
+  // تعريف المدير ببياناته السيادية
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
     password: "MOX1234567890MOX",
@@ -27,44 +28,7 @@ class StorageService {
     guardianMoxId: "MOX249-00010001",
   );
 
-  // تهيئة قاعدة البيانات الصلبة (SQLite) كخزينة احتياطية لا تُمسح بالـ Clean
-  static Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB();
-    return _database!;
-  }
-
-  static Future<Database> _initDB() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'mox_digital_vault.db');
-
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE users (
-            phone TEXT PRIMARY KEY,
-            moxId TEXT,
-            password TEXT,
-            name TEXT,
-            address TEXT,
-            balance REAL,
-            commission REAL,
-            gender TEXT,
-            accountType TEXT,
-            role TEXT,
-            points INTEGER,
-            guardianMoxId TEXT,
-            customWhatsApp TEXT,
-            myAssets TEXT
-          )
-        ''');
-      },
-    );
-  }
-
-  // دالة التحميل المزدوجة (تتفقد SharedPreferences أولاً، وإذا فرغت تستعيد من SQLite)
+  // دالة التحميل السيادية من الذاكرة الدائمة
   static Future<void> loadUsers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -77,75 +41,57 @@ class StorageService {
             .map((item) => UserModel.fromJson(item))
             .toList();
         _isLoaded = true;
+        debugPrint(
+          "🏛️ [Storage] تم تحميل ${registeredUsers.length} مواطن من السجل بنجاح.",
+        );
+
+        if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
+          registeredUsers.insert(0, adminUser);
+          await saveUsersList();
+          debugPrint(
+            "🏛️ [Storage] المدير لم يكن موجوداً، تم تثبيته في رأس السجل.",
+          );
+        }
       } else {
-        // محاولة الاستعادة من الخزينة الصلبة SQLite إذا تفرغت الشيرد بريفرنسز
-        try {
-          final db = await database;
-          final List<Map<String, dynamic>> maps = await db.query('users');
-          if (maps.isNotEmpty) {
-            registeredUsers = maps
-                .map((item) => UserModel.fromMap(item))
-                .toList();
-            // مزامنة عكسية للشيرد بريفرنسز لتظل المنظومة سريعة
-            await saveUsersList();
-          }
-        } catch (_) {}
-      }
-
-      // التأكد من وجود المدير السيادي دائماً
-      if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
-        registeredUsers.insert(0, adminUser);
+        registeredUsers = [adminUser];
+        _isLoaded = true;
         await saveUsersList();
+        debugPrint(
+          "🏛️ [Storage] السجل كان فارغاً، تم تثبيت المدير كأول إدخال.",
+        );
       }
-
-      _isLoaded = true;
-      debugPrint(
-        "🏛️ [Storage Dual] تم تحميل ${registeredUsers.length} مواطن بنجاح.",
-      );
     } catch (e) {
-      debugPrint("❌ [Storage Dual] خطأ أثناء التحميل: $e");
+      debugPrint("❌ [Storage] خطأ فادح أثناء تحميل السجل: $e");
       registeredUsers = [adminUser];
       _isLoaded = true;
     }
   }
 
+  // دالة ضمان التحميل الفوري (تمنع قراءة قائمة فارغة أبداً)
   static Future<void> ensureLoaded() async {
     if (!_isLoaded || registeredUsers.isEmpty) {
       await loadUsers();
     }
   }
 
-  // دالة الحفظ المزدوجة (تحدث SharedPreferences و SQLite معاً)
+  // دالة حفظ القائمة الكاملة للسجل في الخزينة
   static Future<void> saveUsersList() async {
     try {
-      // 1. الحفظ في SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       List<Map<String, dynamic>> jsonList = registeredUsers
           .map((u) => u.toJson())
           .toList();
       await prefs.setString(savedUsersKey, json.encode(jsonList));
-
-      // 2. الحفظ في SQLite لضمان عدم الضياع عند عمل Clean أو تحديث Build
-      final db = await database;
-      for (var user in registeredUsers) {
-        await db.insert(
-          'users',
-          user.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-
       _isLoaded = true;
-      debugPrint(
-        "✅ [Storage Dual] تم حفظ السجل وتأمينه في الخزينة المزدوجة بنجاح.",
-      );
+      debugPrint("✅ [Storage] تم حفظ السجل الكامل للعملاء في الخزينة بنجاح.");
     } catch (e) {
-      debugPrint("❌ [Storage Dual] خطأ أثناء الحفظ المزدوج: $e");
+      debugPrint("❌ [Storage] خطأ أثناء حفظ السجل في الخزينة: $e");
     }
   }
 
+  // دالة إضافة عميل جديد وتثبيته فوراً بالذاكرة الدائمة وعدم مسحه
   static Future<void> addUser(UserModel newUser) async {
-    await ensureLoaded();
+    await ensureLoaded(); // ضمان تحميل القائمة الحقيقية أولاً
 
     int index = registeredUsers.indexWhere(
       (u) =>
@@ -155,8 +101,12 @@ class StorageService {
 
     if (index != -1) {
       registeredUsers[index] = newUser;
+      debugPrint("🔄 [Storage] العميل موجود مسبقاً، تم تحديث بياناته بنجاح.");
     } else {
       registeredUsers.add(newUser);
+      debugPrint(
+        "➕ [Storage] تم إضافة العميل الجديد ${newUser.name} وحفظه للأبد.",
+      );
     }
 
     await saveUsersList();
@@ -168,10 +118,14 @@ class StorageService {
       String userJson = jsonEncode(user.toJson());
       await prefs.setString(userKey, userJson);
 
+      // استدعاء دالة الإضافة والحفظ المركزية
       await addUser(user);
-      debugPrint("🏛️ [Storage Dual] حفظ العميل النشط: ${user.name}");
+
+      debugPrint(
+        "🏛️ [Storage] نجاح: تم حفظ العميل النشط ${user.name} في الخزينة.",
+      );
     } catch (e) {
-      debugPrint("❌ [Storage Dual] خطأ في حفظ العميل النشط: $e");
+      debugPrint("❌ [Storage] خطأ فادح في الحفظ: $e");
     }
   }
 
@@ -179,9 +133,17 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? userJson = prefs.getString(userKey);
-      if (userJson == null) return null;
-      return UserModel.fromJson(jsonDecode(userJson));
+
+      if (userJson == null) {
+        debugPrint("⚠️ [Storage] تنبيه: الخزينة النشطة فارغة.");
+        return null;
+      }
+
+      final user = UserModel.fromJson(jsonDecode(userJson));
+      debugPrint("✅ [Storage] نجاح: تم استرجاع العميل النشط ${user.name}.");
+      return user;
     } catch (e) {
+      debugPrint("❌ [Storage] خطأ فادح في الاسترجاع: $e");
       return null;
     }
   }
@@ -190,7 +152,10 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(userKey);
-    } catch (_) {}
+      debugPrint("🧹 [Storage] تم إخلاء الخزينة النشطة بنجاح.");
+    } catch (e) {
+      debugPrint("❌ [Storage] خطأ أثناء الإخلاء: $e");
+    }
   }
 
   static Future<Object?> getClientsData() async {
@@ -206,6 +171,7 @@ class StorageService {
     await saveUsersList();
   }
 
+  // دالة التحقق من الدخول (مع ضمان التحميل التلقائي)
   static Future<UserModel?> authenticateAsync(
     String input,
     String password,
@@ -223,7 +189,8 @@ class StorageService {
     }
   }
 
-  UserModel? authenticate(String input, String password, bool isMoxId) {
+  // دالة التحقق التزامن القديمة (محمية بالتأكد من تحميل القائمة إن أمكن)
+  static UserModel? authenticate(String input, String password, bool isMoxId) {
     try {
       return registeredUsers.firstWhere(
         (u) =>
@@ -235,13 +202,15 @@ class StorageService {
     }
   }
 
+  // الدوال السيادية الإضافية لتشغيل السوق المفتوح والروابط الخارجية عبر الـ moxId
   static Future<UserModel?> getUserByMoxId(String moxId) async {
     try {
       await ensureLoaded();
       return registeredUsers.firstWhere(
         (u) => u.moxId == moxId || u.guardianMoxId == moxId,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint("❌ [Storage] لم يتم العثور على العميل بالـ moxId: $moxId");
       return null;
     }
   }
@@ -252,8 +221,11 @@ class StorageService {
       if (user != null && user.myAssets.isNotEmpty) {
         return user.myAssets.map((asset) => asset.toJson()).toList();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("❌ [Storage] خطأ في جلب بطاقات العميل عبر الـ moxId: $e");
+    }
 
+    // البطاقة الافتراضية بالمسطرة في حال عدم وجود أصول سابقة
     return [
       {
         'title': 'بطاقة المتجر السيادي الفاخرة',
