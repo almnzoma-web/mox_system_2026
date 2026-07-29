@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../data/user_data.dart';
-// ربط خدمة التخزين السيادية لضمان الحفظ الفوري الدائم
-import '../services/storage_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -51,7 +49,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ? "MOX249-00010001"
         : inputGuardian;
 
-    // حفظ رقم الهاتف كما كتبه المستخدم تماماً
+    // حفظ رقم الهاتف كما كتبه المستخدم تماماً (بدون أي تكرار لـ 249)
     final newUser = UserModel(
       phone: phoneInput,
       password: _passwordController.text.trim(),
@@ -66,7 +64,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       points: 0,
     );
 
-    // إضافة العميل وتحديث نقاط الوصي وتثبيته في الذاكرة الدائمة عبر StorageService
+    // إضافة العميل ومنح الـ 100 نقطة للوصي تلقائياً عبر الخزينة
     await addUserWithReferral(newUser, finalGuardianId);
 
     if (mounted) {
@@ -74,14 +72,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
   }
 
-  // دالة مخصصة لإضافة العميل وتحديث نقاط الوصي بالمسطرة والحفظ الدائم
+  // دالة مخصصة لإضافة العميل وتحديث نقاط الوصي بـ 100 نقطة بالمسطرة
   Future<void> addUserWithReferral(UserModel newUser, String guardianId) async {
-    // ضمان تحميل السجلات السيادية أولاً لمنع أي فراغ
-    await StorageService.ensureLoaded();
-
-    if (!registeredUsers.any(
-      (u) => u.moxId == newUser.moxId || u.phone == newUser.phone,
-    )) {
+    if (!registeredUsers.any((u) => u.moxId == newUser.moxId)) {
       // البحث عن الوصي في السجل لمنحه 100 نقطة
       int guardianIndex = registeredUsers.indexWhere(
         (u) => u.moxId == guardianId,
@@ -134,14 +127,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         }
       }
 
-      // إدراج العميل الجديد في القائمة المركزية
       registeredUsers.add(newUser);
-
-      // حفظ القائمة بالكامل وبشكل دائم في الخزينة عبر StorageService
-      await StorageService.saveUsersList();
-      debugPrint(
-        "➕ [Data] تم تسجيل المواطن بنجاح وحفظه للأبد في الذاكرة الدائمة.",
-      );
+      await saveUsers();
+      debugPrint("➕ [Data] تم تسجيل المواطن بنجاح وتحديث شبكة النقاط.");
     }
   }
 
