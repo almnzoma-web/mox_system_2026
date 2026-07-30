@@ -210,7 +210,7 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
                     ),
                     const SizedBox(height: 20),
                     const Text(
-                      "عذراً، لا توجد بيانات مدرجة لهذا العميل في قوقل",
+                      "عذراً، لا توجد بيانات مدرجة لك  في قوقل عبر موكس",
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white,

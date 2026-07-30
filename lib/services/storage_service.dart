@@ -13,7 +13,7 @@ class StorageService {
 
   // رابط شيت قوقل السحابي الخاص بك
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbz5En8O43dBI2i0Q6D4ImBSlTcIUolAy8OuQm6_YRLOZ5IELHuVOAENPCbYY5rLuf4y/exec";
+      "https://script.google.com/macros/s/AKfycbxkhZxWdPU_zJIoCCDVzAzAnAh_eZo_SRGoYyTPZvfiHXodf5IATANvVTmq2pwJdrv-/exec";
 
   // تعريف المدير السيادي بكافة الحقول الشاملة (الواتساب، العمولات، الأصول، وغيرها)
   static final UserModel adminUser = UserModel(
