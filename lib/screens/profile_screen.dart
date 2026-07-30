@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
+import '../services/storage_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -16,6 +17,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
   late TextEditingController _guardianController;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -23,13 +25,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController = TextEditingController(text: widget.user.name);
     _phoneController = TextEditingController(text: widget.user.phone);
     _addressController = TextEditingController(text: widget.user.address);
-    // حقل رقم الوصي (الذي أرشده) مع القيمة الافتراضية السيادية للمدير
+    // حقل رقم الوصي (المرشد) مع القيمة الافتراضية للمدير
     _guardianController = TextEditingController(
       text: widget.user.guardianMoxId ?? "MOX249-00010001",
     );
   }
 
-  // دالة الواتساب النظيفة الخالية من أي كود ميت بالمسطرة
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _guardianController.dispose();
+    super.dispose();
+  }
+
+  // دالة الواتساب النظيفة
   Future<void> _launchWhatsApp(String phone, String message) async {
     final Uri url = Uri.parse(
       "https://wa.me/${phone.replaceAll('+', '')}?text=${Uri.encodeComponent(message)}",
@@ -37,9 +48,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
+  // دالة الحفظ السيادية (تحديث محلي + رفع فوري لشيت قوقل)
+  Future<void> _saveChanges() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. تحديث بيانات الكائن بالقيم الجديدة بالمسطرة
+      widget.user.name = _nameController.text.trim();
+      widget.user.phone = _phoneController.text.trim();
+      widget.user.address = _addressController.text.trim();
+      widget.user.guardianMoxId = _guardianController.text.trim();
+
+      // 2. إرسال البيانات للمنظومة (المحلي + السحابي في شيت Users)
+      await StorageService.addUser(widget.user);
+      await StorageService.saveUser(widget.user);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("تم حفظ التغييرات ورفعها لشيت قوقل بنجاح بالمسطرة!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("خطأ أثناء الحفظ: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // التحقق من نوع الحساب بناءً على الثلاثي السيادي (مجاني، محترف، وكيل)
     String accountType = widget.user.accountType;
     bool isFree = accountType == 'مجاني';
     bool isAgent = accountType == 'وكيل';
@@ -103,7 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            // حقول التعديل
+            // حقول التعديل بالمسطرة
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -132,7 +185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 15),
 
-            // بطاقة رقم الوصي (الإضافة القنبلة)
+            // بطاقة رقم الوصي
             TextField(
               controller: _guardianController,
               decoration: const InputDecoration(
@@ -203,27 +256,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
 
             const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("تم حفظ التغييرات في السجل السيادي"),
+
+            // زر الحفظ الفعلي المربوط بالمنظومة والسحابة
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ElevatedButton(
+                    onPressed: _saveChanges,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: moxBlue,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: const Text(
+                      "حفظ التغييرات",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: moxBlue,
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              child: const Text(
-                "حفظ التغييرات",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
           ],
         ),
       ),
