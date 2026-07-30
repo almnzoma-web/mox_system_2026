@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mox_digital_app/admin_panel/clients_management.dart';
-// الربط المباشر بملفات المنظومة السيادية الحقيقية
 import '../admin_panel/visitors_tab.dart';
 import '../admin_panel/services_manager_tab.dart';
 import '../admin_panel/app_warehouse_tab.dart';
-import '../../services/storage_service.dart'; // الخزينة الهجينة الجديدة (المحلية + الشيت)
+import '../../services/storage_service.dart';
 import '../../models/user_model.dart';
 
 class AdminScreen extends StatefulWidget {
@@ -24,10 +23,9 @@ class _AdminScreenState extends State<AdminScreen> {
     _loadLocalData();
   }
 
-  // سحب البيانات بالمنظومة الهجينة (سرعة محلية + تحديث صامت من الشيت)
   Future<void> _loadLocalData() async {
     try {
-      await StorageService.loadUsers(); // جلب البيانات من الخزينة الهجينة
+      await StorageService.loadUsers();
       if (mounted) {
         setState(() {
           isLoading = false;
@@ -44,7 +42,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Future<void> _saveLocalData() async {
-    await StorageService.saveUsersList(); // حفظ التحديثات في المحلي والشيت معاً
+    await StorageService.saveUsersList();
     if (mounted) setState(() {});
   }
 
@@ -99,7 +97,7 @@ class _AdminScreenState extends State<AdminScreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text(
-          "لوحة تحكم المدير السيادية (مركز الإدارة والتحكم)",
+          "لوحة تحكم المدير السيادية",
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -143,7 +141,7 @@ class _AdminScreenState extends State<AdminScreen> {
                             onTap: () {
                               if (item["isIndicator"] == true) {
                                 setState(() {
-                                  financeSubTab = 4; // تبويب المؤشر
+                                  financeSubTab = 4;
                                 });
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
@@ -286,13 +284,12 @@ class _AdminScreenState extends State<AdminScreen> {
       case 3:
         return _buildPointsView();
       case 4:
-        return _buildIndicatorView(); // نافذة المؤشر الحقيقي بالمسطرة
+        return _buildIndicatorView();
       default:
         return _buildCommissionsView();
     }
   }
 
-  // نافذة المؤشر الحقيقي المستمدة من الخزينة الهجينة دون أي أرقام وهمية
   Widget _buildIndicatorView() {
     int totalClients = StorageService.registeredUsers.length;
     int activeUsers = StorageService.registeredUsers
@@ -394,7 +391,6 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // النافذة الأولى: عملاء العمولات
   Widget _buildCommissionsView() {
     return ListView.builder(
       itemCount: StorageService.registeredUsers.length,
@@ -512,6 +508,7 @@ class _AdminScreenState extends State<AdminScreen> {
               if (!mounted) return;
               // ignore: use_build_context_synchronously
               Navigator.pop(ctx);
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text("🔊 تم الحفظ وتحديث الخزينة للعميل بنجاح"),
@@ -525,7 +522,6 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // النافذة الثانية: طلبيات والمنتجات
   Widget _buildCardRequestsView() {
     return ListView.builder(
       itemCount: StorageService.registeredUsers.length,
@@ -610,7 +606,6 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // النافذة الثالثة: النقاط
   Widget _buildPointsView() {
     return ListView.builder(
       itemCount: StorageService.registeredUsers.length,
@@ -725,6 +720,7 @@ class _AdminScreenState extends State<AdminScreen> {
               if (!mounted) return;
               // ignore: use_build_context_synchronously
               Navigator.pop(ctx);
+              if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(

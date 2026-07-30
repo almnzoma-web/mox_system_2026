@@ -11,11 +11,9 @@ class StorageService {
   static List<UserModel> registeredUsers = [];
   static bool _isLoaded = false;
 
-  // رابط شيت قوقل السحابي الخاص بك
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbw7PAeQB_AymuhIKW7KTwJJ5UtY8zZ3hP-vwht_p-TwkaecGFJHFtFxUCJq9JXZ2X9t/exec";
+      "https://script.google.com/macros/s/AKfycbwlcpNJ4VxarKDAYgOOWtV6N6EiTt1SNJrBrfK8AQzSfBE8mh27QTjTvyrJPqHbTT5X/exec";
 
-  // تعريف المدير السيادي بكافة الحقول الشاملة (الواتساب، العمولات، الأصول، وغيرها)
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
     password: "MOX1234567890MOX",
@@ -33,7 +31,6 @@ class StorageService {
     myAssets: [],
   );
 
-  // دالة التحميل المحلية الفورية (تفتح بسرعة البرق حتى لو انقطع الإنترنت)
   static Future<void> loadUsers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -47,18 +44,12 @@ class StorageService {
             .toList();
       }
 
-      // التأكد من وجود المدير السيادي دائماً
       if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
         registeredUsers.insert(0, adminUser);
         await saveUsersList();
       }
 
       _isLoaded = true;
-      debugPrint(
-        "🏛️ [Hybrid Local] تم تحميل ${registeredUsers.length} مواطن محلياً.",
-      );
-
-      // مزامنة صامتة في الخلفية مع شيت قوقل
       _syncFromCloudInBackground();
     } catch (e) {
       debugPrint("❌ [Hybrid Local] خطأ في التحميل المحلي: $e");
@@ -67,7 +58,6 @@ class StorageService {
     }
   }
 
-  // مزامنة ذكية تعيد البيانات من الشيت للمحلية في الخلفية
   static Future<void> _syncFromCloudInBackground() async {
     try {
       final response = await http
@@ -82,7 +72,6 @@ class StorageService {
               )
               .toList();
 
-          // دمج وتحديث القائمة المحلية بأحدث بيانات الشيت
           for (var cloudUser in cloudUsers) {
             int index = registeredUsers.indexWhere(
               (u) => u.phone == cloudUser.phone || u.moxId == cloudUser.moxId,
@@ -99,14 +88,9 @@ class StorageService {
           }
 
           await saveUsersList();
-          debugPrint(
-            "☁️ [Hybrid Sync] تمت المزامنة العكسية من الشيت إلى المحلية بنجاح.",
-          );
         }
       }
-    } catch (_) {
-      // الإنترنت ضعيف أو مقطوع، التطبيق يعمل بكفاءة كاملة على المحلي
-    }
+    } catch (_) {}
   }
 
   static Future<void> ensureLoaded() async {
@@ -115,7 +99,6 @@ class StorageService {
     }
   }
 
-  // دالة الحفظ المحلي مع إرسال التحديث للشيت في الخلفية
   static Future<void> saveUsersList() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -146,15 +129,11 @@ class StorageService {
 
     await saveUsersList();
 
-    // رفع التحديث للشيت فوراً في الخلفية مع كامل الحقول
     try {
-      await http
-          .post(
-            Uri.parse(_scriptUrl),
-            body: json.encode(newUser.toJson()),
-            headers: {"Content-Type": "application/json"},
-          )
-          .timeout(const Duration(seconds: 4));
+      final uri = Uri.parse(
+        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(newUser.phone)}&name=${Uri.encodeComponent(newUser.name)}&balance=${newUser.balance}&accountType=${Uri.encodeComponent(newUser.accountType)}&moxId=${Uri.encodeComponent(newUser.moxId)}&role=${Uri.encodeComponent(newUser.role)}&address=${Uri.encodeComponent(newUser.address)}&password=${Uri.encodeComponent(newUser.password)}&commission=${newUser.commission}&gender=${Uri.encodeComponent(newUser.gender)}&customWhatsApp=${Uri.encodeComponent(newUser.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(newUser.guardianMoxId ?? '')}&points=${newUser.points}',
+      );
+      await http.get(uri).timeout(const Duration(seconds: 4));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
     }
@@ -165,7 +144,6 @@ class StorageService {
       final prefs = await SharedPreferences.getInstance();
       String userJson = jsonEncode(user.toJson());
       await prefs.setString(userKey, userJson);
-
       await addUser(user);
     } catch (e) {
       debugPrint("❌ [Hybrid Local] خطأ في حفظ العميل النشط: $e");
@@ -203,7 +181,6 @@ class StorageService {
     await saveUsersList();
   }
 
-  // تسجيل دخول فوري بالمعلومات المحلية
   static Future<UserModel?> authenticateAsync(
     String input,
     String password,
