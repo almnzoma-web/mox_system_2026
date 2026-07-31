@@ -23,11 +23,10 @@ class StorageService {
     commission: 0.0,
     gender: "ذكر",
     accountType: "إدارة",
-    moxId:
-        "ID-000000", // تحديث معرف المدير ليتوافق مع المعيار الجديد وعدم التضارب
+    moxId: "ID-000000",
     role: "admin",
     customWhatsApp: "249115855164",
-    guardianMoxId: "ID-000000",
+    guardianMoxId: "MOX249-00010001",
     points: 0,
     myAssets: [],
   );
@@ -113,7 +112,7 @@ class StorageService {
     }
   }
 
-  // إضافة عميل جديد بالحزمة الخضراء الأولية
+  // إضافة عميل جديد بالترحيل السحابي الآمن عبر POST
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
@@ -132,16 +131,35 @@ class StorageService {
     await saveUsersList();
 
     try {
-      final uri = Uri.parse(
-        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(newUser.phone)}&password=${Uri.encodeComponent(newUser.password)}&name=${Uri.encodeComponent(newUser.name)}&address=${Uri.encodeComponent(newUser.address)}&balance=${newUser.balance}&commission=${newUser.commission}&gender=${Uri.encodeComponent(newUser.gender)}&accountType=${Uri.encodeComponent(newUser.accountType)}&moxId=${Uri.encodeComponent(newUser.moxId)}&role=${Uri.encodeComponent(newUser.role)}&customWhatsApp=${Uri.encodeComponent(newUser.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(newUser.guardianMoxId ?? '')}&points=${newUser.points}&myAssets=${Uri.encodeComponent(json.encode(newUser.myAssets))}',
-      );
-      await http.get(uri).timeout(const Duration(seconds: 4));
+      final uri = Uri.parse('$_scriptUrl?action=save');
+      await http
+          .post(
+            uri,
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({
+              'phone': newUser.phone,
+              'password': newUser.password,
+              'name': newUser.name,
+              'address': newUser.address,
+              'balance': newUser.balance,
+              'commission': newUser.commission,
+              'gender': newUser.gender,
+              'accountType': newUser.accountType,
+              'moxId': newUser.moxId,
+              'role': newUser.role,
+              'customWhatsApp': newUser.customWhatsApp ?? '',
+              'guardianMoxId': newUser.guardianMoxId ?? '',
+              'points': newUser.points,
+              'myAssets': newUser.myAssets.map((a) => a.toJson()).toList(),
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
     }
   }
 
-  // دالة التحديث الجزئي للحقول الزرقاء والمستندات عبر moxId بالمسطرة
+  // دالة التحديث الجزئي الحلقي عبر POST بالمسطرة
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
@@ -154,10 +172,29 @@ class StorageService {
     }
 
     try {
-      final uri = Uri.parse(
-        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(user.phone)}&password=${Uri.encodeComponent(user.password)}&name=${Uri.encodeComponent(user.name)}&address=${Uri.encodeComponent(user.address)}&balance=${user.balance}&commission=${user.commission}&gender=${Uri.encodeComponent(user.gender)}&accountType=${Uri.encodeComponent(user.accountType)}&moxId=${Uri.encodeComponent(user.moxId)}&role=${Uri.encodeComponent(user.role)}&customWhatsApp=${Uri.encodeComponent(user.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(user.guardianMoxId ?? '')}&points=${user.points}&myAssets=${Uri.encodeComponent(json.encode(user.myAssets))}',
-      );
-      await http.get(uri).timeout(const Duration(seconds: 4));
+      final uri = Uri.parse('$_scriptUrl?action=save');
+      await http
+          .post(
+            uri,
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({
+              'phone': user.phone,
+              'password': user.password,
+              'name': user.name,
+              'address': user.address,
+              'balance': user.balance,
+              'commission': user.commission,
+              'gender': user.gender,
+              'accountType': user.accountType,
+              'moxId': user.moxId,
+              'role': user.role,
+              'customWhatsApp': user.customWhatsApp ?? '',
+              'guardianMoxId': user.guardianMoxId ?? '',
+              'points': user.points,
+              'myAssets': user.myAssets.map((a) => a.toJson()).toList(),
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في تحديث الحقول الجزئية: $e");
     }
