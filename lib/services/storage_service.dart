@@ -12,7 +12,7 @@ class StorageService {
   static bool _isLoaded = false;
 
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbzTLmDM6F2-5dcOrci8AN4-VOn8cwbvFsFd3A-dgNPm36Z5D3Z5RPixK8q5MPdISWk/exec";
+      "https://script.google.com/macros/s/AKfycby28y8C9qqVPDVfEiB-OZBaRZcnvDApKHKDn1EgCYrNlBjVpUVGVqHM65LpFKv49-dU/exec";
 
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
