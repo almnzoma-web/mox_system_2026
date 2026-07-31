@@ -21,11 +21,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String _selectedAccountType = "فردي";
   bool _isPasswordVisible = false;
 
-  // دالة توليد الترقيم التلقائي المنفصل بالصيغة ID-000001 بالمسطرة
+  // دالة توليد الترقيم التلقائي ليبدأ من 5000 بالصيغة ID-005000 بالمسطرة
   Future<String> _generateSequentialMoxId() async {
     await StorageService.ensureLoaded();
 
-    int nextNumber = 1; // البداية التلقائية من 1
+    int nextNumber =
+        5000; // البداية السيادية المعتمدة من الرقم 5000 لزيادة الثقة
 
     if (StorageService.registeredUsers.isNotEmpty) {
       List<int> existingNumbers = [];
@@ -41,11 +42,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       if (existingNumbers.isNotEmpty) {
         existingNumbers.sort();
-        nextNumber = existingNumbers.last + 1;
+        if (existingNumbers.last >= 5000) {
+          nextNumber = existingNumbers.last + 1;
+        }
       }
     }
 
-    // تنسيق الرقم ليظهر بصيغة ID-000001 بـ 6 خانات بدقة
+    // تنسيق الرقم ليظهر بدقة بـ 6 خانات (مثلاً ID-005000)
     String formattedNum = nextNumber.toString().padLeft(6, '0');
     return "ID-$formattedNum";
   }
@@ -68,20 +71,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return;
     }
 
-    // توليد الترقيم التلقائي بالصيغة الجديدة ID-000001
+    // توليد الترقيم التلقائي بداية من 5000
     String newMoxId = await _generateSequentialMoxId();
 
     // معالجة رقم الوصي (المرشد): إذا ترك فارغاً، يُسند تلقائياً للمدير السيادي
     String inputGuardian = _guardianController.text.trim();
     String finalGuardianId = inputGuardian.isEmpty
-        ? "ID-000001"
+        ? "ID-005000"
         : inputGuardian;
 
     final newUser = UserModel(
       phone: phoneInput,
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
-      moxId: newMoxId,
+      moxId: newMoxId, // تمرير الهوية الرقمية المنفصلة صراحةً بالمسطرة
       address: _addressController.text.trim(),
       balance: 0.0,
       gender: _selectedGender,
@@ -89,6 +92,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       role: "user",
       guardianMoxId: finalGuardianId,
       points: 0,
+      myAssets: [],
     );
 
     // إضافة العميل وتحديث نقاط الوصي عبر الخزينة السيادية الموحدة
@@ -136,7 +140,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       } else {
         // إذا كان رقم الوصي خطأ، تذهب الـ 100 نقطة للمدير كصمام أمان سيادي
         int adminIndex = StorageService.registeredUsers.indexWhere(
-          (u) => u.moxId == "ID-000000",
+          (u) => u.moxId == "ID-005000",
         );
         if (adminIndex != -1) {
           var admin = StorageService.registeredUsers[adminIndex];
@@ -159,8 +163,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         }
       }
 
-      StorageService.registeredUsers.add(newUser);
-      await StorageService.saveUsersList();
+      // حفظ العميل الجديد في الشيت والمحلي فوراً عبر addUser
+      await StorageService.addUser(newUser);
       debugPrint(
         "➕ [Storage] تم تسجيل المواطن بنجاح وتحديث شبكة النقاط في الخزينة.",
       );
@@ -371,7 +375,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     controller: _guardianController,
                     decoration: const InputDecoration(
                       labelText: "رقم MOX للوصي (اختياري)",
-                      hintText: "ID-00000X",
+                      hintText: "ID-005000",
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(
                         Icons.supervised_user_circle,

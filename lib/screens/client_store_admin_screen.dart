@@ -58,7 +58,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المرتبطة بـ guardianMoxId المدفوع برسوم وكلمة السر بدقة
+  // نافذة التحقق الأمني المرتبطة بـ رقم موكس وكلمة السر بدقة
   void _showSecurityLoginDialog() async {
     // ضمان تحميل السجلات السيادية تماماً قبل فتح نافذة التحقق
     await StorageService.ensureLoaded();
@@ -194,7 +194,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم التحقق من رقم الوصي (guardianMoxId) بنجاح - مرحباً بك",
+                      "✅ تم التحقق من رقم موكس (MOX) بنجاح - مرحباً بك",
                     ),
                     backgroundColor: Colors.green,
                   ),

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
+// ignore: unused_import
+import '../models/marketing_model.dart';
 
 class StorageService {
   static const String userKey = 'current_mox_user';
@@ -11,6 +13,7 @@ class StorageService {
   static List<UserModel> registeredUsers = [];
   static bool _isLoaded = false;
 
+  // رابط قاعدة بيانات قوقل السحابية (Google Apps Script)
   static const String _scriptUrl =
       "https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAuOs9nNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec";
 
@@ -23,7 +26,7 @@ class StorageService {
     commission: 0.0,
     gender: "ذكر",
     accountType: "إدارة",
-    moxId: "ID-000000",
+    moxId: "ID-005000",
     role: "admin",
     customWhatsApp: "249115855164",
     guardianMoxId: "MOX249-00010001",
@@ -31,6 +34,7 @@ class StorageService {
     myAssets: [],
   );
 
+  // تحميل البيانات مع مزامنة ذكية تمنع أي حذف لبيانات قوقل الدائمة
   static Future<void> loadUsers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -50,6 +54,7 @@ class StorageService {
       }
 
       _isLoaded = true;
+      // سحب التحديثات الدائمة من قاعدة بيانات قوقل في الخلفية
       _syncFromCloudInBackground();
     } catch (e) {
       debugPrint("❌ [Hybrid Local] خطأ في التحميل المحلي: $e");
@@ -58,6 +63,7 @@ class StorageService {
     }
   }
 
+  // المزامنة الدائمة مع قوقل لضمان بقاء كافة سجلات العملاء للأبد دون حذف
   static Future<void> _syncFromCloudInBackground() async {
     try {
       final response = await http
@@ -72,6 +78,7 @@ class StorageService {
               )
               .toList();
 
+          // دمج ذكي يحافظ على كل عميل جديد وقائم في قوقل دون حذف أي سجل
           for (var cloudUser in cloudUsers) {
             int index = registeredUsers.indexWhere(
               (u) => u.phone == cloudUser.phone || u.moxId == cloudUser.moxId,
@@ -112,7 +119,7 @@ class StorageService {
     }
   }
 
-  // إضافة عميل جديد بالترحيل السحابي الآمن عبر GET Query Parameters بالمسطرة
+  // إضافة عميل جديد وترحيله فوراً إلى قاعدة بيانات قوقل ليبقى محفوظاً للأبد
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
@@ -156,11 +163,11 @@ class StorageService {
       ).replace(queryParameters: queryParameters);
       await http.get(uri).timeout(const Duration(seconds: 8));
     } catch (e) {
-      debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
+      debugPrint("❌ [Cloud Sync] خطأ في رفع العميل لقوقل: $e");
     }
   }
 
-  // دالة التحديث الجزئي الحلقي عبر GET Query Parameters بالمسطرة
+  // التحديث الجزئي مع الحفاظ التام على السجلات في قوقل
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
@@ -196,7 +203,7 @@ class StorageService {
       ).replace(queryParameters: queryParameters);
       await http.get(uri).timeout(const Duration(seconds: 8));
     } catch (e) {
-      debugPrint("❌ [Cloud Sync] خطأ في تحديث الحقول الجزئية: $e");
+      debugPrint("❌ [Cloud Sync] خطأ في تحديث البيانات بقوقل: $e");
     }
   }
 
@@ -222,6 +229,7 @@ class StorageService {
     }
   }
 
+  // تنظيف الذاكرة المؤقتة النشطة فقط عند تسجيل الخروج مع بقاء البيانات في قوقل سليمة تماماً
   static Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();

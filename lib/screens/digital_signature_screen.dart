@@ -21,10 +21,43 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
   final List<Offset?> _points = [];
   bool _isSigned = false;
 
+  // متغيرات إدارة المستندات وتحديد مكان التوقيع التفاعلي
+  String _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
+
+  // إحداثيات موضع علامة التوقيع داخل المستند
+  Offset _signatureMarkerPosition = const Offset(100, 100);
+
+  // محاكاة محتوى المستند المحمل (يدعم الأحجام المختلفة والنصوص)
+  final String _defaultDocSampleText = """
+جمهورية السودان الرقمية - منظومة موكس (MOX)
+إقرار وتعاقد سيادي معتمد
+
+بموجب هذا المستند يتم اعتماد الشروط والسياسات الخاصة بالخدمات الرقمية المقدمة عبر المنظومة. 
+هذا العقد ملزم لكافة الأطراف المتعاقدة ويخضع للوائح التوثيق الرقمي المعتمدة.
+
+تنبيه هام: يتطلب اعتماد هذا العقد وضع التوقيع الرقمي في المكان المخصص أدناه وفقاً للمعايير السيادية المعتمدة.
+""";
+
   @override
   void dispose() {
     _docTitleController.dispose();
     super.dispose();
+  }
+
+  // محاكاة رفع مستند من الجهاز (أو مستند مستقل)
+  void _simulateDocumentUpload() {
+    setState(() {
+      _loadedDocName =
+          "مستند_رقمي_معتمد_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}.pdf";
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "📁 تم تحميل المستند بنجاح. يمكنك سحب مؤشر التوقيع لمكان الإسقاط المطلوب.",
+        ),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _showClientDocumentsModal() {
@@ -166,7 +199,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
       await StorageService.saveUsersList();
 
       if (kIsWeb) {
-        // آلية التنزيل الخاصة بالمتصفح إذا لزم الأمر
+        // آلية التنزيل الخاصة بالمتصفح
       }
 
       if (!mounted) return;
@@ -224,6 +257,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // زر الأرشيف
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -286,6 +320,8 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // بطاقة بيانات العميل
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -324,6 +360,56 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // زر تحميل المستند من الجهاز أو العمل كمستند مستقل
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[850],
+                      foregroundColor: moxGold,
+                      side: BorderSide(color: moxGold, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: _simulateDocumentUpload,
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text(
+                      "تحميل مستند من الجهاز",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[900],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey[700]!),
+                    ),
+                    child: Text(
+                      _loadedDocName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
             TextField(
               controller: _docTitleController,
               style: const TextStyle(color: Colors.white),
@@ -342,6 +428,156 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // منطقة عرض المستند مع دائرة/مربع التوجيه القابل للسحب (مقاس يناسب الحاسوب والشاشات)
+            const Text(
+              "📄 معاينة المستند وموقع التوقيع التفاعلي (اسحب العلامة إلى مكان التوقيع المطلوب):",
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              height: 260,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: moxGold, width: 1.5),
+              ),
+              child: Stack(
+                children: [
+                  // خلفية نص المستند المحمل أو الافتراضي
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _loadedDocName,
+                              style: TextStyle(
+                                color: moxGold,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const Text(
+                              "حالة المستند: جاهز للإسقاط والتوقيع",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(color: Colors.grey),
+                        Expanded(
+                          child: Text(
+                            _defaultDocSampleText,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                        // شريط بصمة الاعتماد في أسفل المستند بشكل واضح وصغير جداً
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: moxGold.withValues(alpha: 0.5),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.fingerprint,
+                                color: Color(0xFFD4AF37),
+                                size: 12,
+                              ),
+                              SizedBox(width: 5),
+                              Text(
+                                "هذا المستند يحمل توقيع رقمي من منظومة موكس",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 9,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // العلامة القابلة للسحب (المربع/الدائرة التفاعلية) لتحديد مكان التوقيع
+                  Positioned(
+                    left: _signatureMarkerPosition.dx.clamp(10.0, 300.0),
+                    top: _signatureMarkerPosition.dy.clamp(10.0, 180.0),
+                    child: Draggable(
+                      feedback: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: moxGold.withValues(alpha: 0.8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            color: Colors.black,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      childWhenDragging: Container(),
+                      onDragEnd: (details) {
+                        setState(() {
+                          // تحديث إحداثيات مكان التوقيع بناءً على حركة العميل
+                          _signatureMarkerPosition = details.offset;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: moxGold,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              blurRadius: 4,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.pinch,
+                          color: Colors.black,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // لوحة الرسم الخاصة بالتوقيع الرقمي
             const Text(
               "✍️ مساحة التوقيع الرقمي (وقع داخل الإطار بالأسفل):",
               style: TextStyle(
@@ -352,7 +588,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 10),
             Container(
-              height: 220,
+              height: 200,
               decoration: BoxDecoration(
                 border: Border.all(color: moxGold, width: 2),
                 borderRadius: BorderRadius.circular(12),
@@ -397,6 +633,8 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // زر الاعتماد والحفظ النهائي
             SizedBox(
               width: double.infinity,
               height: 52,
