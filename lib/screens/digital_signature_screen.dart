@@ -1,8 +1,7 @@
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
-// ignore: unused_import
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:file_picker/file_picker.dart'; // تم تفعيل حزمة اختيار الملفات الحقيقية
+import 'package:file_picker/file_picker.dart';
 import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 
@@ -25,9 +24,14 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
   // متغيرات إدارة المستندات وتحديد مكان التوقيع التفاعلي
   String _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
   String? _loadedDocPath;
+  Uint8List? _loadedFileBytes; // لدعم الويب والتحميل الآمن للصور والملفات
+  String _fileExtension = "";
 
-  // إحداثيات موضع علامة التوقيع داخل المستند (نسبية داخل مساحة المعاينة)
+  // إحداثيات موضع علامة التوقيع داخل المستند
   Offset _signatureMarkerPosition = const Offset(150, 150);
+
+  // معامل التكبير والتصغير لمعاينة المستند/الصورة
+  double _zoomScale = 1.0;
 
   // محتوى المستند المستقل الافتراضي
   final String _defaultDocSampleText = """
@@ -46,31 +50,35 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     super.dispose();
   }
 
-  // دالة تحميل المستند الحقيقي من الجهاز عبر file_picker لتشمل الويب والهاتف بكفاءة
+  // دالة تحميل المستند أو الصورة الحقيقية (تدعم الويب والهاتف بكفاءة عبر bytes و path)
   Future<void> _pickDocumentFromDevice() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'png', 'jpg'],
+        allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
+        withData: true, // مهم جداً لجلب بايتات الملف للويب والهاتف
       );
 
       if (result != null && result.files.single.name.isNotEmpty) {
+        final file = result.files.single;
         setState(() {
-          _loadedDocName = result.files.single.name;
-          _loadedDocPath = result.files.single.path ?? result.files.single.name;
+          _loadedDocName = file.name;
+          _loadedFileBytes = file.bytes;
+          _loadedDocPath = kIsWeb ? null : file.path;
+          _fileExtension = file.extension?.toLowerCase() ?? "";
+          _zoomScale = 1.0; // إعادة ضبط التكبير عند اختيار ملف جديد
         });
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "📁 تم تحميل المستند '$_loadedDocName' بنجاح. اسحب مؤشر التوقيع بسلاسة لتحديد مكانه.",
+              "📁 تم تحميل '$_loadedDocName' بنجاح. اسحب مؤشر التوقيع لتحديد مكانه.",
             ),
             backgroundColor: Colors.green,
           ),
         );
       } else {
-        // إلغاء الاختيار من المستخدم
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -95,6 +103,9 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     setState(() {
       _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
       _loadedDocPath = null;
+      _loadedFileBytes = null;
+      _fileExtension = "";
+      _zoomScale = 1.0;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -238,7 +249,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         "type": "Digital Signature Seal & Download",
         "status": "ممتلك، موثق ومحمّل بصمة MOX",
         "docSource": _loadedDocName,
-        "docPath": _loadedDocPath ?? "",
+        "docPath": _loadedDocPath ?? "web_memory_file",
         "signatureCoordinates": {
           "dx": _signatureMarkerPosition.dx,
           "dy": _signatureMarkerPosition.dy,
@@ -407,7 +418,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 20),
 
-            // خيارات تحميل المستند أو اعتماده كمستند مستقل
+            // خيارات تحميل الملفات (صور، PDF، مستقل)
             Row(
               children: [
                 Expanded(
@@ -424,7 +435,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                     onPressed: _pickDocumentFromDevice,
                     icon: const Icon(Icons.upload_file),
                     label: const Text(
-                      "تحميل ملف خارجي",
+                      "تحميل صورة أو PDF",
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -488,18 +499,56 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 20),
 
-            // منطقة معاينة المستند مع حركة انسيابية تامة لعلامة التوقيع عبر GestureDetector المباشر
-            const Text(
-              "📄 معاينة المستند وموقع التوقيع التفاعلي (اسحب علامة البصمة بسلاسة لتحديد المكان):",
-              style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
+            // عنوان المعاينة مع أزرار التكبير والتصغير (+ و -) للتحكم الدقيق
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    "📄 معاينة المستند/الصورة وتحديد موقع التوقيع التفاعلي:",
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.zoom_out,
+                        color: Color(0xFFD4AF37),
+                      ),
+                      tooltip: "تصغير الإطار",
+                      onPressed: () {
+                        setState(() {
+                          if (_zoomScale > 0.6) _zoomScale -= 0.15;
+                        });
+                      },
+                    ),
+                    Text(
+                      "${(_zoomScale * 100).toInt()}%",
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.zoom_in, color: Color(0xFFD4AF37)),
+                      tooltip: "تكبير الإطار",
+                      onPressed: () {
+                        setState(() {
+                          if (_zoomScale < 2.0) _zoomScale += 0.15;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 10),
+
+            // حاوية المعاينة مع دعم الصور، الـ PDF، والنصوص ومؤشر التوقيع المتحرك فوقها
             SizedBox(
-              height: 280,
+              height: 320,
               width: double.infinity,
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -512,137 +561,166 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: moxGold, width: 1.5),
                     ),
-                    child: Stack(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _loadedDocName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: moxGold,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  const Text(
-                                    "جاهز للإسقاط السيادي",
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(color: Colors.grey),
-                              Expanded(
-                                child: Text(
-                                  _defaultDocSampleText,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                  horizontal: 8,
-                                ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        children: [
+                          // محتوى المستند أو الصورة مع تأثير التكبير والتصغير (_zoomScale)
+                          Center(
+                            child: Transform.scale(
+                              scale: _zoomScale,
+                              child: Container(
+                                width: maxWidth,
+                                height: maxHeight,
+                                padding: const EdgeInsets.all(12.0),
                                 decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: moxGold.withValues(alpha: 0.5),
-                                    width: 0.5,
-                                  ),
+                                  color: Colors.grey[900],
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.fingerprint,
-                                      color: Color(0xFFD4AF37),
-                                      size: 12,
-                                    ),
-                                    SizedBox(width: 5),
-                                    Text(
-                                      "مستند مؤمن ببصمة وتوقيع رقمي من منظومة موكس",
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 9,
-                                        fontStyle: FontStyle.italic,
+                                child:
+                                    _loadedFileBytes != null &&
+                                        ([
+                                          'png',
+                                          'jpg',
+                                          'jpeg',
+                                        ].contains(_fileExtension))
+                                    ? Image.memory(
+                                        _loadedFileBytes!,
+                                        fit: BoxFit.contain,
+                                      )
+                                    : _loadedFileBytes != null &&
+                                          _fileExtension == 'pdf'
+                                    ? Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.picture_as_pdf,
+                                            color: Colors.redAccent,
+                                            size: 48,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            "ملف PDF معتمد: $_loadedDocName",
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          const Text(
+                                            "جاهز للإسقاط السيادي والتوقيع الرقمي",
+                                            style: TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  _loadedDocName,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: moxGold,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                              const Text(
+                                                "إسقاط سيادي",
+                                                style: TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const Divider(color: Colors.grey),
+                                          Expanded(
+                                            child: SingleChildScrollView(
+                                              child: Text(
+                                                _defaultDocSampleText,
+                                                style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 11,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // مؤشر التوقيع المتحرك بسلاسة مطلقة باستخدام GestureDetector المحسّن
-                        Positioned(
-                          left: _signatureMarkerPosition.dx.clamp(
-                            10.0,
-                            maxWidth > 0 ? maxWidth : 300.0,
-                          ),
-                          top: _signatureMarkerPosition.dy.clamp(
-                            35.0,
-                            maxHeight > 0 ? maxHeight : 200.0,
-                          ),
-                          child: GestureDetector(
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _signatureMarkerPosition = Offset(
-                                  (_signatureMarkerPosition.dx +
-                                          details.delta.dx)
-                                      .clamp(
-                                        10.0,
-                                        maxWidth > 0 ? maxWidth : 300.0,
-                                      ),
-                                  (_signatureMarkerPosition.dy +
-                                          details.delta.dy)
-                                      .clamp(
-                                        35.0,
-                                        maxHeight > 0 ? maxHeight : 200.0,
-                                      ),
-                                );
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: moxGold,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.7),
-                                    blurRadius: 6,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.pin_drop,
-                                color: Colors.black,
-                                size: 20,
                               ),
                             ),
                           ),
-                        ),
-                      ],
+
+                          // مؤشر التوقيع المتحرك بسلاسة تامة فوق المستند/الصورة
+                          Positioned(
+                            left: _signatureMarkerPosition.dx.clamp(
+                              10.0,
+                              maxWidth > 0 ? maxWidth : 300.0,
+                            ),
+                            top: _signatureMarkerPosition.dy.clamp(
+                              35.0,
+                              maxHeight > 0 ? maxHeight : 200.0,
+                            ),
+                            child: GestureDetector(
+                              onPanUpdate: (details) {
+                                setState(() {
+                                  _signatureMarkerPosition = Offset(
+                                    (_signatureMarkerPosition.dx +
+                                            details.delta.dx)
+                                        .clamp(
+                                          10.0,
+                                          maxWidth > 0 ? maxWidth : 300.0,
+                                        ),
+                                    (_signatureMarkerPosition.dy +
+                                            details.delta.dy)
+                                        .clamp(
+                                          35.0,
+                                          maxHeight > 0 ? maxHeight : 200.0,
+                                        ),
+                                  );
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: moxGold,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                      blurRadius: 6,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.pin_drop,
+                                  color: Colors.black,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -650,7 +728,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 20),
 
-            // لوحة الرسم الخاصة بالتوقيع الرقمي
+            // لوحة الرسم الخاصة بالتوقيع الرقمي اليدوي
             const Text(
               "✍️ مساحة التوقيع الرقمي (وقع يدويّاً داخل الإطار بالأسفل):",
               style: TextStyle(

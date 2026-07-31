@@ -72,19 +72,28 @@ class StorageService {
       if (response.statusCode == 200) {
         List<dynamic> cloudList = json.decode(response.body);
         if (cloudList.isNotEmpty) {
-          List<UserModel> cloudUsers = cloudList
-              .map(
-                (item) => UserModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList();
+          List<UserModel> cloudUsers = cloudList.map((item) {
+            final mapItem = Map<String, dynamic>.from(item);
+            // التأكد من جلب الـ moxId بكل أشكاله المحتملة في قوقل لمنع فراغه
+            if ((mapItem['moxId'] == null ||
+                    mapItem['moxId'].toString().trim().isEmpty) &&
+                mapItem['MOXID'] != null) {
+              mapItem['moxId'] = mapItem['MOXID'];
+            }
+            return UserModel.fromJson(mapItem);
+          }).toList();
 
-          // دمج ذكي يحافظ على كل عميل جديد وقائم في قوقل دون حذف أي سجل
+          // دمج ذكي يحافظ على كل عميل جديد وقائم في قوقل دون حذف أي سجل وبحماية الـ moxId
           for (var cloudUser in cloudUsers) {
+            if (cloudUser.moxId.isEmpty || cloudUser.moxId == "null") continue;
+
             int index = registeredUsers.indexWhere(
               (u) => u.phone == cloudUser.phone || u.moxId == cloudUser.moxId,
             );
             if (index != -1) {
-              registeredUsers[index] = cloudUser;
+              if (cloudUser.moxId.isNotEmpty && cloudUser.moxId != "null") {
+                registeredUsers[index] = cloudUser;
+              }
             } else {
               registeredUsers.add(cloudUser);
             }
@@ -119,9 +128,14 @@ class StorageService {
     }
   }
 
-  // إضافة عميل جديد وترحيله فوراً إلى قاعدة بيانات قوقل ليبقى محفوظاً للأبد
+  // إضافة عميل جديد وترحيله فوراً إلى قاعدة بيانات قوقل مع حماية صارمة للـ moxId
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
+
+    if (newUser.moxId.trim().isEmpty || newUser.moxId == "null") {
+      debugPrint("❌ [Cloud Sync] محاولة حفظ عميل بدون MoxId تم رفضها!");
+      return;
+    }
 
     int index = registeredUsers.indexWhere(
       (u) =>
@@ -138,6 +152,16 @@ class StorageService {
     await saveUsersList();
 
     try {
+      String encodedAssets = "[]";
+      try {
+        encodedAssets = json.encode(
+          newUser.myAssets.map((a) {
+            if (a is Map) return a;
+            return a.toJson();
+          }).toList(),
+        );
+      } catch (_) {}
+
       final queryParameters = {
         'action': 'save',
         'phone': newUser.phone,
@@ -153,9 +177,7 @@ class StorageService {
         'customWhatsApp': newUser.customWhatsApp ?? '',
         'guardianMoxId': newUser.guardianMoxId ?? '',
         'points': newUser.points.toString(),
-        'myAssets': json.encode(
-          newUser.myAssets.map((a) => a.toJson()).toList(),
-        ),
+        'myAssets': encodedAssets,
       };
 
       final uri = Uri.parse(
@@ -171,6 +193,8 @@ class StorageService {
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
+    if (user.moxId.trim().isEmpty) return;
+
     int index = registeredUsers.indexWhere(
       (u) => u.moxId == user.moxId || u.phone == user.phone,
     );
@@ -180,6 +204,16 @@ class StorageService {
     }
 
     try {
+      String encodedAssets = "[]";
+      try {
+        encodedAssets = json.encode(
+          user.myAssets.map((a) {
+            if (a is Map) return a;
+            return a.toJson();
+          }).toList(),
+        );
+      } catch (_) {}
+
       final queryParameters = {
         'action': 'save',
         'phone': user.phone,
@@ -195,7 +229,7 @@ class StorageService {
         'customWhatsApp': user.customWhatsApp ?? '',
         'guardianMoxId': user.guardianMoxId ?? '',
         'points': user.points.toString(),
-        'myAssets': json.encode(user.myAssets.map((a) => a.toJson()).toList()),
+        'myAssets': encodedAssets,
       };
 
       final uri = Uri.parse(
@@ -294,7 +328,20 @@ class StorageService {
     try {
       UserModel? user = await getUserByMoxId(moxId);
       if (user != null && user.myAssets.isNotEmpty) {
-        return user.myAssets.map((asset) => asset.toJson()).toList();
+        List<Map<String, dynamic>> formattedAssets = [];
+        for (var asset in user.myAssets) {
+          if (asset is Map<String, dynamic>) {
+            formattedAssets.add(asset as Map<String, dynamic>);
+          } else {
+            try {
+              final jsonMap = (asset as dynamic).toJson();
+              if (jsonMap is Map<String, dynamic>) {
+                formattedAssets.add(jsonMap);
+              }
+            } catch (_) {}
+          }
+        }
+        return formattedAssets;
       }
     } catch (_) {}
 
