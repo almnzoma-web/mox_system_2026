@@ -28,10 +28,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   Future<void> _fetchFromCloud() async {
     setState(() => _isLoading = true);
     try {
+      // تصحيح مسار الجلب بدون action=save الخاطئة
       final response = await http
-          .get(
-            Uri.parse('$_scriptUrl?action=save'),
-          ) // أو السكربت الافتراضي للجلب
+          .get(Uri.parse(_scriptUrl))
           .timeout(const Duration(seconds: 8));
       if (!mounted) return;
       if (response.statusCode == 200) {
@@ -59,12 +58,31 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // إرسال كافة الحقول الخضراء والزرقاء بدقة متناهية بالمسطرة
-      final uri = Uri.parse(
-        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(user.phone)}&password=${Uri.encodeComponent(user.password)}&name=${Uri.encodeComponent(user.name)}&address=${Uri.encodeComponent(user.address)}&balance=${user.balance}&commission=${user.commission}&gender=${Uri.encodeComponent(user.gender)}&accountType=${Uri.encodeComponent(user.accountType)}&moxId=${Uri.encodeComponent(user.moxId)}&role=${Uri.encodeComponent(user.role)}&customWhatsApp=${Uri.encodeComponent(user.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(user.guardianMoxId ?? '')}&points=${user.points}&myAssets=${Uri.encodeComponent(json.encode(user.myAssets))}',
-      );
+      final uri = Uri.parse('$_scriptUrl?action=save');
+      // استخدام POST وبنية JSON الموحدة لضمان وصول كافة الحقول والأصول للمدير والعميل
+      final response = await http
+          .post(
+            uri,
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({
+              'phone': user.phone,
+              'password': user.password,
+              'name': user.name,
+              'address': user.address,
+              'balance': user.balance,
+              'commission': user.commission,
+              'gender': user.gender,
+              'accountType': user.accountType,
+              'moxId': user.moxId,
+              'role': user.role,
+              'customWhatsApp': user.customWhatsApp ?? '',
+              'guardianMoxId': user.guardianMoxId ?? '',
+              'points': user.points,
+              'myAssets': user.myAssets.map((a) => a.toJson()).toList(),
+            }),
+          )
+          .timeout(const Duration(seconds: 6));
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 6));
       if (!mounted) return;
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,6 +91,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             backgroundColor: Colors.green,
           ),
         );
+        _fetchFromCloud(); // تحديث القائمة بعد الترحيل
       }
     } catch (e) {
       if (!mounted) return;
