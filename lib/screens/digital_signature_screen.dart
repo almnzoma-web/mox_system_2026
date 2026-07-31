@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 // ignore: unused_import
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:file_picker/file_picker.dart'; // تم تفعيل حزمة اختيار الملفات الحقيقية
 import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 
@@ -23,9 +24,10 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
 
   // متغيرات إدارة المستندات وتحديد مكان التوقيع التفاعلي
   String _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
+  String? _loadedDocPath;
 
-  // إحداثيات موضع علامة التوقيع داخل المستند
-  Offset _signatureMarkerPosition = const Offset(120, 120);
+  // إحداثيات موضع علامة التوقيع داخل المستند (نسبية داخل مساحة المعاينة)
+  Offset _signatureMarkerPosition = const Offset(150, 150);
 
   // محتوى المستند المستقل الافتراضي
   final String _defaultDocSampleText = """
@@ -44,26 +46,55 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     super.dispose();
   }
 
-  // دالة اختيار مستند محاكاة افتراضي نظيف بدون الحاجة لحزم خارجية
-  void _pickDocumentFromDevice() {
-    setState(() {
-      _loadedDocName =
-          "مستند_رقمي_معتمد_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}.pdf";
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          "📁 تم تحميل المستند بنجاح. اسحب مؤشر التوقيع لتحديد مكان الإسقاط.",
+  // دالة تحميل المستند الحقيقي من الجهاز عبر file_picker لتشمل الويب والهاتف بكفاءة
+  Future<void> _pickDocumentFromDevice() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'png', 'jpg'],
+      );
+
+      if (result != null && result.files.single.name.isNotEmpty) {
+        setState(() {
+          _loadedDocName = result.files.single.name;
+          _loadedDocPath = result.files.single.path ?? result.files.single.name;
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "📁 تم تحميل المستند '$_loadedDocName' بنجاح. اسحب مؤشر التوقيع بسلاسة لتحديد مكانه.",
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // إلغاء الاختيار من المستخدم
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ تم إلغاء عملية اختيار الملف."),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ خطأ أثناء تحميل الملف من الجهاز: $e"),
+          backgroundColor: Colors.red,
         ),
-        backgroundColor: Colors.green,
-      ),
-    );
+      );
+    }
   }
 
   // إعادة تعيين المستند إلى مستند مستقل
   void _resetToIndependentDocument() {
     setState(() {
       _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
+      _loadedDocPath = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -207,13 +238,13 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         "type": "Digital Signature Seal & Download",
         "status": "ممتلك، موثق ومحمّل بصمة MOX",
         "docSource": _loadedDocName,
+        "docPath": _loadedDocPath ?? "",
         "signatureCoordinates": {
           "dx": _signatureMarkerPosition.dx,
           "dy": _signatureMarkerPosition.dy,
         },
       };
 
-      // إضافة العنصر بشكل آمن يتوافق مع قائمة الأصول
       widget.currentUser.myAssets.add(signedAsset as dynamic);
       await StorageService.saveUsersList();
 
@@ -457,9 +488,9 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 20),
 
-            // منطقة معاينة المستند مع استهداف الإسقاط الدقيق (DragTarget)
+            // منطقة معاينة المستند مع حركة انسيابية تامة لعلامة التوقيع عبر GestureDetector المباشر
             const Text(
-              "📄 معاينة المستند وموقع التوقيع التفاعلي (اسحب علامة البصمة لتحديد مكان التوقيع بدقة):",
+              "📄 معاينة المستند وموقع التوقيع التفاعلي (اسحب علامة البصمة بسلاسة لتحديد المكان):",
               style: TextStyle(
                 color: Colors.white70,
                 fontWeight: FontWeight.bold,
@@ -470,26 +501,16 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             SizedBox(
               height: 280,
               width: double.infinity,
-              child: DragTarget<String>(
-                onAcceptWithDetails: (details) {
-                  setState(() {
-                    _signatureMarkerPosition = Offset(
-                      details.offset.dx.clamp(20.0, 320.0),
-                      details.offset.dy.clamp(50.0, 200.0),
-                    );
-                  });
-                },
-                builder: (context, candidateData, rejectedData) {
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  double maxWidth = constraints.maxWidth - 40;
+                  double maxHeight = constraints.maxHeight - 50;
+
                   return Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF111111),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: candidateData.isNotEmpty
-                            ? Colors.green
-                            : moxGold,
-                        width: 1.5,
-                      ),
+                      border: Border.all(color: moxGold, width: 1.5),
                     ),
                     child: Stack(
                       children: [
@@ -502,12 +523,16 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    _loadedDocName,
-                                    style: TextStyle(
-                                      color: moxGold,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
+                                  Expanded(
+                                    child: Text(
+                                      _loadedDocName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: moxGold,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ),
                                   const Text(
@@ -567,67 +592,44 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                           ),
                         ),
 
-                        // مؤشر التوقيع المتحرك القابل للسحب والإفلات بدقة داخل المستند
+                        // مؤشر التوقيع المتحرك بسلاسة مطلقة باستخدام GestureDetector المحسّن
                         Positioned(
-                          left: _signatureMarkerPosition.dx.clamp(15.0, 310.0),
-                          top: _signatureMarkerPosition.dy.clamp(15.0, 190.0),
-                          child: Draggable<String>(
-                            data: "signature_marker",
-                            feedback: Material(
-                              color: Colors.transparent,
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: moxGold,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.edit_document,
-                                  color: Colors.black,
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                            childWhenDragging: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[800],
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.hourglass_empty,
-                                color: Colors.white54,
-                                size: 16,
-                              ),
-                            ),
-                            onDragEnd: (details) {
+                          left: _signatureMarkerPosition.dx.clamp(
+                            10.0,
+                            maxWidth > 0 ? maxWidth : 300.0,
+                          ),
+                          top: _signatureMarkerPosition.dy.clamp(
+                            35.0,
+                            maxHeight > 0 ? maxHeight : 200.0,
+                          ),
+                          child: GestureDetector(
+                            onPanUpdate: (details) {
                               setState(() {
-                                double newX = details.offset.dx - 40;
-                                double newY = details.offset.dy - 180;
                                 _signatureMarkerPosition = Offset(
-                                  newX.clamp(15.0, 310.0),
-                                  newY.clamp(15.0, 190.0),
+                                  (_signatureMarkerPosition.dx +
+                                          details.delta.dx)
+                                      .clamp(
+                                        10.0,
+                                        maxWidth > 0 ? maxWidth : 300.0,
+                                      ),
+                                  (_signatureMarkerPosition.dy +
+                                          details.delta.dy)
+                                      .clamp(
+                                        35.0,
+                                        maxHeight > 0 ? maxHeight : 200.0,
+                                      ),
                                 );
                               });
                             },
                             child: Container(
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                 color: moxGold,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.5),
-                                    blurRadius: 4,
+                                    color: Colors.black.withValues(alpha: 0.7),
+                                    blurRadius: 6,
                                     spreadRadius: 2,
                                   ),
                                 ],
@@ -635,7 +637,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                               child: const Icon(
                                 Icons.pin_drop,
                                 color: Colors.black,
-                                size: 18,
+                                size: 20,
                               ),
                             ),
                           ),
