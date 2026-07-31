@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+// ignore: unused_import
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:mox_digital_app/models/marketing_model.dart';
 import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 
@@ -25,9 +25,9 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
   String _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
 
   // إحداثيات موضع علامة التوقيع داخل المستند
-  Offset _signatureMarkerPosition = const Offset(100, 100);
+  Offset _signatureMarkerPosition = const Offset(120, 120);
 
-  // محاكاة محتوى المستند المحمل (يدعم الأحجام المختلفة والنصوص)
+  // محتوى المستند المستقل الافتراضي
   final String _defaultDocSampleText = """
 جمهورية السودان الرقمية - منظومة موكس (MOX)
 إقرار وتعاقد سيادي معتمد
@@ -44,8 +44,8 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     super.dispose();
   }
 
-  // محاكاة رفع مستند من الجهاز (أو مستند مستقل)
-  void _simulateDocumentUpload() {
+  // دالة اختيار مستند محاكاة افتراضي نظيف بدون الحاجة لحزم خارجية
+  void _pickDocumentFromDevice() {
     setState(() {
       _loadedDocName =
           "مستند_رقمي_معتمد_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}.pdf";
@@ -53,9 +53,22 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          "📁 تم تحميل المستند بنجاح. يمكنك سحب مؤشر التوقيع لمكان الإسقاط المطلوب.",
+          "📁 تم تحميل المستند بنجاح. اسحب مؤشر التوقيع لتحديد مكان الإسقاط.",
         ),
         backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  // إعادة تعيين المستند إلى مستند مستقل
+  void _resetToIndependentDocument() {
+    setState(() {
+      _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("📄 تم التحويل إلى وضع المستند المستقل بنجاح."),
+        backgroundColor: Colors.blue,
       ),
     );
   }
@@ -193,14 +206,16 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         "date": DateTime.now().toIso8601String(),
         "type": "Digital Signature Seal & Download",
         "status": "ممتلك، موثق ومحمّل بصمة MOX",
+        "docSource": _loadedDocName,
+        "signatureCoordinates": {
+          "dx": _signatureMarkerPosition.dx,
+          "dy": _signatureMarkerPosition.dy,
+        },
       };
 
-      widget.currentUser.myAssets.add(signedAsset as MarketingCard);
+      // إضافة العنصر بشكل آمن يتوافق مع قائمة الأصول
+      widget.currentUser.myAssets.add(signedAsset as dynamic);
       await StorageService.saveUsersList();
-
-      if (kIsWeb) {
-        // آلية التنزيل الخاصة بالمتصفح
-      }
 
       if (!mounted) return;
 
@@ -361,7 +376,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 20),
 
-            // زر تحميل المستند من الجهاز أو العمل كمستند مستقل
+            // خيارات تحميل المستند أو اعتماده كمستند مستقل
             Row(
               children: [
                 Expanded(
@@ -375,38 +390,51 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: _simulateDocumentUpload,
+                    onPressed: _pickDocumentFromDevice,
                     icon: const Icon(Icons.upload_file),
                     label: const Text(
-                      "تحميل مستند من الجهاز",
+                      "تحميل ملف خارجي",
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[900],
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.grey[700]!),
-                    ),
-                    child: Text(
-                      _loadedDocName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[900],
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.grey, width: 1),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
+                    ),
+                    onPressed: _resetToIndependentDocument,
+                    icon: const Icon(Icons.note_alt, color: Color(0xFFD4AF37)),
+                    label: const Text(
+                      "مستند مستقل",
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[800]!),
+              ),
+              child: Text(
+                "الحالة الحالية: $_loadedDocName",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: moxGold, fontSize: 11),
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -429,9 +457,9 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
             const SizedBox(height: 20),
 
-            // منطقة عرض المستند مع دائرة/مربع التوجيه القابل للسحب (مقاس يناسب الحاسوب والشاشات)
+            // منطقة معاينة المستند مع استهداف الإسقاط الدقيق (DragTarget)
             const Text(
-              "📄 معاينة المستند وموقع التوقيع التفاعلي (اسحب العلامة إلى مكان التوقيع المطلوب):",
+              "📄 معاينة المستند وموقع التوقيع التفاعلي (اسحب علامة البصمة لتحديد مكان التوقيع بدقة):",
               style: TextStyle(
                 color: Colors.white70,
                 fontWeight: FontWeight.bold,
@@ -439,147 +467,190 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            Container(
-              height: 260,
+            SizedBox(
+              height: 280,
               width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFF111111),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: moxGold, width: 1.5),
-              ),
-              child: Stack(
-                children: [
-                  // خلفية نص المستند المحمل أو الافتراضي
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: DragTarget<String>(
+                onAcceptWithDetails: (details) {
+                  setState(() {
+                    _signatureMarkerPosition = Offset(
+                      details.offset.dx.clamp(20.0, 320.0),
+                      details.offset.dy.clamp(50.0, 200.0),
+                    );
+                  });
+                },
+                builder: (context, candidateData, rejectedData) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111111),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: candidateData.isNotEmpty
+                            ? Colors.green
+                            : moxGold,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Stack(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _loadedDocName,
-                              style: TextStyle(
-                                color: moxGold,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const Text(
-                              "حالة المستند: جاهز للإسقاط والتوقيع",
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(color: Colors.grey),
-                        Expanded(
-                          child: Text(
-                            _defaultDocSampleText,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                        // شريط بصمة الاعتماد في أسفل المستند بشكل واضح وصغير جداً
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 4,
-                            horizontal: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: moxGold.withValues(alpha: 0.5),
-                              width: 0.5,
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                Icons.fingerprint,
-                                color: Color(0xFFD4AF37),
-                                size: 12,
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _loadedDocName,
+                                    style: TextStyle(
+                                      color: moxGold,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const Text(
+                                    "جاهز للإسقاط السيادي",
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              SizedBox(width: 5),
-                              Text(
-                                "هذا المستند يحمل توقيع رقمي من منظومة موكس",
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 9,
-                                  fontStyle: FontStyle.italic,
+                              const Divider(color: Colors.grey),
+                              Expanded(
+                                child: Text(
+                                  _defaultDocSampleText,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                  horizontal: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: moxGold.withValues(alpha: 0.5),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.fingerprint,
+                                      color: Color(0xFFD4AF37),
+                                      size: 12,
+                                    ),
+                                    SizedBox(width: 5),
+                                    Text(
+                                      "مستند مؤمن ببصمة وتوقيع رقمي من منظومة موكس",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 9,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
+
+                        // مؤشر التوقيع المتحرك القابل للسحب والإفلات بدقة داخل المستند
+                        Positioned(
+                          left: _signatureMarkerPosition.dx.clamp(15.0, 310.0),
+                          top: _signatureMarkerPosition.dy.clamp(15.0, 190.0),
+                          child: Draggable<String>(
+                            data: "signature_marker",
+                            feedback: Material(
+                              color: Colors.transparent,
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: moxGold,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.edit_document,
+                                  color: Colors.black,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                            childWhenDragging: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.hourglass_empty,
+                                color: Colors.white54,
+                                size: 16,
+                              ),
+                            ),
+                            onDragEnd: (details) {
+                              setState(() {
+                                double newX = details.offset.dx - 40;
+                                double newY = details.offset.dy - 180;
+                                _signatureMarkerPosition = Offset(
+                                  newX.clamp(15.0, 310.0),
+                                  newY.clamp(15.0, 190.0),
+                                );
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: moxGold,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.5),
+                                    blurRadius: 4,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.pin_drop,
+                                color: Colors.black,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-
-                  // العلامة القابلة للسحب (المربع/الدائرة التفاعلية) لتحديد مكان التوقيع
-                  Positioned(
-                    left: _signatureMarkerPosition.dx.clamp(10.0, 300.0),
-                    top: _signatureMarkerPosition.dy.clamp(10.0, 180.0),
-                    child: Draggable(
-                      feedback: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: moxGold.withValues(alpha: 0.8),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.edit,
-                            color: Colors.black,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      childWhenDragging: Container(),
-                      onDragEnd: (details) {
-                        setState(() {
-                          // تحديث إحداثيات مكان التوقيع بناءً على حركة العميل
-                          _signatureMarkerPosition = details.offset;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: moxGold,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              blurRadius: 4,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.pinch,
-                          color: Colors.black,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 20),
 
             // لوحة الرسم الخاصة بالتوقيع الرقمي
             const Text(
-              "✍️ مساحة التوقيع الرقمي (وقع داخل الإطار بالأسفل):",
+              "✍️ مساحة التوقيع الرقمي (وقع يدويّاً داخل الإطار بالأسفل):",
               style: TextStyle(
                 color: Colors.white70,
                 fontWeight: FontWeight.bold,

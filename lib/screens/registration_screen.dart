@@ -21,12 +21,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String _selectedAccountType = "فردي";
   bool _isPasswordVisible = false;
 
-  // دالة توليد الترقيم التلقائي ليبدأ من 5000 بالصيغة ID-005000 بالمسطرة
+  // 🔢 دالة توليد الترقيم التلقائي بدقة متناهية لمنع التكرار وتصاعد الأرقام ابتداءً من 5001
   Future<String> _generateSequentialMoxId() async {
     await StorageService.ensureLoaded();
 
-    int nextNumber =
-        5000; // البداية السيادية المعتمدة من الرقم 5000 لزيادة الثقة
+    int nextNumber = 5001; // يبدأ العملاء من 5001 فصاعداً بعد المدير 5000
 
     if (StorageService.registeredUsers.isNotEmpty) {
       List<int> existingNumbers = [];
@@ -34,7 +33,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         if (user.moxId.startsWith("ID-")) {
           String numericPart = user.moxId.replaceFirst("ID-", "");
           int? parsedVal = int.tryParse(numericPart);
-          if (parsedVal != null) {
+          if (parsedVal != null && parsedVal >= 5000) {
             existingNumbers.add(parsedVal);
           }
         }
@@ -42,15 +41,47 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       if (existingNumbers.isNotEmpty) {
         existingNumbers.sort();
-        if (existingNumbers.last >= 5000) {
-          nextNumber = existingNumbers.last + 1;
-        }
+        nextNumber = existingNumbers.last + 1;
       }
     }
 
-    // تنسيق الرقم ليظهر بدقة بـ 6 خانات (مثلاً ID-005000)
     String formattedNum = nextNumber.toString().padLeft(6, '0');
     return "ID-$formattedNum";
+  }
+
+  // ⏳ عرض مؤشر الانتظار الفاخر في منتصف الشاشة أثناء الربط السحابي بقوقل
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: moxBlue),
+                const SizedBox(width: 20),
+                const Expanded(
+                  child: Text(
+                    "جاري اعتمادك في بنك موكس...",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _register() async {
@@ -71,39 +102,41 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return;
     }
 
-    // توليد الترقيم التلقائي بداية من 5000
+    // إظهار رسالة الانتظار الفاخرة أثناء المعالجة والتسجيل السحابي
+    _showLoadingDialog();
+
+    // توليد الترقيم التلقائي الصحيح والمضمون للعميل
     String newMoxId = await _generateSequentialMoxId();
 
-    // معالجة رقم الوصي (المرشد): إذا ترك فارغاً، يُسند تلقائياً للمدير السيادي
+    // معالجة رقم الوصي: إذا ترك فارغاً يظل خالياً تماماً (أو يُسند حسب الرغبة)
     String inputGuardian = _guardianController.text.trim();
-    String finalGuardianId = inputGuardian.isEmpty
-        ? "ID-005000"
-        : inputGuardian;
+    String finalGuardianId = inputGuardian; // يظل خالياً إذا لم يُدخل يدوياً
 
     final newUser = UserModel(
       phone: phoneInput,
       password: _passwordController.text.trim(),
       name: _nameController.text.trim(),
-      moxId: newMoxId, // تمرير الهوية الرقمية المنفصلة صراحةً بالمسطرة
+      moxId: newMoxId, // الهوية الرقمية الفريدة للعميل حصرياً
       address: _addressController.text.trim(),
       balance: 0.0,
       gender: _selectedGender,
       accountType: _selectedAccountType,
       role: "user",
-      guardianMoxId: finalGuardianId,
+      guardianMoxId: finalGuardianId, // حقل الوصي المستقل
       points: 0,
       myAssets: [],
     );
 
-    // إضافة العميل وتحديث نقاط الوصي عبر الخزينة السيادية الموحدة
+    // إضافة العميل وترحيله السحابي مع تحديث نقاط الوصي إن وجد
     await _addUserWithReferral(newUser, finalGuardianId);
 
+    // إغلاق مؤشر الانتظار الفاخر
     if (mounted) {
-      _showSovereignCertificate(newUser, newMoxId);
+      Navigator.pop(context); // إغلاق الـ Loading Dialog
+      _showSovereignCertificate(newUser, newMoxId); // إظهار شهادة الاعتماد
     }
   }
 
-  // دالة مخصصة لإضافة العميل وتحديث نقاط الوصي بـ 100 نقطة عبر StorageService
   Future<void> _addUserWithReferral(
     UserModel newUser,
     String guardianId,
@@ -111,62 +144,36 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     await StorageService.ensureLoaded();
 
     if (!StorageService.registeredUsers.any((u) => u.moxId == newUser.moxId)) {
-      // البحث عن الوصي في السجل لمنحه 100 نقطة
-      int guardianIndex = StorageService.registeredUsers.indexWhere(
-        (u) => u.moxId == guardianId,
-      );
+      if (guardianId.isNotEmpty) {
+        int guardianIndex = StorageService.registeredUsers.indexWhere(
+          (u) => u.moxId == guardianId,
+        );
 
-      if (guardianIndex != -1) {
-        var guardian = StorageService.registeredUsers[guardianIndex];
-        StorageService.registeredUsers[guardianIndex] = UserModel(
-          phone: guardian.phone,
-          password: guardian.password,
-          name: guardian.name,
-          address: guardian.address,
-          balance: guardian.balance,
-          commission: guardian.commission,
-          gender: guardian.gender,
-          accountType: guardian.accountType,
-          moxId: guardian.moxId,
-          role: guardian.role,
-          customWhatsApp: guardian.customWhatsApp,
-          guardianMoxId: guardian.guardianMoxId,
-          points: guardian.points + 100, // إضافة 100 نقطة للوصي
-          myAssets: guardian.myAssets,
-        );
-        debugPrint(
-          "🎯 [Referral] تم منح 100 نقطة للوصي: ${guardian.name} (${guardian.moxId})",
-        );
-      } else {
-        // إذا كان رقم الوصي خطأ، تذهب الـ 100 نقطة للمدير كصمام أمان سيادي
-        int adminIndex = StorageService.registeredUsers.indexWhere(
-          (u) => u.moxId == "ID-005000",
-        );
-        if (adminIndex != -1) {
-          var admin = StorageService.registeredUsers[adminIndex];
-          StorageService.registeredUsers[adminIndex] = UserModel(
-            phone: admin.phone,
-            password: admin.password,
-            name: admin.name,
-            address: admin.address,
-            balance: admin.balance,
-            commission: admin.commission,
-            gender: admin.gender,
-            accountType: admin.accountType,
-            moxId: admin.moxId,
-            role: admin.role,
-            customWhatsApp: admin.customWhatsApp,
-            guardianMoxId: admin.guardianMoxId,
-            points: admin.points + 100,
-            myAssets: admin.myAssets,
+        if (guardianIndex != -1) {
+          var guardian = StorageService.registeredUsers[guardianIndex];
+          StorageService.registeredUsers[guardianIndex] = UserModel(
+            phone: guardian.phone,
+            password: guardian.password,
+            name: guardian.name,
+            address: guardian.address,
+            balance: guardian.balance,
+            commission: guardian.commission,
+            gender: guardian.gender,
+            accountType: guardian.accountType,
+            moxId: guardian.moxId,
+            role: guardian.role,
+            customWhatsApp: guardian.customWhatsApp,
+            guardianMoxId: guardian.guardianMoxId,
+            points: guardian.points + 100, // منح 100 نقطة للوصي الحقيقي
+            myAssets: guardian.myAssets,
           );
         }
       }
 
-      // حفظ العميل الجديد في الشيت والمحلي فوراً عبر addUser
+      // حفظ العميل الجديد في الشيت والسحاب والمحلي فوراً
       await StorageService.addUser(newUser);
       debugPrint(
-        "➕ [Storage] تم تسجيل المواطن بنجاح وتحديث شبكة النقاط في الخزينة.",
+        "➕ [Storage] تم تسجيل المواطن بنجاح وترحيله إلى قاعدة بيانات قوقل.",
       );
     }
   }
@@ -342,7 +349,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
             const SizedBox(height: 20),
 
-            // بطاقة الوصي الاحترافية (اختيارية مع الشرح السيادي)
+            // بطاقة الوصي الاحترافية (اختيارية تظل خالية وتُملأ يدوياً)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -363,7 +370,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    "إذا أخبرك عميل عن موكس، الرجاء وضع رقم موكس الخاص به إذا كنت تعرف رقمه، وإذا لا تعرفه، اترك هذا الحقل خالي.. يمكنك الاستفادة من رصيد النقاط بجلب عملاء وتمنحهم رقمك الخاص في موكس الذي تتحصل عليه بعد أن تقوم بترقية حسابك.",
+                    "إذا أخبرك عميل عن موكس، الرجاء وضع رقم موكس الخاص به إذا كنت تعرف رقمه، وإذا لا تعرفه، اترك هذا الحقل خالي.. يمكنك الاستفادة من رصيد النقاط بجلب عملاء وتمنحهم رقمك الخاص في موكس.",
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.black87,
@@ -374,8 +381,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   TextField(
                     controller: _guardianController,
                     decoration: const InputDecoration(
-                      labelText: "رقم MOX للوصي (اختياري)",
-                      hintText: "ID-005000",
+                      labelText:
+                          "رقم MOX للوصي (اختياري - يترك فارغاً أو يملأ يدوياً)",
+                      hintText: "ID-005001",
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(
                         Icons.supervised_user_circle,
