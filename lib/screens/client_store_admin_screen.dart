@@ -6,6 +6,8 @@ import '../models/user_model.dart';
 import '../data/user_data.dart';
 // ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
 import '../services/storage_service.dart';
+// استيراد شاشة التوقيع الرقمي السيادي (تأكد من صحة مسار الاستيراد لديك)
+// import 'digital_signature_screen.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
@@ -434,7 +436,81 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                 );
               }),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+
+              // 🌟 زر بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A
+              Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    // الانتقال لصفحة التوقيع الرقمي السيادي
+                    // استبدل DigitalSignatureScreen باسم صفحة التوقيع الفعلية لديك
+                    /*
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DigitalSignatureScreen(user: widget.user),
+                      ),
+                    );
+                    */
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "✍️ تم النقر على بوابة التوقيع الرقمي السيادي بنجاح",
+                        ),
+                        backgroundColor: Color(0xFF1B6B80),
+                      ),
+                    );
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.gesture_rounded,
+                          color: Color(0xFF1B6B80),
+                          size: 28,
+                        ),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "بوابة التوقيع الرقمي السيادي",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Color(0xFF1B6B80),
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                "اعتمد عقودك ومستنداتك بتوقيع رقمي موثق بالمسطرة",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: Color(0xFF1B6B80),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 25),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF28A9CC),

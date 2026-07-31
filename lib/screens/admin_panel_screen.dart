@@ -17,7 +17,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   bool _isLoading = true;
 
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbwlcpNJ4VxarKDAYgOOWtV6N6EiTt1SNJrBrfK8AQzSfBE8mh27QTjTvyrJPqHbTT5X/exec";
+      "https://script.google.com/macros/s/AKfycbzTLmDM6F2-5dcOrci8AN4-VOn8cwbvFsFd3A-dgNPm36Z5D3Z5RPixK8q5MPdISWk/exec";
 
   @override
   void initState() {
@@ -29,7 +29,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http
-          .get(Uri.parse('$_scriptUrl?action=getAll'))
+          .get(
+            Uri.parse('$_scriptUrl?action=save'),
+          ) // أو السكربت الافتراضي للجلب
           .timeout(const Duration(seconds: 8));
       if (!mounted) return;
       if (response.statusCode == 200) {
@@ -57,8 +59,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
+      // إرسال كافة الحقول الخضراء والزرقاء بدقة متناهية بالمسطرة
       final uri = Uri.parse(
-        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(user.phone)}&name=${Uri.encodeComponent(user.name)}&balance=${user.balance}&accountType=${Uri.encodeComponent(user.accountType)}&moxId=${Uri.encodeComponent(user.moxId)}&role=${Uri.encodeComponent(user.role)}&address=${Uri.encodeComponent(user.address)}&password=${Uri.encodeComponent(user.password)}&commission=${user.commission}&gender=${Uri.encodeComponent(user.gender)}&customWhatsApp=${Uri.encodeComponent(user.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(user.guardianMoxId ?? '')}&points=${user.points}',
+        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(user.phone)}&password=${Uri.encodeComponent(user.password)}&name=${Uri.encodeComponent(user.name)}&address=${Uri.encodeComponent(user.address)}&balance=${user.balance}&commission=${user.commission}&gender=${Uri.encodeComponent(user.gender)}&accountType=${Uri.encodeComponent(user.accountType)}&moxId=${Uri.encodeComponent(user.moxId)}&role=${Uri.encodeComponent(user.role)}&customWhatsApp=${Uri.encodeComponent(user.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(user.guardianMoxId ?? '')}&points=${user.points}&myAssets=${Uri.encodeComponent(json.encode(user.myAssets))}',
       );
 
       final response = await http.get(uri).timeout(const Duration(seconds: 6));

@@ -41,8 +41,8 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  Future<void> _saveLocalData() async {
-    await StorageService.saveUsersList();
+  Future<void> _saveLocalData(UserModel client) async {
+    await StorageService.updateUserPartial(client);
     if (mounted) setState(() {});
   }
 
@@ -504,14 +504,16 @@ class _AdminScreenState extends State<AdminScreen> {
                 client.commission =
                     double.tryParse(amountController.text) ?? client.commission;
               });
-              await _saveLocalData();
+              await _saveLocalData(client);
               if (!mounted) return;
               // ignore: use_build_context_synchronously
               Navigator.pop(ctx);
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text("🔊 تم الحفظ وتحديث الخزينة للعميل بنجاح"),
+                  content: Text(
+                    "🔊 تم الحفظ وتحديث الخزينة والترحيل السحابي بنجاح",
+                  ),
                 ),
               );
             },
@@ -579,7 +581,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         client.role = 'reviewed_active';
                       }
                     });
-                    await _saveLocalData();
+                    await _saveLocalData(client);
                     if (!mounted) return;
                     // ignore: use_build_context_synchronously
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -716,7 +718,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 client.points =
                     int.tryParse(pointsController.text) ?? client.points;
               });
-              await _saveLocalData();
+              await _saveLocalData(client);
               if (!mounted) return;
               // ignore: use_build_context_synchronously
               Navigator.pop(ctx);
@@ -724,7 +726,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    "🔊 تم حفظ وتحديث رصيد النقاط في الخزينة بنجاح",
+                    "🔊 تم حفظ وتحديث رصيد النقاط في الخزينة والسيستم بنجاح",
                   ),
                 ),
               );

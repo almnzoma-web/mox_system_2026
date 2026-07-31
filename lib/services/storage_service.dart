@@ -112,6 +112,7 @@ class StorageService {
     }
   }
 
+  // إضافة عميل جديد بالحزمة الخضراء الأولية
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
@@ -131,11 +132,33 @@ class StorageService {
 
     try {
       final uri = Uri.parse(
-        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(newUser.phone)}&name=${Uri.encodeComponent(newUser.name)}&balance=${newUser.balance}&accountType=${Uri.encodeComponent(newUser.accountType)}&moxId=${Uri.encodeComponent(newUser.moxId)}&role=${Uri.encodeComponent(newUser.role)}&address=${Uri.encodeComponent(newUser.address)}&password=${Uri.encodeComponent(newUser.password)}&commission=${newUser.commission}&gender=${Uri.encodeComponent(newUser.gender)}&customWhatsApp=${Uri.encodeComponent(newUser.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(newUser.guardianMoxId ?? '')}&points=${newUser.points}',
+        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(newUser.phone)}&password=${Uri.encodeComponent(newUser.password)}&name=${Uri.encodeComponent(newUser.name)}&address=${Uri.encodeComponent(newUser.address)}&balance=${newUser.balance}&commission=${newUser.commission}&gender=${Uri.encodeComponent(newUser.gender)}&accountType=${Uri.encodeComponent(newUser.accountType)}&moxId=${Uri.encodeComponent(newUser.moxId)}&role=${Uri.encodeComponent(newUser.role)}&customWhatsApp=${Uri.encodeComponent(newUser.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(newUser.guardianMoxId ?? '')}&points=${newUser.points}&myAssets=${Uri.encodeComponent(json.encode(newUser.myAssets))}',
       );
       await http.get(uri).timeout(const Duration(seconds: 4));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
+    }
+  }
+
+  // دالة التحديث الجزئي للحقول الزرقاء والمستندات عبر moxId بالمسطرة
+  static Future<void> updateUserPartial(UserModel user) async {
+    await ensureLoaded();
+
+    int index = registeredUsers.indexWhere(
+      (u) => u.moxId == user.moxId || u.phone == user.phone,
+    );
+    if (index != -1) {
+      registeredUsers[index] = user;
+      await saveUsersList();
+    }
+
+    try {
+      final uri = Uri.parse(
+        '$_scriptUrl?action=save&phone=${Uri.encodeComponent(user.phone)}&password=${Uri.encodeComponent(user.password)}&name=${Uri.encodeComponent(user.name)}&address=${Uri.encodeComponent(user.address)}&balance=${user.balance}&commission=${user.commission}&gender=${Uri.encodeComponent(user.gender)}&accountType=${Uri.encodeComponent(user.accountType)}&moxId=${Uri.encodeComponent(user.moxId)}&role=${Uri.encodeComponent(user.role)}&customWhatsApp=${Uri.encodeComponent(user.customWhatsApp ?? '')}&guardianMoxId=${Uri.encodeComponent(user.guardianMoxId ?? '')}&points=${user.points}&myAssets=${Uri.encodeComponent(json.encode(user.myAssets))}',
+      );
+      await http.get(uri).timeout(const Duration(seconds: 4));
+    } catch (e) {
+      debugPrint("❌ [Cloud Sync] خطأ في تحديث الحقول الجزئية: $e");
     }
   }
 
