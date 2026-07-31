@@ -112,7 +112,7 @@ class StorageService {
     }
   }
 
-  // إضافة عميل جديد بالترحيل السحابي الآمن عبر POST
+  // إضافة عميل جديد بالترحيل السحابي الآمن عبر Form-urlencoded بالمسطرة
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
@@ -131,35 +131,39 @@ class StorageService {
     await saveUsersList();
 
     try {
-      final uri = Uri.parse('$_scriptUrl?action=save');
+      // ignore: unnecessary_string_interpolations
+      final uri = Uri.parse('$_scriptUrl');
       await http
           .post(
             uri,
-            headers: {"Content-Type": "application/json"},
-            body: json.encode({
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: {
+              'action': 'save',
               'phone': newUser.phone,
               'password': newUser.password,
               'name': newUser.name,
               'address': newUser.address,
-              'balance': newUser.balance,
-              'commission': newUser.commission,
+              'balance': newUser.balance.toString(),
+              'commission': newUser.commission.toString(),
               'gender': newUser.gender,
               'accountType': newUser.accountType,
               'moxId': newUser.moxId,
               'role': newUser.role,
               'customWhatsApp': newUser.customWhatsApp ?? '',
               'guardianMoxId': newUser.guardianMoxId ?? '',
-              'points': newUser.points,
-              'myAssets': newUser.myAssets.map((a) => a.toJson()).toList(),
-            }),
+              'points': newUser.points.toString(),
+              'myAssets': json.encode(
+                newUser.myAssets.map((a) => a.toJson()).toList(),
+              ),
+            },
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
     }
   }
 
-  // دالة التحديث الجزئي الحلقي عبر POST بالمسطرة
+  // دالة التحديث الجزئي الحلقي عبر Form-urlencoded بالمسطرة
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
@@ -172,29 +176,33 @@ class StorageService {
     }
 
     try {
-      final uri = Uri.parse('$_scriptUrl?action=save');
+      // ignore: unnecessary_string_interpolations
+      final uri = Uri.parse('$_scriptUrl');
       await http
           .post(
             uri,
-            headers: {"Content-Type": "application/json"},
-            body: json.encode({
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: {
+              'action': 'save',
               'phone': user.phone,
               'password': user.password,
               'name': user.name,
               'address': user.address,
-              'balance': user.balance,
-              'commission': user.commission,
+              'balance': user.balance.toString(),
+              'commission': user.commission.toString(),
               'gender': user.gender,
               'accountType': user.accountType,
               'moxId': user.moxId,
               'role': user.role,
               'customWhatsApp': user.customWhatsApp ?? '',
               'guardianMoxId': user.guardianMoxId ?? '',
-              'points': user.points,
-              'myAssets': user.myAssets.map((a) => a.toJson()).toList(),
-            }),
+              'points': user.points.toString(),
+              'myAssets': json.encode(
+                user.myAssets.map((a) => a.toJson()).toList(),
+              ),
+            },
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في تحديث الحقول الجزئية: $e");
     }

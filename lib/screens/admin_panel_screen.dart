@@ -58,30 +58,33 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      final uri = Uri.parse('$_scriptUrl?action=save');
-      // استخدام POST وبنية JSON الموحدة لضمان وصول كافة الحقول والأصول للمدير والعميل
+      final uri = Uri.parse(_scriptUrl);
+      // استخدام POST بترميز Form المدعوم رسمياً من قوقل لتتوافق مع StorageService بالمسطرة
       final response = await http
           .post(
             uri,
-            headers: {"Content-Type": "application/json"},
-            body: json.encode({
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: {
+              'action': 'save',
               'phone': user.phone,
               'password': user.password,
               'name': user.name,
               'address': user.address,
-              'balance': user.balance,
-              'commission': user.commission,
+              'balance': user.balance.toString(),
+              'commission': user.commission.toString(),
               'gender': user.gender,
               'accountType': user.accountType,
               'moxId': user.moxId,
               'role': user.role,
               'customWhatsApp': user.customWhatsApp ?? '',
               'guardianMoxId': user.guardianMoxId ?? '',
-              'points': user.points,
-              'myAssets': user.myAssets.map((a) => a.toJson()).toList(),
-            }),
+              'points': user.points.toString(),
+              'myAssets': json.encode(
+                user.myAssets.map((a) => a.toJson()).toList(),
+              ),
+            },
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 8));
 
       if (!mounted) return;
       if (response.statusCode == 200) {
