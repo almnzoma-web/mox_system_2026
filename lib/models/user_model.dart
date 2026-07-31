@@ -20,7 +20,7 @@ class UserModel {
     this.commission = 0.0,
     required this.gender,
     required this.accountType,
-    this.moxId = "لم يحدد",
+    this.moxId = "ID-000001",
     this.role = "free",
     this.customWhatsApp,
     this.guardianMoxId = "MOX249-00010001", // القيمة الافتراضية للمدير

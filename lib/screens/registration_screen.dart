@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
+import 'digital_signature_screen.dart'; // استيراد صفحة التوقيع الرقمي
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -21,6 +22,35 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String _selectedAccountType = "فردي";
   bool _isPasswordVisible = false;
 
+  // دالة توليد الترقيم التلقائي المنفصل بالصيغة ID-000001 بالمسطرة
+  Future<String> _generateSequentialMoxId() async {
+    await StorageService.ensureLoaded();
+
+    int nextNumber = 1; // البداية التلقائية من 1
+
+    if (StorageService.registeredUsers.isNotEmpty) {
+      List<int> existingNumbers = [];
+      for (var user in StorageService.registeredUsers) {
+        if (user.moxId.startsWith("ID-")) {
+          String numericPart = user.moxId.replaceFirst("ID-", "");
+          int? parsedVal = int.tryParse(numericPart);
+          if (parsedVal != null) {
+            existingNumbers.add(parsedVal);
+          }
+        }
+      }
+
+      if (existingNumbers.isNotEmpty) {
+        existingNumbers.sort();
+        nextNumber = existingNumbers.last + 1;
+      }
+    }
+
+    // تنسيق الرقم ليظهر بصيغة ID-000001 بـ 6 خانات بدقة
+    String formattedNum = nextNumber.toString().padLeft(6, '0');
+    return "ID-$formattedNum";
+  }
+
   Future<void> _register() async {
     String phoneInput = _phoneController.text.trim();
 
@@ -39,13 +69,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return;
     }
 
-    String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    String newMoxId = "MOX${timestamp.substring(timestamp.length - 8)}";
+    // توليد الترقيم التلقائي بالصيغة الجديدة ID-000001
+    String newMoxId = await _generateSequentialMoxId();
 
     // معالجة رقم الوصي (المرشد): إذا ترك فارغاً، يُسند تلقائياً للمدير السيادي
     String inputGuardian = _guardianController.text.trim();
     String finalGuardianId = inputGuardian.isEmpty
-        ? "MOX249-00010001"
+        ? "ID-000001"
         : inputGuardian;
 
     final newUser = UserModel(
@@ -66,7 +96,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     await _addUserWithReferral(newUser, finalGuardianId);
 
     if (mounted) {
-      _showSovereignCertificate(newMoxId);
+      _showSovereignCertificate(newUser, newMoxId);
     }
   }
 
@@ -138,7 +168,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
   }
 
-  void _showSovereignCertificate(String moxId) {
+  void _showSovereignCertificate(UserModel registeredUser, String moxId) {
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
@@ -149,7 +179,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             borderRadius: BorderRadius.circular(25),
           ),
           child: Container(
-            constraints: const BoxConstraints(maxHeight: 550),
+            constraints: const BoxConstraints(maxHeight: 600),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -203,11 +233,44 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   const SizedBox(height: 15),
                   const Text(
-                    "هذا الكود هو مفتاحك لامتلاك رقم موكس الخاص عند ترقية حسابك في الدولة الرقمية السيادية.",
+                    "هذا الكود هو مفتاحك لامتلاك رقم موكس الخاص عند ترقية حسابك في الدولة الرقمية السيادية، ويعتبر هذا الكود مفتاحك في التوقيع الرقمي.",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
                   ),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 20),
+                  // زر الانتقال المباشر لصفحة التوقيع الرقمي من الشهادة
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: moxBlue, width: 2),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.draw, color: Color(0xFF28A9CC)),
+                    label: const Text(
+                      "توجه لمركز التوقيع الرقمي ✍️",
+                      style: TextStyle(
+                        color: Color(0xFF28A9CC),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context); // إغلاق الحوار
+                      Navigator.pop(
+                        context,
+                      ); // العودة للخلف أو شاشة تسجيل الدخول
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DigitalSignatureScreen(
+                            currentUser: registeredUser,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: moxBlue,
@@ -395,6 +458,46 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+            ),
+            const SizedBox(height: 15),
+            // زر اختياري للوصول السريع لصفحة التوقيع الرقمي لمن لديهم حساب مسبق
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: moxBlue),
+                minimumSize: const Size(double.infinity, 45),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(Icons.edit_document, color: Color(0xFF28A9CC)),
+              label: const Text(
+                "الانتقال لمركز التوثيق والتوقيع الرقمي",
+                style: TextStyle(
+                  color: Color(0xFF28A9CC),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                if (StorageService.registeredUsers.isNotEmpty) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DigitalSignatureScreen(
+                        currentUser: StorageService.registeredUsers.first,
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "⚠️ الرجاء تسجيل حساب أو التأكد من توفر بيانات العميل أولاً",
+                      ),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              },
             ),
             const SizedBox(height: 40),
             Text(

@@ -12,7 +12,7 @@ class StorageService {
   static bool _isLoaded = false;
 
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbwlcpNJ4VxarKDAYgOOWtV6N6EiTt1SNJrBrfK8AQzSfBE8mh27QTjTvyrJPqHbTT5X/exec";
+      "https://script.google.com/macros/s/AKfycbzTLmDM6F2-5dcOrci8AN4-VOn8cwbvFsFd3A-dgNPm36Z5D3Z5RPixK8q5MPdISWk/exec";
 
   static final UserModel adminUser = UserModel(
     phone: "249115855164",
@@ -23,10 +23,11 @@ class StorageService {
     commission: 0.0,
     gender: "ذكر",
     accountType: "إدارة",
-    moxId: "MOX249-00010001",
+    moxId:
+        "ID-000000", // تحديث معرف المدير ليتوافق مع المعيار الجديد وعدم التضارب
     role: "admin",
     customWhatsApp: "249115855164",
-    guardianMoxId: "MOX249-00010001",
+    guardianMoxId: "ID-000000",
     points: 0,
     myAssets: [],
   );
@@ -119,7 +120,7 @@ class StorageService {
     int index = registeredUsers.indexWhere(
       (u) =>
           u.phone == newUser.phone ||
-          (newUser.moxId != "لم يحدد" && u.moxId == newUser.moxId),
+          (newUser.moxId != "ID-000001" && u.moxId == newUser.moxId),
     );
 
     if (index != -1) {

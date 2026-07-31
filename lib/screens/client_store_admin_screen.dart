@@ -6,8 +6,8 @@ import '../models/user_model.dart';
 import '../data/user_data.dart';
 // ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
 import '../services/storage_service.dart';
-// استيراد شاشة التوقيع الرقمي السيادي (تأكد من صحة مسار الاستيراد لديك)
-// import 'digital_signature_screen.dart';
+// استيراد شاشة التوقيع الرقمي السيادي الفعلية
+import 'digital_signature_screen.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
@@ -438,7 +438,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               }),
               const SizedBox(height: 20),
 
-              // 🌟 زر بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A
+              // 🌟 زر بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A (مفعل بالمسطرة)
               Card(
                 elevation: 3,
                 shape: RoundedRectangleBorder(
@@ -447,22 +447,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    // الانتقال لصفحة التوقيع الرقمي السيادي
-                    // استبدل DigitalSignatureScreen باسم صفحة التوقيع الفعلية لديك
-                    /*
+                    // الانتقال لصفحة التوقيع الرقمي السيادي مع تمرير بيانات العميل الحالي
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const DigitalSignatureScreen(user: widget.user),
-                      ),
-                    );
-                    */
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "✍️ تم النقر على بوابة التوقيع الرقمي السيادي بنجاح",
-                        ),
-                        backgroundColor: Color(0xFF1B6B80),
+                        builder: (context) =>
+                            DigitalSignatureScreen(currentUser: widget.user),
                       ),
                     );
                   },
