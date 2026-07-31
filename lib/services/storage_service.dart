@@ -112,7 +112,7 @@ class StorageService {
     }
   }
 
-  // إضافة عميل جديد بالترحيل السحابي الآمن عبر Form-urlencoded بالمسطرة
+  // إضافة عميل جديد بالترحيل السحابي الآمن عبر GET Query Parameters بالمسطرة
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
@@ -131,39 +131,36 @@ class StorageService {
     await saveUsersList();
 
     try {
-      // ignore: unnecessary_string_interpolations
-      final uri = Uri.parse('$_scriptUrl');
-      await http
-          .post(
-            uri,
-            headers: {"Content-Type": "application/x-www-form-urlencoded"},
-            body: {
-              'action': 'save',
-              'phone': newUser.phone,
-              'password': newUser.password,
-              'name': newUser.name,
-              'address': newUser.address,
-              'balance': newUser.balance.toString(),
-              'commission': newUser.commission.toString(),
-              'gender': newUser.gender,
-              'accountType': newUser.accountType,
-              'moxId': newUser.moxId,
-              'role': newUser.role,
-              'customWhatsApp': newUser.customWhatsApp ?? '',
-              'guardianMoxId': newUser.guardianMoxId ?? '',
-              'points': newUser.points.toString(),
-              'myAssets': json.encode(
-                newUser.myAssets.map((a) => a.toJson()).toList(),
-              ),
-            },
-          )
-          .timeout(const Duration(seconds: 8));
+      final queryParameters = {
+        'action': 'save',
+        'phone': newUser.phone,
+        'password': newUser.password,
+        'name': newUser.name,
+        'address': newUser.address,
+        'balance': newUser.balance.toString(),
+        'commission': newUser.commission.toString(),
+        'gender': newUser.gender,
+        'accountType': newUser.accountType,
+        'moxId': newUser.moxId,
+        'role': newUser.role,
+        'customWhatsApp': newUser.customWhatsApp ?? '',
+        'guardianMoxId': newUser.guardianMoxId ?? '',
+        'points': newUser.points.toString(),
+        'myAssets': json.encode(
+          newUser.myAssets.map((a) => a.toJson()).toList(),
+        ),
+      };
+
+      final uri = Uri.parse(
+        _scriptUrl,
+      ).replace(queryParameters: queryParameters);
+      await http.get(uri).timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في رفع العميل للشيت: $e");
     }
   }
 
-  // دالة التحديث الجزئي الحلقي عبر Form-urlencoded بالمسطرة
+  // دالة التحديث الجزئي الحلقي عبر GET Query Parameters بالمسطرة
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
@@ -176,33 +173,28 @@ class StorageService {
     }
 
     try {
-      // ignore: unnecessary_string_interpolations
-      final uri = Uri.parse('$_scriptUrl');
-      await http
-          .post(
-            uri,
-            headers: {"Content-Type": "application/x-www-form-urlencoded"},
-            body: {
-              'action': 'save',
-              'phone': user.phone,
-              'password': user.password,
-              'name': user.name,
-              'address': user.address,
-              'balance': user.balance.toString(),
-              'commission': user.commission.toString(),
-              'gender': user.gender,
-              'accountType': user.accountType,
-              'moxId': user.moxId,
-              'role': user.role,
-              'customWhatsApp': user.customWhatsApp ?? '',
-              'guardianMoxId': user.guardianMoxId ?? '',
-              'points': user.points.toString(),
-              'myAssets': json.encode(
-                user.myAssets.map((a) => a.toJson()).toList(),
-              ),
-            },
-          )
-          .timeout(const Duration(seconds: 8));
+      final queryParameters = {
+        'action': 'save',
+        'phone': user.phone,
+        'password': user.password,
+        'name': user.name,
+        'address': user.address,
+        'balance': user.balance.toString(),
+        'commission': user.commission.toString(),
+        'gender': user.gender,
+        'accountType': user.accountType,
+        'moxId': user.moxId,
+        'role': user.role,
+        'customWhatsApp': user.customWhatsApp ?? '',
+        'guardianMoxId': user.guardianMoxId ?? '',
+        'points': user.points.toString(),
+        'myAssets': json.encode(user.myAssets.map((a) => a.toJson()).toList()),
+      };
+
+      final uri = Uri.parse(
+        _scriptUrl,
+      ).replace(queryParameters: queryParameters);
+      await http.get(uri).timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint("❌ [Cloud Sync] خطأ في تحديث الحقول الجزئية: $e");
     }

@@ -28,7 +28,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   Future<void> _fetchFromCloud() async {
     setState(() => _isLoading = true);
     try {
-      // تصحيح مسار الجلب بدون action=save الخاطئة
       final response = await http
           .get(Uri.parse(_scriptUrl))
           .timeout(const Duration(seconds: 8));
@@ -58,33 +57,30 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      final uri = Uri.parse(_scriptUrl);
-      // استخدام POST بترميز Form المدعوم رسمياً من قوقل لتتوافق مع StorageService بالمسطرة
-      final response = await http
-          .post(
-            uri,
-            headers: {"Content-Type": "application/x-www-form-urlencoded"},
-            body: {
-              'action': 'save',
-              'phone': user.phone,
-              'password': user.password,
-              'name': user.name,
-              'address': user.address,
-              'balance': user.balance.toString(),
-              'commission': user.commission.toString(),
-              'gender': user.gender,
-              'accountType': user.accountType,
-              'moxId': user.moxId,
-              'role': user.role,
-              'customWhatsApp': user.customWhatsApp ?? '',
-              'guardianMoxId': user.guardianMoxId ?? '',
-              'points': user.points.toString(),
-              'myAssets': json.encode(
-                user.myAssets.map((a) => a.toJson()).toList(),
-              ),
-            },
-          )
-          .timeout(const Duration(seconds: 8));
+      // بناء رابط الـ GET مع الباراميترات لتجاوز قيود قوقل والـ CORS بالمسطرة
+      final queryParameters = {
+        'action': 'save',
+        'phone': user.phone,
+        'password': user.password,
+        'name': user.name,
+        'address': user.address,
+        'balance': user.balance.toString(),
+        'commission': user.commission.toString(),
+        'gender': user.gender,
+        'accountType': user.accountType,
+        'moxId': user.moxId,
+        'role': user.role,
+        'customWhatsApp': user.customWhatsApp ?? '',
+        'guardianMoxId': user.guardianMoxId ?? '',
+        'points': user.points.toString(),
+        'myAssets': json.encode(user.myAssets.map((a) => a.toJson()).toList()),
+      };
+
+      final uri = Uri.parse(
+        _scriptUrl,
+      ).replace(queryParameters: queryParameters);
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
 
       if (!mounted) return;
       if (response.statusCode == 200) {
