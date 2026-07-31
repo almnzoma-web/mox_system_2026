@@ -17,7 +17,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   bool _isLoading = true;
 
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycby28y8C9qqVPDVfEiB-OZBaRZcnvDApKHKDn1EgCYrNlBjVpUVGVqHM65LpFKv49-dU/exec";
+      "https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAuOs9nNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec";
 
   @override
   void initState() {
