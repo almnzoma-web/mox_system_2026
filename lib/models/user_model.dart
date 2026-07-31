@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../models/marketing_model.dart';
 
 class UserModel {
@@ -66,28 +67,50 @@ class UserModel {
     'accountType': accountType,
     'moxId': moxId,
     'role': role,
-    'customWhatsApp': customWhatsApp,
-    'guardianMoxId': guardianMoxId,
+    'customWhatsApp': customWhatsApp ?? '',
+    'guardianMoxId': guardianMoxId ?? '',
     'points': points,
-    'myAssets': myAssets.map((e) => e.toJson()).toList(),
+    // تحويل الأصول إلى نص JSON متكامل بالمسطرة
+    'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
   };
 
-  factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-    phone: json['phone'] ?? '',
-    password: json['password'] ?? '',
-    name: json['name'] ?? '',
-    address: json['address'] ?? '',
-    balance: (json['balance'] as num? ?? 0.0).toDouble(),
-    commission: (json['commission'] as num? ?? 0.0).toDouble(),
-    gender: json['gender'] ?? '',
-    accountType: json['accountType'] ?? '',
-    moxId: json['moxId'] ?? "لم يحدد",
-    role: json['role'] ?? "free",
-    customWhatsApp: json['customWhatsApp'],
-    guardianMoxId: json['guardianMoxId'] ?? "MOX249-00010001",
-    points: json['points'] ?? 0,
-    myAssets: (json['myAssets'] as List? ?? [])
-        .map((e) => MarketingCard.fromJson(e))
-        .toList(),
-  );
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    List<MarketingCard> parsedAssets = [];
+    try {
+      var rawAssets = json['myAssets'];
+      if (rawAssets != null) {
+        if (rawAssets is String && rawAssets.isNotEmpty) {
+          List<dynamic> decodedList = jsonDecode(
+            rawAssets,
+          ); // استخدام jsonDecode مباشرة بالمسطرة
+          parsedAssets = decodedList
+              .map((e) => MarketingCard.fromJson(Map<String, dynamic>.from(e)))
+              .toList();
+        } else if (rawAssets is List) {
+          parsedAssets = rawAssets
+              .map((e) => MarketingCard.fromJson(Map<String, dynamic>.from(e)))
+              .toList();
+        }
+      }
+    } catch (_) {
+      parsedAssets = [];
+    }
+
+    return UserModel(
+      phone: json['phone']?.toString() ?? '',
+      password: json['password']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      balance: double.tryParse(json['balance']?.toString() ?? '0') ?? 0.0,
+      commission: double.tryParse(json['commission']?.toString() ?? '0') ?? 0.0,
+      gender: json['gender']?.toString() ?? '',
+      accountType: json['accountType']?.toString() ?? '',
+      moxId: json['moxId']?.toString() ?? "لم يحدد",
+      role: json['role']?.toString() ?? "free",
+      customWhatsApp: json['customWhatsApp']?.toString(),
+      guardianMoxId: json['guardianMoxId']?.toString() ?? "MOX249-00010001",
+      points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
+      myAssets: parsedAssets,
+    );
+  }
 }
