@@ -108,9 +108,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     // توليد الترقيم التلقائي الصحيح والمضمون للعميل
     String newMoxId = await _generateSequentialMoxId();
 
-    // معالجة رقم الوصي: إذا ترك فارغاً يظل خالياً تماماً (أو يُسند حسب الرغبة)
+    // معالجة رقم الوصي: إذا ترك فارغاً يعتمد النظام للمدير حصرياً (MOX249-00010001)
     String inputGuardian = _guardianController.text.trim();
-    String finalGuardianId = inputGuardian; // يظل خالياً إذا لم يُدخل يدوياً
+    String finalGuardianId = inputGuardian.isEmpty
+        ? "MOX249-00010001"
+        : inputGuardian;
 
     final newUser = UserModel(
       phone: phoneInput,
@@ -122,7 +124,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       gender: _selectedGender,
       accountType: _selectedAccountType,
       role: "user",
-      guardianMoxId: finalGuardianId, // حقل الوصي المستقل
+      guardianMoxId: finalGuardianId, // حقل الوصي المحدث (المدير افتراضياً)
       points: 0,
       myAssets: [],
     );
@@ -164,7 +166,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             role: guardian.role,
             customWhatsApp: guardian.customWhatsApp,
             guardianMoxId: guardian.guardianMoxId,
-            points: guardian.points + 100, // منح 100 نقطة للوصي الحقيقي
+            points:
+                guardian.points + 100, // منح 100 نقطة للوصي الحقيقي أو المدير
             myAssets: guardian.myAssets,
           );
         }
@@ -349,7 +352,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
             const SizedBox(height: 20),
 
-            // بطاقة الوصي الاحترافية (اختيارية تظل خالية وتُملأ يدوياً)
+            // بطاقة الوصي الاحترافية (اختيارية: تعتمد المدير افتراضياً إذا تركت خالية)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -370,7 +373,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    "إذا أخبرك عميل عن موكس، الرجاء وضع رقم موكس الخاص به إذا كنت تعرف رقمه، وإذا لا تعرفه، اترك هذا الحقل خالي.. يمكنك الاستفادة من رصيد النقاط بجلب عملاء وتمنحهم رقمك الخاص في موكس.",
+                    "إذا أخبرك عميل عن موكس، الرجاء وضع رقم موكس الخاص به. وإذا تركته فارغاً، فسيعتمد النظام رقم مرشد المدير (MOX249-00010001) تلقائياً كوصي لك.",
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.black87,
@@ -381,9 +384,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   TextField(
                     controller: _guardianController,
                     decoration: const InputDecoration(
-                      labelText:
-                          "رقم MOX للوصي (اختياري - يترك فارغاً أو يملأ يدوياً)",
-                      hintText: "ID-005001",
+                      labelText: "رقم MOX للوصي (اختياري - افتراضياً المدير)",
+                      hintText: "MOX249-00010001",
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(
                         Icons.supervised_user_circle,

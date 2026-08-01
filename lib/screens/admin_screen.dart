@@ -43,6 +43,13 @@ class _AdminScreenState extends State<AdminScreen> {
 
   Future<void> _saveLocalData(UserModel client) async {
     await StorageService.updateUserPartial(client);
+    await StorageService.saveUsersList();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _deleteClientCompletely(UserModel client) async {
+    StorageService.registeredUsers.removeWhere((u) => u.moxId == client.moxId);
+    await StorageService.saveUsersList();
     if (mounted) setState(() {});
   }
 
@@ -293,7 +300,7 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget _buildIndicatorView() {
     int totalClients = StorageService.registeredUsers.length;
     int activeUsers = StorageService.registeredUsers
-        .where((u) => u.role != 'admin')
+        .where((u) => u.role != 'admin' && u.role != 'banned')
         .length;
     int adminCount = StorageService.registeredUsers
         .where((u) => u.role == 'admin')
@@ -397,6 +404,7 @@ class _AdminScreenState extends State<AdminScreen> {
       itemBuilder: (context, index) {
         final client = StorageService.registeredUsers[index];
         bool isAdmin = client.role == 'admin';
+        bool isBanned = client.role == 'banned';
 
         return Card(
           elevation: 2,
@@ -406,15 +414,23 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: isAdmin ? Colors.red[100] : Colors.green[100],
+              backgroundColor: isBanned
+                  ? Colors.grey[300]
+                  : (isAdmin ? Colors.red[100] : Colors.green[100]),
               child: Icon(
-                Icons.attach_money,
-                color: isAdmin ? Colors.red : Colors.green,
+                isBanned ? Icons.block : Icons.attach_money,
+                color: isBanned
+                    ? Colors.grey
+                    : (isAdmin ? Colors.red : Colors.green),
               ),
             ),
             title: Text(
-              "${client.name} ${isAdmin ? '(المدير)' : ''}",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              "${client.name} ${isAdmin ? '(المدير)' : ''} ${isBanned ? '(محظور)' : ''}",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isBanned ? Colors.red : Colors.black87,
+              ),
             ),
             subtitle: Text(
               "رقم MOX: ${client.moxId} | الرصيد: ${client.balance}",
@@ -441,7 +457,16 @@ class _AdminScreenState extends State<AdminScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(
+                    Icons.badge,
+                    color: Color(0xFF1B6B80),
+                    size: 20,
+                  ),
+                  tooltip: "تعديل وحفظ رقم MOX",
+                  onPressed: () => _showEditMoxIdDialog(client),
+                ),
                 IconButton(
                   icon: const Icon(
                     Icons.settings,
@@ -451,11 +476,173 @@ class _AdminScreenState extends State<AdminScreen> {
                   tooltip: "تعديل رصيد العمولات",
                   onPressed: () => _showEditCommissionDialog(client),
                 ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  onSelected: (value) async {
+                    if (value == 'ban') {
+                      setState(() {
+                        client.role = isBanned ? 'free' : 'banned';
+                      });
+                      await _saveLocalData(client);
+                      if (!mounted) return;
+                      // ignore: use_build_context_synchronously
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            client.role == 'banned'
+                                ? "⛔ تم حظر العميل وتحديث الخزينة والسيستم"
+                                : "✅ تم إلغاء حظر العميل بنجاح",
+                          ),
+                        ),
+                      );
+                    } else if (value == 'delete') {
+                      _showDeleteConfirmDialog(client);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'ban',
+                      child: Text(
+                        isBanned ? "إلغاء الحظر" : "حظر العميل",
+                        style: TextStyle(
+                          color: isBanned ? Colors.green : Colors.orange,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        "حذف العميل",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  void _showEditMoxIdDialog(UserModel client) {
+    final TextEditingController moxIdController = TextEditingController(
+      text: client.moxId,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(
+          "تعديل وحفظ رقم MOX: ${client.name}",
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "أدخل رقم MOX السيادي (مثال: MOX249-xxxx-xxxx):",
+              style: TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: moxIdController,
+              decoration: const InputDecoration(
+                labelText: "رقم MOX",
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1B6B80),
+            ),
+            onPressed: () async {
+              String newMoxId = moxIdController.text.trim();
+              if (newMoxId.isNotEmpty) {
+                setState(() {
+                  client.moxId = newMoxId;
+                });
+                await _saveLocalData(client);
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "✅ تم حفظ وتحديث رقم MOX في قوقل والذاكرة المحلية والملف بنجاح",
+                    ),
+                  ),
+                );
+              }
+            },
+            child: const Text("حفظ", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmDialog(UserModel client) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text(
+          "تأكيد الحذف السيادي",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.red,
+          ),
+        ),
+        content: Text(
+          "هل أنت متأكد من حذف العميل (${client.name}) نهائياً من الذاكرة والسيستم؟",
+          style: const TextStyle(fontSize: 12),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await _deleteClientCompletely(client);
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    "🗑️ تم حذف العميل نهائياً من الخزينة والذاكرة المحلية والسحابة",
+                  ),
+                ),
+              );
+            },
+            child: const Text(
+              "حذف نهائي",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -505,8 +692,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     double.tryParse(amountController.text) ?? client.commission;
               });
               await _saveLocalData(client);
-              if (!mounted) return;
-              // ignore: use_build_context_synchronously
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
@@ -719,8 +905,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     int.tryParse(pointsController.text) ?? client.points;
               });
               await _saveLocalData(client);
-              if (!mounted) return;
-              // ignore: use_build_context_synchronously
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
