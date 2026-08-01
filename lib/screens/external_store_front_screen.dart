@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
-import '../services/storage_service.dart'; // الخزينة السيادية لجلب بيانات العميل الحقيقية
+import '../services/storage_service.dart';
 import 'welcome_screen.dart';
 
 class ExternalStoreFrontScreen extends StatefulWidget {
   final UserModel? user;
   final List<Map<String, dynamic>> clientCards;
-  final String? directMoxId; // تم التعديل للاعتماد على moxId بالمسطرة
+  final String? directMoxId;
   final double? height;
 
   const ExternalStoreFrontScreen({
@@ -26,8 +26,8 @@ class ExternalStoreFrontScreen extends StatefulWidget {
 }
 
 class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
-  late UserModel? _resolvedUser;
-  late List<Map<String, dynamic>> _resolvedCards;
+  UserModel? _resolvedUser;
+  List<Map<String, dynamic>> _resolvedCards = [];
   bool _isLoading = true;
 
   @override
@@ -36,7 +36,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // دالة ذكية لتحليل الـ URL على الويب واستخراج الـ moxId، أو جلب البيانات مباشرة
   Future<void> _initializeStoreData() async {
     setState(() {
       _isLoading = true;
@@ -46,7 +45,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     List<Map<String, dynamic>> cardsToUse = widget.clientCards;
     String? targetMoxId = widget.directMoxId;
 
-    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL (مثل ?mox=...)
     if (userToUse == null && targetMoxId == null && kIsWeb) {
       try {
         final uri = Uri.base;
@@ -55,15 +53,21 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       } catch (_) {}
     }
 
-    // إذا وجدنا الـ moxId قادماً من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية!
-    if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
+    if (cardsToUse.isEmpty && userToUse != null) {
       try {
-        userToUse = await StorageService.getUserByMoxId(targetMoxId);
-        cardsToUse = await StorageService.getClientCards(targetMoxId);
+        cardsToUse = await StorageService.getClientCards(userToUse.moxId);
       } catch (_) {}
     }
 
-    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن بالمعرف المستهدف لكي لا ينكسر التطبيق
+    if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
+      try {
+        userToUse = await StorageService.getUserByMoxId(targetMoxId);
+        if (cardsToUse.isEmpty) {
+          cardsToUse = await StorageService.getClientCards(targetMoxId);
+        }
+      } catch (_) {}
+    }
+
     _resolvedUser =
         userToUse ??
         UserModel(
@@ -241,7 +245,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    card['title'] ?? "بطاقة سيادية",
+                                    card['title']?.toString() ?? "بطاقة سيادية",
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
@@ -261,7 +265,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              card['description'] ?? "",
+                              card['description']?.toString() ?? "",
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black87,
@@ -279,7 +283,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                     ),
                                     onPressed: () async {
                                       final phoneNum =
-                                          card['whatsapp'] ??
+                                          card['whatsapp']?.toString() ??
                                           resolvedUser.phone;
                                       final url = Uri.parse(
                                         "https://wa.me/$phoneNum",
@@ -313,7 +317,8 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                       minimumSize: const Size(0, 36),
                                     ),
                                     onPressed: () async {
-                                      final detailsUrl = card['facebook'] ?? "";
+                                      final detailsUrl =
+                                          card['facebook']?.toString() ?? "";
                                       if (detailsUrl.isNotEmpty) {
                                         final url = Uri.parse(detailsUrl);
                                         if (await canLaunchUrl(url)) {
