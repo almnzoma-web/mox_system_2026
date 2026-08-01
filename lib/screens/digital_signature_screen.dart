@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+// ignore: unused_import
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -25,7 +26,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
 
   // متغيرات إدارة المستندات وتحديد مكان التوقيع التفاعلي
   String _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
-  String? _loadedDocPath;
   Uint8List? _loadedFileBytes;
   String _fileExtension = "";
 
@@ -69,7 +69,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         setState(() {
           _loadedDocName = file.name;
           _loadedFileBytes = file.bytes;
-          _loadedDocPath = kIsWeb ? null : file.path;
           _fileExtension = file.extension?.toLowerCase() ?? "";
           _zoomScale = 1.0;
           _renderedSignatureBytes = null;
@@ -108,7 +107,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
   void _resetToIndependentDocument() {
     setState(() {
       _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
-      _loadedDocPath = null;
       _loadedFileBytes = null;
       _fileExtension = "";
       _zoomScale = 1.0;
@@ -288,23 +286,18 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         _lockedSignaturePosition = _signatureMarkerPosition;
       });
 
-      final Map<String, dynamic> signedAsset = {
-        "title": _docTitleController.text.trim(),
-        "moxId": widget.currentUser.moxId,
-        "clientName": widget.currentUser.name,
-        "date": DateTime.now().toIso8601String(),
-        "type": "Digital Signature Seal & Download",
-        "status": "ممتلك، موثق ومحمّل بصمة MOX",
-        "docSource": _loadedDocName,
-        "docPath": _loadedDocPath ?? "web_memory_file",
-        "signatureCoordinates": {
-          "dx": _signatureMarkerPosition.dx,
-          "dy": _signatureMarkerPosition.dy,
-        },
-      };
+      // استخدام البارامترات المطلوبة بدقة لنموذج MarketingCard لتجنب أي خطأ تجميع
+      final dynamic signedAsset = MarketingCard(
+        title: _docTitleController.text.trim(),
+        description:
+            // ignore: unnecessary_brace_in_string_interps
+            "توقيع سيادي معتمد - ${_loadedDocName} | بصمة MOX الرقمية المعتمدة",
+        whatsapp: widget.currentUser.phone,
+        facebookUrl: "",
+      );
 
       setState(() {
-        widget.currentUser.myAssets.add(signedAsset as MarketingCard);
+        widget.currentUser.myAssets.add(signedAsset);
       });
 
       await StorageService.updateUserPartial(widget.currentUser);
@@ -711,7 +704,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                               ),
                                             ),
                                           ),
-                                          // بصمة وتوقيع منظومة موكس بأسفل المستند بخط صغير جداً
                                           const Divider(
                                             color: Colors.white24,
                                             height: 10,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mox_digital_app/services/storage_service.dart';
 import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
 import 'package:mox_digital_app/admin_panel/services_manager_tab.dart';
 import 'package:mox_digital_app/screens/client_store_admin_screen.dart';
@@ -2185,28 +2186,48 @@ class MoxAlertsCard extends StatefulWidget {
 
 class _MoxAlertsCardState extends State<MoxAlertsCard> {
   int _currentIndex = 0;
-  late final List<String> _alerts;
+  late UserModel _currentUser;
+  late List<String> _alerts;
 
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.currentUser;
+    _updateAlerts();
+    _refreshUserData(); // جلب أحدث بيانات فور العودة أو فتح الكارد
+  }
+
+  // 🔄 دالة لتحديث قائمة التنبيهات بناءً على بيانات المستخدم الحالية
+  void _updateAlerts() {
     _alerts = [
-      "🚨 تنبيه MOX: لديك ${widget.currentUser.points} مستوى الاخطاء في شبكة الإحالة السيادية.",
-      widget.currentUser.moxId.isNotEmpty
-          ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${widget.currentUser.moxId}"
+      "🚨 تنبيه MOX: لديك ${_currentUser.points} مستوى الاخطاء في شبكة الإحالة السيادية.",
+      _currentUser.moxId.isNotEmpty
+          ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${_currentUser.moxId}"
           : "⚠️ حسابك لم يُرقَّ بعد، شارك رابط الترقية لتوثيق أصولك.",
       "📌 متجر موكس جاهز لاستقبال طلبات بطاقات العرض والخدمات الرقمية.",
       "🏛️ المنظومة أونلاين: تأكد من تحديث وسائط التواصل لضمان تدفق الأرباح والأصول.",
     ];
   }
 
+  // 🔄 دالة ذكية لجلب أحدث بيانات المستخدم وتحديث الواجهة والرابط فوراً من الخزينة السيادية
+  Future<void> _refreshUserData() async {
+    await StorageService.ensureLoaded();
+    final freshUser = await StorageService.getUserByMoxId(_currentUser.moxId);
+    if (freshUser != null && mounted) {
+      setState(() {
+        _currentUser = freshUser;
+        _updateAlerts(); // تحديث التنبيهات بالبيانات الجديدة
+      });
+    }
+  }
+
   // 📁 دالة أصول العميل الرقمية المعرفة محلياً بالمسطرة
   void _showClientAssetsScreen(BuildContext context) {
     final String activeMoxForUrl =
-        (widget.currentUser.moxId != "لم يحدد" &&
-            widget.currentUser.moxId.trim().isNotEmpty)
-        ? widget.currentUser.moxId
-        : (widget.currentUser.guardianMoxId ?? "MOX249-00010001");
+        (_currentUser.moxId != "لم يحدد" &&
+            _currentUser.moxId.trim().isNotEmpty)
+        ? _currentUser.moxId
+        : (_currentUser.guardianMoxId ?? "MOX249-00010001");
 
     final String clientStoreUrl =
         "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
@@ -2265,10 +2286,10 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
   @override
   Widget build(BuildContext context) {
     final String activeMoxForUrl =
-        (widget.currentUser.moxId != "لم يحدد" &&
-            widget.currentUser.moxId.trim().isNotEmpty)
-        ? widget.currentUser.moxId
-        : (widget.currentUser.guardianMoxId ?? "MOX249-00010001");
+        (_currentUser.moxId != "لم يحدد" &&
+            _currentUser.moxId.trim().isNotEmpty)
+        ? _currentUser.moxId
+        : (_currentUser.guardianMoxId ?? "MOX249-00010001");
 
     final String clientStoreUrl =
         "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
@@ -2320,11 +2341,12 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
                     size: 14,
                     color: Colors.brown,
                   ),
-                  tooltip: "التنبيه التالي",
+                  tooltip: "التنبيه التالي وتحديث الرابط",
                   onPressed: () {
                     setState(() {
                       _currentIndex = (_currentIndex + 1) % _alerts.length;
                     });
+                    _refreshUserData(); // تحديث يدوي للرابط عند الضغط على زر التحديث
                   },
                 ),
               ],
