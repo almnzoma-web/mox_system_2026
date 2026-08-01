@@ -177,8 +177,7 @@ class StorageService {
         'role': newUser.role,
         'customWhatsApp': newUser.customWhatsApp ?? '',
         'guardianMoxId': newUser.guardianMoxId ?? '',
-        'guardianMoxIdCustomer':
-            newUser.guardianMoxIdCustomer ?? '', // الحقل الجديد المضاف
+        'guardianMoxIdCustomer': newUser.guardianMoxIdCustomer ?? '',
         'points': newUser.points.toString(),
         'myAssets': encodedAssets,
       };
@@ -231,8 +230,7 @@ class StorageService {
         'role': user.role,
         'customWhatsApp': user.customWhatsApp ?? '',
         'guardianMoxId': user.guardianMoxId ?? '',
-        'guardianMoxIdCustomer':
-            user.guardianMoxIdCustomer ?? '', // الحقل الجديد المضاف
+        'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
         'points': user.points.toString(),
         'myAssets': encodedAssets,
       };
@@ -289,21 +287,80 @@ class StorageService {
     await saveUsersList();
   }
 
+  // 🛡️ [تحديث حاسم للقدلة]: التحقق من العميل محلياً، وإذا لم يوجد بسبب التحديث، يتم استدعاؤه فوراً من سحابة قوقل وحفظه محلياً
   static Future<UserModel?> authenticateAsync(
     String input,
     String password,
     bool isMoxId,
   ) async {
     await ensureLoaded();
+
+    // 1. المحاولة الأولى: البحث داخل القائمة المحلية المحملة
+    UserModel? foundUser;
     try {
-      return registeredUsers.firstWhere(
+      foundUser = registeredUsers.firstWhere(
         (u) =>
             (isMoxId ? u.moxId == input : u.phone == input) &&
             u.password == password,
       );
-    } catch (e) {
-      return null;
+    } catch (_) {
+      foundUser = null;
     }
+
+    // 2. إذا لم يتم العثور عليه محلياً (مثلاً بسبب مسح الذاكرة بعد تحديث التطبيق)، نسحب المباشرة من قوقل (Cloud Fallback)
+    if (foundUser == null) {
+      try {
+        debugPrint(
+          "🌐 [Cloud Fallback] العميل غير موجود محلياً، جارٍ الاستعلام المباشر من سحابة قوقل...",
+        );
+        final response = await http
+            .get(Uri.parse('$_scriptUrl?action=getAll'))
+            .timeout(const Duration(seconds: 7));
+
+        if (response.statusCode == 200) {
+          List<dynamic> cloudList = json.decode(response.body);
+          for (var item in cloudList) {
+            final mapItem = Map<String, dynamic>.from(item);
+            if ((mapItem['moxId'] == null ||
+                    mapItem['moxId'].toString().trim().isEmpty) &&
+                mapItem['MOXID'] != null) {
+              mapItem['moxId'] = mapItem['MOXID'];
+            }
+
+            UserModel cloudUser = UserModel.fromJson(mapItem);
+
+            // مطابقة المدخلات مع العميل القادم من السحابة
+            bool matches = isMoxId
+                ? cloudUser.moxId == input
+                : cloudUser.phone == input;
+
+            if (matches && cloudUser.password == password) {
+              foundUser = cloudUser;
+              // حقنه فوراً في الذاكرة المحلية وقائمة المسجلين لتثبيته للأبد
+              if (!registeredUsers.any((u) => u.moxId == foundUser!.moxId)) {
+                registeredUsers.add(foundUser);
+              } else {
+                int idx = registeredUsers.indexWhere(
+                  (u) => u.moxId == foundUser!.moxId,
+                );
+                if (idx != -1) registeredUsers[idx] = foundUser;
+              }
+              await saveUsersList();
+              debugPrint(
+                "✅ [Cloud Fallback] تم استدعاء العميل من قوقل وحفظه محلياً بنجاح.",
+              );
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint(
+          "❌ [Cloud Fallback Error] فشل جلب العميل الطارئ من قوقل: $e",
+        );
+      }
+    }
+
+    return foundUser;
   }
 
   UserModel? authenticate(String input, String password, bool isMoxId) {

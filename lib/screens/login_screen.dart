@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison
+
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
@@ -67,7 +69,28 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // حفظ الجلسة النشطة الحالية للمستخدم
+      // 🛡️ معالجة حاسمة لمنع نزول moxId خالياً:
+      // إذا كان الـ moxId فارغاً في الكائن المسترجع، نقوم بتعبئته تلقائياً بالمعرف المدخل أو توليده بالمسطرة
+      if (authenticatedUser.moxId == null ||
+          authenticatedUser.moxId.trim().isEmpty) {
+        if (widget.isMoxIdLogin) {
+          authenticatedUser.moxId = input;
+        } else if (authenticatedUser.phone != null &&
+            authenticatedUser.phone.isNotEmpty) {
+          // توليد معرف موكس قياسي استناداً لرقم الهاتف إذا لم يكن متوفراً
+          String digits = authenticatedUser.phone.replaceAll(RegExp(r'\D'), '');
+          if (digits.length >= 8) {
+            authenticatedUser.moxId =
+                "MOX249-${digits.substring(digits.length - 8)}";
+          } else {
+            authenticatedUser.moxId = "MOX249-00000000";
+          }
+        } else {
+          authenticatedUser.moxId = "MOX249-12345678";
+        }
+      }
+
+      // حفظ الجلسة النشطة الحالية للمستخدم مع ضمان اكتمال البيانات
       await StorageService.saveUser(authenticatedUser);
 
       // 3. نجاح التحقق بالكامل والعبور للوحة التحكم السيادية
