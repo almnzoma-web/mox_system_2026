@@ -355,9 +355,4 @@ class StorageService {
       },
     ];
   }
-
-  static Future<void> saveClientCards(
-    String moxId,
-    List<Map<String, dynamic>> updatedCards,
-  ) async {}
 }
