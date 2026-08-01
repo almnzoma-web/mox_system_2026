@@ -36,7 +36,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // دالة ذكية لتحليل الـ URL على الويب واستخراج الـ moxId، أو جلب البيانات مباشرة
+  // دالة ذكية لتحليل الـ URL أو تحديث البيانات مباشرة من الذاكرة المحلية
   Future<void> _initializeStoreData() async {
     setState(() {
       _isLoading = true;
@@ -46,7 +46,20 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     List<Map<String, dynamic>> cardsToUse = widget.clientCards;
     String? targetMoxId = widget.directMoxId;
 
-    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL (مثل ?mox=...)
+    // التأكد من تحديث وتحميل الخزينة السيادية أولاً لضمان جلب أحدث الأصول والبطاقات
+    await StorageService.ensureLoaded();
+
+    // إذا تم تمرير مستخدم، نقوم بجلب أحدث نسخة مسجلة له من الذاكرة المحلية (لتحديث المتجر تلقائياً)
+    if (userToUse != null) {
+      try {
+        final freshUser = await StorageService.getUserByMoxId(userToUse.moxId);
+        if (freshUser != null) {
+          userToUse = freshUser;
+        }
+      } catch (_) {}
+    }
+
+    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL
     if (userToUse == null && targetMoxId == null && kIsWeb) {
       try {
         final uri = Uri.base;
@@ -55,7 +68,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       } catch (_) {}
     }
 
-    // إذا وجدنا الـ moxId قادماً من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية!
+    // إذا وجدنا الـ moxId قادماً من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية
     if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
       try {
         userToUse = await StorageService.getUserByMoxId(targetMoxId);
@@ -63,7 +76,12 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       } catch (_) {}
     }
 
-    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن بالمعرف المستهدف لكي لا ينكسر التطبيق
+    // إذا كان للمستخدم أصول/بطاقات مسجلة (myAssets)، نقوم بتحويلها لعرضها مباشرة
+    if (userToUse != null && userToUse.myAssets.isNotEmpty) {
+      cardsToUse = userToUse.myAssets.map((asset) => asset.toJson()).toList();
+    }
+
+    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن
     _resolvedUser =
         userToUse ??
         UserModel(
@@ -86,7 +104,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                   'هذه البطاقة معتمدة وجاهزة للعرض التجاري الفاخر عبر الرابط المنسوخ للزوار.',
               'price': 0.0,
               'whatsapp': _resolvedUser!.phone,
-              'facebook': '',
+              'facebookUrl': '',
             },
           ];
 
@@ -313,7 +331,10 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                       minimumSize: const Size(0, 36),
                                     ),
                                     onPressed: () async {
-                                      final detailsUrl = card['facebook'] ?? "";
+                                      final detailsUrl =
+                                          card['facebookUrl'] ??
+                                          card['facebook'] ??
+                                          "";
                                       if (detailsUrl.isNotEmpty) {
                                         final url = Uri.parse(detailsUrl);
                                         if (await canLaunchUrl(url)) {

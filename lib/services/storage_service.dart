@@ -29,7 +29,8 @@ class StorageService {
     moxId: "ID-005000",
     role: "admin",
     customWhatsApp: "249115855164",
-    guardianMoxId: "MOX249-00010001",
+    guardianMoxId: "",
+    guardianMoxIdCustomer: "MOX249-00010001",
     points: 0,
     myAssets: [],
   );
@@ -176,6 +177,8 @@ class StorageService {
         'role': newUser.role,
         'customWhatsApp': newUser.customWhatsApp ?? '',
         'guardianMoxId': newUser.guardianMoxId ?? '',
+        'guardianMoxIdCustomer':
+            newUser.guardianMoxIdCustomer ?? '', // الحقل الجديد المضاف
         'points': newUser.points.toString(),
         'myAssets': encodedAssets,
       };
@@ -228,6 +231,8 @@ class StorageService {
         'role': user.role,
         'customWhatsApp': user.customWhatsApp ?? '',
         'guardianMoxId': user.guardianMoxId ?? '',
+        'guardianMoxIdCustomer':
+            user.guardianMoxIdCustomer ?? '', // الحقل الجديد المضاف
         'points': user.points.toString(),
         'myAssets': encodedAssets,
       };
@@ -317,7 +322,10 @@ class StorageService {
     try {
       await ensureLoaded();
       return registeredUsers.firstWhere(
-        (u) => u.moxId == moxId || u.guardianMoxId == moxId,
+        (u) =>
+            u.moxId == moxId ||
+            u.guardianMoxId == moxId ||
+            u.guardianMoxIdCustomer == moxId,
       );
     } catch (_) {
       return null;

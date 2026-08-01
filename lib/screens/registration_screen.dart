@@ -110,7 +110,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     // معالجة رقم الوصي: إذا ترك فارغاً يعتمد النظام للمدير حصرياً (MOX249-00010001)
     String inputGuardian = _guardianController.text.trim();
-    String finalGuardianId = inputGuardian.isEmpty
+    String finalCustomerGuardianId = inputGuardian.isEmpty
         ? "MOX249-00010001"
         : inputGuardian;
 
@@ -124,13 +124,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       gender: _selectedGender,
       accountType: _selectedAccountType,
       role: "user",
-      guardianMoxId: finalGuardianId, // حقل الوصي المحدث (المدير افتراضياً)
+      guardianMoxId:
+          "", // يظل خالياً تماماً ليكون مخصصاً لهوية العميل مستقبلاً لكي يصبح وصياً لغيره
+      guardianMoxIdCustomer:
+          finalCustomerGuardianId, // حقل وصي العميل الجديد (أو رقم المدير افتراضياً)
       points: 0,
       myAssets: [],
     );
 
     // إضافة العميل وترحيله السحابي مع تحديث نقاط الوصي إن وجد
-    await _addUserWithReferral(newUser, finalGuardianId);
+    await _addUserWithReferral(newUser, finalCustomerGuardianId);
 
     // إغلاق مؤشر الانتظار الفاخر
     if (mounted) {
@@ -166,6 +169,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             role: guardian.role,
             customWhatsApp: guardian.customWhatsApp,
             guardianMoxId: guardian.guardianMoxId,
+            guardianMoxIdCustomer: guardian.guardianMoxIdCustomer,
             points:
                 guardian.points + 100, // منح 100 نقطة للوصي الحقيقي أو المدير
             myAssets: guardian.myAssets,

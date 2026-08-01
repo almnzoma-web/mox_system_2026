@@ -7,7 +7,9 @@ class UserModel {
   String address;
   String gender, accountType, moxId, role;
   String? customWhatsApp;
-  String? guardianMoxId; // رقم الوصي (المرشد)
+  String? guardianMoxId; // حقل الوصي الأصلي الخاص بموكس (يظل خالياً للعميل)
+  String?
+  guardianMoxIdCustomer; // الحقل الجديد: وصي العميل الجديد أو المدير افتراضياً
   double balance, commission;
   int points; // نقاط الإحالة
   List<MarketingCard> myAssets;
@@ -24,7 +26,8 @@ class UserModel {
     this.moxId = "ID-005000",
     this.role = "free",
     this.customWhatsApp,
-    this.guardianMoxId = "MOX249-00010001", // القيمة الافتراضية للمدير
+    this.guardianMoxId = "", // يظل خالياً افتراضياً للعميل
+    this.guardianMoxIdCustomer = "MOX249-00010001", // القيمة الافتراضية للمدير
     this.points = 0,
     this.myAssets = const [],
   });
@@ -36,6 +39,8 @@ class UserModel {
     double? commission,
     String? name,
     String? address,
+    String? guardianMoxId,
+    String? guardianMoxIdCustomer,
     List<MarketingCard>? myAssets,
   }) {
     return UserModel(
@@ -50,7 +55,9 @@ class UserModel {
       moxId: moxId,
       role: role,
       customWhatsApp: customWhatsApp,
-      guardianMoxId: guardianMoxId,
+      guardianMoxId: guardianMoxId ?? this.guardianMoxId,
+      guardianMoxIdCustomer:
+          guardianMoxIdCustomer ?? this.guardianMoxIdCustomer,
       points: points ?? this.points,
       myAssets: myAssets ?? this.myAssets,
     );
@@ -70,8 +77,9 @@ class UserModel {
     'customWhatsApp': customWhatsApp ?? '',
     'guardianMoxId': guardianMoxId ?? '',
     'points': points,
-    // تحويل الأصول إلى نص JSON متكامل بالمسطرة
     'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
+    'guardianMoxIdCustomer':
+        guardianMoxIdCustomer ?? '', // الحقل الجديد في الأخير
   };
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -80,9 +88,7 @@ class UserModel {
       var rawAssets = json['myAssets'];
       if (rawAssets != null) {
         if (rawAssets is String && rawAssets.isNotEmpty) {
-          List<dynamic> decodedList = jsonDecode(
-            rawAssets,
-          ); // استخدام jsonDecode مباشرة بالمسطرة
+          List<dynamic> decodedList = jsonDecode(rawAssets);
           parsedAssets = decodedList
               .map((e) => MarketingCard.fromJson(Map<String, dynamic>.from(e)))
               .toList();
@@ -108,9 +114,11 @@ class UserModel {
       moxId: json['moxId']?.toString() ?? "لم يحدد",
       role: json['role']?.toString() ?? "free",
       customWhatsApp: json['customWhatsApp']?.toString(),
-      guardianMoxId: json['guardianMoxId']?.toString() ?? "MOX249-00010001",
+      guardianMoxId: json['guardianMoxId']?.toString() ?? "",
       points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
       myAssets: parsedAssets,
+      guardianMoxIdCustomer:
+          json['guardianMoxIdCustomer']?.toString() ?? "MOX249-00010001",
     );
   }
 }

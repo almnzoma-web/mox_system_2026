@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
+import '../models/marketing_model.dart'; // استيراد نموذج البطاقات التسويقية
 // ربط خزينة البيانات السيادية للاستعلام الحسابات المسجلة
 import '../data/user_data.dart';
 // ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
@@ -63,7 +64,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     // ضمان تحميل السجلات السيادية تماماً قبل فتح نافذة التحقق
     await StorageService.ensureLoaded();
 
-    // القيمة الافتراضية فارغة تماماً مع نص إرشادي دقيق لمنع تداخل رقم المدير
     final TextEditingController guardianMoxInputController =
         TextEditingController();
     final TextEditingController passwordInputController =
@@ -131,9 +131,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
               bool isValidFromStorage = false;
               try {
-                // فحص دقيق ومطابقة مع السجل في الخزينة (مقارنة مع حساب العميل نفسه حصرياً أو الوصي المرتبط به)
                 for (var u in registeredUsers) {
-                  // منع استخدام حساب المدير المطلق إلا إذا كان هو المدير الفعلي الممرر
                   if (u.role == 'admin' && widget.user.role != 'admin') {
                     continue;
                   }
@@ -143,22 +141,25 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                           enteredGuardianMox.toUpperCase()) ||
                       (u.guardianMoxId != null &&
                           u.guardianMoxId!.trim().toUpperCase() ==
+                              enteredGuardianMox.toUpperCase()) ||
+                      (u.guardianMoxIdCustomer != null &&
+                          u.guardianMoxIdCustomer!.trim().toUpperCase() ==
                               enteredGuardianMox.toUpperCase());
 
                   if (matchesMox &&
                       u.password == enteredPassword &&
                       enteredGuardianMox.isNotEmpty) {
-                    // التأكد من أن الحساب المدخل يخص العميل الحالي أو وصيه المعتمد
                     if (u.moxId == widget.user.moxId ||
                         u.moxId == widget.user.guardianMoxId ||
-                        widget.user.guardianMoxId == u.moxId) {
+                        u.moxId == widget.user.guardianMoxIdCustomer ||
+                        widget.user.guardianMoxId == u.moxId ||
+                        widget.user.guardianMoxIdCustomer == u.moxId) {
                       isValidFromStorage = true;
                       break;
                     }
                   }
                 }
 
-                // مطابقة مباشرة إضافية مع العميل الحالي المرسل للشاشة لضمان سلاسة الاعتماد
                 if (!isValidFromStorage &&
                     enteredGuardianMox.isNotEmpty &&
                     enteredPassword.isNotEmpty) {
@@ -167,6 +168,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                           enteredGuardianMox.toUpperCase()) ||
                       (widget.user.guardianMoxId != null &&
                           widget.user.guardianMoxId!.trim().toUpperCase() ==
+                              enteredGuardianMox.toUpperCase()) ||
+                      (widget.user.guardianMoxIdCustomer != null &&
+                          widget.user.guardianMoxIdCustomer!
+                                  .trim()
+                                  .toUpperCase() ==
                               enteredGuardianMox.toUpperCase());
 
                   if (isUserMatch && widget.user.password == enteredPassword) {
@@ -256,7 +262,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  void _publishStore() {
+  // 🚀 حفظ المتجر في الذاكرة وتحديث الصفحة B والعودة بنجاح
+  Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
       return;
@@ -279,15 +286,47 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         return;
       }
 
+      // تجهيز قائمة الأصول باستخدام facebookUrl المتوافقة مع نموذج MarketingCard
+      List<MarketingCard> updatedAssets = [];
+      for (var cardTitle in _selectedCards) {
+        if (cardTitle != null && cardTitle.trim().isNotEmpty) {
+          try {
+            var originalCardData = widget.clientCards.firstWhere(
+              (c) => c['title'].toString() == cardTitle,
+            );
+            updatedAssets.add(MarketingCard.fromJson(originalCardData));
+          } catch (_) {
+            updatedAssets.add(
+              MarketingCard(
+                title: cardTitle,
+                description: _descriptionController.text.trim(),
+                price: 0.0,
+                whatsapp: _phoneController.text.trim(),
+                facebookUrl: '',
+              ),
+            );
+          }
+        }
+      }
+
+      // تحديث بيانات المستخدم محلياً وفي السحابة عبر StorageService
+      UserModel updatedUser = widget.user.copyWith(myAssets: updatedAssets);
+
+      await StorageService.updateUserPartial(updatedUser);
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم نشر الدكان والمتجر وربط رابط العميل بنجاح تلقائياً لمدة 365 يوماً",
+            "🚀 تم نشر الدكان والمتجر وحفظه محلياً وتحديث الصفحة B بنجاح لمدة 365 يوماً",
           ),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context);
+
+      // العودة للصفحة B مع إرجاع المستخدم المحدث لتحديث واجهتها فوراً
+      Navigator.pop(context, updatedUser);
     }
   }
 
@@ -438,7 +477,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               }),
               const SizedBox(height: 20),
 
-              // 🌟 زر بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A (مفعل بالمسطرة)
+              // 🌟 بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A
               Card(
                 elevation: 3,
                 shape: RoundedRectangleBorder(
@@ -447,7 +486,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    // الانتقال لصفحة التوقيع الرقمي السيادي مع تمرير بيانات العميل الحالي
                     Navigator.push(
                       context,
                       MaterialPageRoute(
