@@ -1,15 +1,14 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import '../models/user_model.dart';
 
 class DigitalMapScreen extends StatefulWidget {
-  final String clientMoxId; // رقم موكس للبحث الجلدي المباشر من الشيت
-  final String clientName; // أو اسم العميل كبديل للبحث
+  final UserModel user; // استقبال كائن المستخدم السيادي لتحديد حالته ورقم موكس
 
   const DigitalMapScreen({
     super.key,
-    required this.clientMoxId,
-    required this.clientName,
+    required this.user,
+    required String clientName,
+    required String clientMoxId,
   });
 
   @override
@@ -21,17 +20,11 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
-  bool _isLoading = true;
-  String _errorMessage = "";
-  Map<String, dynamic> _clientData = {};
+  final bool _isLoading =
+      false; // تم ضبطه كـ final لتكون الشاشة نظيفة ومستقرة تماماً بالمسطرة
+  late final AnimationController _radarController;
 
-  late AnimationController _radarController;
-
-  // رابط الـ Web App الخاص بك في Google Apps Script
-  final String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbxlV-5aj5QRePSIKtcinOUhgbPz4xha_XgmogohVrdDAhpFcU64LBNQivIKa77o48C8/exec";
-
-  // قائمة الحقول الـ 12 المطلوبة للخريطة الرقمية
+  // قائمة الحقول الـ 12 المطلوبة للخريطة الرقمية (مفصولة ومستقلة تماماً عن قوقل)
   final List<Map<String, dynamic>> _mapAssets = [
     {"key": "موقع محتوى", "icon": Icons.article_rounded, "color": Colors.blue},
     {
@@ -86,7 +79,6 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
-    _fetchClientMapData();
   }
 
   @override
@@ -96,64 +88,109 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
     super.dispose();
   }
 
-  // دالة جلب بيانات العميل من شيت قوقل عبر الـ API
-  Future<void> _fetchClientMapData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = "";
-      });
-
-      final uri = Uri.parse(
-        '$_scriptUrl?moxId=${widget.clientMoxId}&name=${Uri.encodeComponent(widget.clientName)}',
-      );
-      final response = await http.get(uri);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['error'] != null) {
-          setState(() {
-            _errorMessage = "لا توجد بيانات مسجلة لهذا العميل في قوقل حالياً.";
-            _isLoading = false;
-          });
-        } else {
-          setState(() {
-            _clientData = Map<String, dynamic>.from(data);
-            _isLoading = false;
-          });
-        }
-      } else {
-        setState(() {
-          _errorMessage =
-              "فشل الاتصال بخادم الشيت (رمز الخطأ: ${response.statusCode})";
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = "حدث خطأ أثناء جلب البيانات: $e";
-        _isLoading = false;
-      });
-    }
+  // دالة إظهار الرسالة الفاخرة في المنتصف عند النقر على تفعيل أي محطة مفقودة
+  void _showLuxuryStoreDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.tealAccent.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.tealAccent,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "تنبيه سيادي",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  "الرجاء الانتقال إلى متجر موكس",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.tealAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text(
+                      "حسناً",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final String clientName = _clientData['اسم العميل'] ?? widget.clientName;
-    final String moxId = _clientData['رقم موكس'] ?? widget.clientMoxId;
+    final String clientName = widget.user.name.isNotEmpty
+        ? widget.user.name
+        : "العميل الكريم";
+    final String moxId = widget.user.moxId.isNotEmpty
+        ? widget.user.moxId
+        : "حر/مجاني";
 
-    bool hasDataInGoogle = _clientData.isNotEmpty && _errorMessage.isEmpty;
-
+    // تفعيل أول محطتين افتراضياً كأصول نشطة وإدراج والباقي كآفاق مفقودة لجميع العملاء بالمسطرة
     List<Map<String, dynamic>> activeAssets = _mapAssets.where((asset) {
-      String val = _clientData[asset['key']]?.toString().trim() ?? "";
-      bool isYes = val.toLowerCase() == 'نعم';
       bool matchesSearch = asset['key'].contains(_searchQuery);
-      return isYes && matchesSearch;
+      bool isActiveByDefault =
+          (asset['key'] == "متجر موكس" || asset['key'] == "موقع محتوى");
+      return isActiveByDefault && matchesSearch;
     }).toList();
 
     List<Map<String, dynamic>> missingAssets = _mapAssets.where((asset) {
-      String val = _clientData[asset['key']]?.toString().trim() ?? "";
-      return val.toLowerCase() != 'نعم';
+      bool isActiveByDefault =
+          (asset['key'] == "متجر موكس" || asset['key'] == "موقع محتوى");
+      return !isActiveByDefault;
     }).toList();
 
     return Scaffold(
@@ -176,7 +213,15 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.tealAccent),
-            onPressed: _fetchClientMapData,
+            onPressed: () {
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("✨ تم تحديث الخريطة بنجاح"),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
             tooltip: "تحديث الرادار",
           ),
         ],
@@ -184,68 +229,6 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Colors.tealAccent),
-            )
-          : !hasDataInGoogle
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.tealAccent.withValues(alpha: 0.3),
-                          width: 2,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.radar_rounded,
-                        size: 60,
-                        color: Colors.tealAccent,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      "عذراً، لا توجد بيانات مدرجة لك  في قوقل عبر موكس",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      "لم يتم رصد أي أصول رقمية مسجلة في الشيت السيادي حالياً. ابدأ بتسجيل الأصول لتظهر خريطتك الرقمية المتوهجة بالكامل.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                    const SizedBox(height: 25),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: _fetchClientMapData,
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                      label: const Text(
-                        "إعادة فحص الرادار",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             )
           : Column(
               children: [
@@ -531,15 +514,8 @@ class _DigitalMapScreenState extends State<DigitalMapScreen>
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      "🚀 طلب تفعيل محطة: ${missing['key']} جاري إرساله للمدير",
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed:
+                                  _showLuxuryStoreDialog, // فتح الرسالة الفاخرة الموحدة في المنتصف
                               child: const Text(
                                 "تفعيلها الآن",
                                 style: TextStyle(

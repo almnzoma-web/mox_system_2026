@@ -37,6 +37,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   late List<String> _availableCardsPool;
 
   bool _isAuthorized = false; // متغير لحراسة وجملة الأمان السيادي
+  bool _isPublishing = false; // مؤشر إظهار رسالة النشر الفاخرة في المنتصف
 
   @override
   void initState() {
@@ -59,13 +60,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المرتبطة بـ رقم موكس وكلمة السر بدقة
+  // نافذة التحقق الأمني المرتبطة برقم موكس وكلمة السر معاَ بدقة تامة
   void _showSecurityLoginDialog() async {
     // ضمان تحميل السجلات السيادية تماماً قبل فتح نافذة التحقق
     await StorageService.ensureLoaded();
 
-    final TextEditingController guardianMoxInputController =
-        TextEditingController();
+    final TextEditingController moxInputController = TextEditingController();
     final TextEditingController passwordInputController =
         TextEditingController();
 
@@ -81,7 +81,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.verified_user, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق من رقم الوصي المدفوع (guardianMoxId)",
+              "التحقق برقم موكس وكلمة السر",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
@@ -95,14 +95,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم الوصي المدفوع (guardianMoxId) مثل MOX249-00010001 وكلمة السر للمتابعة:",
+              "أدخل رقم موكس الخاص بك وكلمة السر للمتابعة بالمسطرة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
             TextField(
-              controller: guardianMoxInputController,
+              controller: moxInputController,
               decoration: const InputDecoration(
-                labelText: "أدرج رقم موكس (guardianMoxId)",
+                labelText: "أدرج رقم موكس (MOX)",
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -125,12 +125,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               backgroundColor: const Color(0xFF28A9CC),
             ),
             onPressed: () async {
-              String enteredGuardianMox = guardianMoxInputController.text
-                  .trim();
+              String enteredMox = moxInputController.text.trim();
               String enteredPassword = passwordInputController.text.trim();
 
               bool isValidFromStorage = false;
               try {
+                // التحقق المزدوج الرابط بين رقم موكس وكلمة السر معاً من الخزينة أو السجلات المسجلة
                 for (var u in registeredUsers) {
                   if (u.role == 'admin' && widget.user.role != 'admin') {
                     continue;
@@ -138,22 +138,25 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   bool matchesMox =
                       (u.moxId.trim().toUpperCase() ==
-                          enteredGuardianMox.toUpperCase()) ||
+                          enteredMox.toUpperCase()) ||
                       (u.guardianMoxId != null &&
                           u.guardianMoxId!.trim().toUpperCase() ==
-                              enteredGuardianMox.toUpperCase()) ||
+                              enteredMox.toUpperCase()) ||
                       (u.guardianMoxIdCustomer != null &&
                           u.guardianMoxIdCustomer!.trim().toUpperCase() ==
-                              enteredGuardianMox.toUpperCase());
+                              enteredMox.toUpperCase());
 
                   if (matchesMox &&
                       u.password == enteredPassword &&
-                      enteredGuardianMox.isNotEmpty) {
+                      enteredMox.isNotEmpty &&
+                      enteredPassword.isNotEmpty) {
                     if (u.moxId == widget.user.moxId ||
                         u.moxId == widget.user.guardianMoxId ||
                         u.moxId == widget.user.guardianMoxIdCustomer ||
                         widget.user.guardianMoxId == u.moxId ||
-                        widget.user.guardianMoxIdCustomer == u.moxId) {
+                        widget.user.guardianMoxIdCustomer == u.moxId ||
+                        widget.user.moxId.trim().toUpperCase() ==
+                            enteredMox.toUpperCase()) {
                       isValidFromStorage = true;
                       break;
                     }
@@ -161,19 +164,19 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 }
 
                 if (!isValidFromStorage &&
-                    enteredGuardianMox.isNotEmpty &&
+                    enteredMox.isNotEmpty &&
                     enteredPassword.isNotEmpty) {
                   bool isUserMatch =
                       (widget.user.moxId.trim().toUpperCase() ==
-                          enteredGuardianMox.toUpperCase()) ||
+                          enteredMox.toUpperCase()) ||
                       (widget.user.guardianMoxId != null &&
                           widget.user.guardianMoxId!.trim().toUpperCase() ==
-                              enteredGuardianMox.toUpperCase()) ||
+                              enteredMox.toUpperCase()) ||
                       (widget.user.guardianMoxIdCustomer != null &&
                           widget.user.guardianMoxIdCustomer!
                                   .trim()
                                   .toUpperCase() ==
-                              enteredGuardianMox.toUpperCase());
+                              enteredMox.toUpperCase());
 
                   if (isUserMatch && widget.user.password == enteredPassword) {
                     isValidFromStorage = true;
@@ -188,7 +191,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
               if (!isValidFromStorage ||
                   enteredPassword.isEmpty ||
-                  enteredGuardianMox.isEmpty) {
+                  enteredMox.isEmpty) {
                 setState(() {
                   _isAuthorized = false;
                 });
@@ -200,7 +203,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم التحقق من رقم موكس (MOX) بنجاح - مرحباً بك",
+                      "✅ تم التحقق من رقم موكس وكلمة السر بنجاح - مرحباً بك",
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -239,7 +242,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً عميلنا الكريم.. الرجاء إدراج بيانات حقيقية أو الذهاب إلى متجر موكس لامتلاك رقم حساب بنك موكس الرقمي🤚",
+          "عفواً عميلنا الكريم.. رقم موكس أو كلمة السر غير مطابقة. الرجاء إدراج بيانات حقيقية لامتلاك رقم حساب بنك موكس الرقمي🤚",
           style: TextStyle(
             fontSize: 13,
             height: 1.5,
@@ -262,7 +265,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 حفظ المتجر في الذاكرة وتحديث الصفحة B والعودة بنجاح
+  // 🚀 حفظ المتجر في الذاكرة وتحديث الصفحة B والعودة بنجاح مع رسالة المنتصف
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -285,6 +288,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         );
         return;
       }
+
+      // إظهار رسالة النشر الفاخرة في المنتصف لحظة الضغط
+      setState(() {
+        _isPublishing = true;
+      });
+
+      // محاكاة تأخير زمني فاخر ومستقر
+      await Future.delayed(const Duration(seconds: 2));
 
       // تجهيز قائمة الأصول باستخدام facebookUrl المتوافقة مع نموذج MarketingCard
       List<MarketingCard> updatedAssets = [];
@@ -316,6 +327,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       if (!mounted) return;
 
+      setState(() {
+        _isPublishing = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -337,232 +352,286 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         appBar: AppBar(
           backgroundColor: Colors.redAccent,
           title: const Text(
-            "منطقة مقفلة برهون الوصي",
+            "منطقة مقفلة برهون الاعتماد",
             style: TextStyle(color: Colors.white),
           ),
         ),
         body: const Center(
           child: Text(
-            "جاري التحقق من رقم الوصي المدفوع (guardianMoxId)...",
+            "جاري التحقق برقم موكس وكلمة السر...",
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
           ),
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF28A9CC),
-        title: const Text(
-          "لوحة النشر (الصفحة A)",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF28A9CC),
+            title: const Text(
+              "لوحة النشر (الصفحة A)",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              const Text(
-                "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف (يكفي اختيار بطاقة واحدة للنشر)",
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _storeNameController,
-                decoration: const InputDecoration(
-                  labelText: "١- اسم الدكان/المتجر (إلزامي)",
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                validator: (val) =>
-                    val == null || val.isEmpty ? "يرجى إدخال اسم الدكان" : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _businessCategoryController,
-                decoration: const InputDecoration(
-                  labelText: "٢- المجال التجاري (إلزامي)",
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                validator: (val) => val == null || val.isEmpty
-                    ? "يرجى تحديد المجال التجاري"
-                    : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: "٤- هاتف اتصال (إلزامي)",
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                validator: (val) => val == null || val.length < 10
-                    ? "يرجى إدخال هاتف صحيح"
-                    : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _descriptionController,
-                maxLength: 256,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
-                  border: OutlineInputBorder(),
-                ),
-                validator: (val) =>
-                    val == null || val.isEmpty ? "يرجى كتابة وصف موجز" : null,
-              ),
-              const SizedBox(height: 15),
-              const Text(
-                "٦ & ٧- ربط البطاقات (اختياري، شرط النشر اختيار بطاقة واحدة على الأقل)",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ...List.generate(5, (index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedCards[index],
-                    decoration: InputDecoration(
-                      labelText: "بطاقة/رف - ${index + 1} (اختياري)",
-                      border: const OutlineInputBorder(),
+          body: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                children: [
+                  const Text(
+                    "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف (يكفي اختيار بطاقة واحدة للنشر)",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _storeNameController,
+                    decoration: const InputDecoration(
+                      labelText: "١- اسم الدكان/المتجر (إلزامي)",
+                      border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text(
-                          "-- فارغ (بدون بطاقة) --",
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ),
-                      ..._availableCardsPool.map((cardTitle) {
-                        return DropdownMenuItem(
-                          value: cardTitle,
-                          child: Text(
-                            cardTitle,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        );
-                      }),
-                    ],
-                    onChanged: (val) {
-                      setState(() {
-                        _selectedCards[index] = val;
-                      });
-                    },
-                    validator: (val) => null,
+                    validator: (val) => val == null || val.isEmpty
+                        ? "يرجى إدخال اسم الدكان"
+                        : null,
                   ),
-                );
-              }),
-              const SizedBox(height: 20),
-
-              // 🌟 بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A
-              Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            DigitalSignatureScreen(currentUser: widget.user),
-                      ),
-                    );
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.gesture_rounded,
-                          color: Color(0xFF1B6B80),
-                          size: 28,
-                        ),
-                        SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "بوابة التوقيع الرقمي السيادي",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Color(0xFF1B6B80),
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                "اعتمد عقودك ومستنداتك بتوقيع رقمي موثق بالمسطرة",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: Color(0xFF1B6B80),
-                        ),
-                      ],
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: _businessCategoryController,
+                    decoration: const InputDecoration(
+                      labelText: "٢- المجال التجاري (إلزامي)",
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    validator: (val) => val == null || val.isEmpty
+                        ? "يرجى تحديد المجال التجاري"
+                        : null,
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: "٤- هاتف اتصال (إلزامي)",
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    validator: (val) => val == null || val.length < 10
+                        ? "يرجى إدخال هاتف صحيح"
+                        : null,
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: _descriptionController,
+                    maxLength: 256,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (val) => val == null || val.isEmpty
+                        ? "يرجى كتابة وصف موجز"
+                        : null,
+                  ),
+                  const SizedBox(height: 15),
+                  const Text(
+                    "٦ & ٧- ربط البطاقات (اختياري، شرط النشر اختيار بطاقة واحدة على الأقل)",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo,
+                      fontSize: 13,
                     ),
                   ),
-                ),
-              ),
+                  const SizedBox(height: 10),
+                  ...List.generate(5, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedCards[index],
+                        decoration: InputDecoration(
+                          labelText: "بطاقة/رف - ${index + 1} (اختياري)",
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text(
+                              "-- فارغ (بدون بطاقة) --",
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          ..._availableCardsPool.map((cardTitle) {
+                            return DropdownMenuItem(
+                              value: cardTitle,
+                              child: Text(
+                                cardTitle,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (val) {
+                          setState(() {
+                            _selectedCards[index] = val;
+                          });
+                        },
+                        validator: (val) => null,
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 20),
 
-              const SizedBox(height: 25),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF28A9CC),
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  // 🌟 بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A
+                  Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DigitalSignatureScreen(
+                              currentUser: widget.user,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.gesture_rounded,
+                              color: Color(0xFF1B6B80),
+                              size: 28,
+                            ),
+                            SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "بوابة التوقيع الرقمي السيادي",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Color(0xFF1B6B80),
+                                    ),
+                                  ),
+                                  SizedBox(height: 3),
+                                  Text(
+                                    "اعتمد عقودك ومستنداتك بتوقيع رقمي موثق بالمسطرة",
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: Color(0xFF1B6B80),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                onPressed: _publishStore,
-                icon: const Icon(Icons.verified_rounded, color: Colors.white),
-                label: const Text(
-                  "نشر الدكان والمتجر وتوليد رابط العميل (365 يوم)",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+
+                  const SizedBox(height: 25),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF28A9CC),
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: _isPublishing ? null : _publishStore,
+                    icon: const Icon(
+                      Icons.verified_rounded,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      "نشر الدكان والمتجر وتوليد رابط العميل (365 يوم)",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
         ),
-      ),
+
+        // 🌟 طبقة إظهار رسالة النشر الفاخرة في المنتصف عند الضغط
+        if (_isPublishing)
+          Container(
+            color: Colors.black.withValues(alpha: 0.6),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 30,
+                  vertical: 24,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    CircularProgressIndicator(color: Color(0xFF28A9CC)),
+                    SizedBox(height: 18),
+                    Text(
+                      "جاري نشر متجرك/دكانك...",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B6B80),
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

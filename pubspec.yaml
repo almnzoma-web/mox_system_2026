@@ -26,6 +26,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # حزمة توليد الأيقونات السيادية بالمسطرة
+  flutter_launcher_icons: "^0.13.1"
 
 flutter:
   uses-material-design: true
@@ -33,6 +35,7 @@ flutter:
   # تفعيل الأصول السيادية بالمسطرة
   assets:
     - assets/logo.png
+    - assets/mox_app_icon.png
 
   # تفعيل الخطوط من مجلد Cairo الخاص بك
   fonts:
@@ -41,3 +44,12 @@ flutter:
         - asset: assets/fonts/Cairo-Regular.ttf
         - asset: assets/fonts/Cairo-Bold.ttf
           weight: 700
+
+# إعدادات الأيقونة الرسمية للتطبيق بالمسطرة
+flutter_launcher_icons:
+  image_path: "assets/mox_app_icon.png"
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: "assets/mox_app_icon.png"

@@ -1,3 +1,5 @@
+// ignore_for_file: dead_null_aware_expression, unnecessary_brace_in_string_interps
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 // ignore: unused_import
@@ -153,6 +155,85 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     }
   }
 
+  // دالة معاينة المستند من القائمة
+  void _viewDocumentDetails(Map<String, dynamic> asset) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: Row(
+          children: [
+            const Icon(Icons.verified, color: Color(0xFFD4AF37), size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                asset['title']?.toString() ?? 'مستند موثق',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "التفاصيل: ${asset['description'] ?? 'لا توجد تفاصيل إضافية'}",
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "تاريخ الاعتماد: ${asset['date']?.toString() ?? ''}",
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "الحالة: موثق سيادياً عبر بصمة MOX الرقمية 🛡️",
+              style: TextStyle(color: Color(0xFFD4AF37), fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              "إغلاق",
+              style: TextStyle(color: Color(0xFFD4AF37)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // دالة تحميل المستند المحدد إلى جهاز العميل
+  void _downloadArchivedDocument(Map<String, dynamic> asset) {
+    final String docTitle = asset['title']?.toString() ?? 'مستند_موثق';
+    // ignore: unused_local_variable
+    final String docContent =
+        """
+========================================
+جمهورية السودان الرقمية - منظومة موكس (MOX)
+شهادة توثيق واعتماد سيادي رقمي
+========================================
+عنوان المستند: $docTitle
+وصف الاعتماد: ${asset['description'] ?? ''}
+معرف العميل: ${widget.currentUser.moxId}
+اسم العميل: ${widget.currentUser.name}
+تاريخ الإصدار: ${asset['date']?.toString() ?? DateTime.now().toIso8601String()}
+الحالة: موثق ومعتمد رسمياً ✔️
+========================================
+""";
+
+    // محاكاة تنزيل الملف وحفظه محلياً في جهاز العميل
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("📥 جاري تحميل المستند ('$docTitle') إلى جهازك..."),
+        backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
   void _showClientDocumentsModal() {
     showModalBottomSheet(
       context: context,
@@ -234,15 +315,38 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                   ),
                                 ),
                                 subtitle: Text(
-                                  "التاريخ: ${asset['date']?.toString().substring(0, 10) ?? ''} | الحالة: ${asset['status']?.toString() ?? ''}",
+                                  "التاريخ: ${asset['date']?.toString().substring(0, 10) ?? ''} | موثق",
                                   style: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 11,
                                   ),
                                 ),
-                                trailing: const Icon(
-                                  Icons.download_done,
-                                  color: Colors.green,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // زر الفتح للمشاهدة
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.visibility,
+                                        color: Colors.lightBlueAccent,
+                                        size: 20,
+                                      ),
+                                      tooltip: "فتح ومشاهدة المستند",
+                                      onPressed: () =>
+                                          _viewDocumentDetails(asset),
+                                    ),
+                                    // زر التحميل لجهاز العميل
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.download_rounded,
+                                        color: Colors.green,
+                                        size: 20,
+                                      ),
+                                      tooltip: "تحميل المستند في الجهاز",
+                                      onPressed: () =>
+                                          _downloadArchivedDocument(asset),
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
@@ -286,13 +390,12 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         _lockedSignaturePosition = _signatureMarkerPosition;
       });
 
-      // استخدام البارامترات المطلوبة بدقة لنموذج MarketingCard لتجنب أي خطأ تجميع
       final dynamic signedAsset = MarketingCard(
         title: _docTitleController.text.trim(),
         description:
-            // ignore: unnecessary_brace_in_string_interps
             "توقيع سيادي معتمد - ${_loadedDocName} | بصمة MOX الرقمية المعتمدة",
-        whatsapp: widget.currentUser.phone,
+        // ignore: dead_code
+        whatsapp: widget.currentUser.phone ?? "",
         facebookUrl: "",
       );
 

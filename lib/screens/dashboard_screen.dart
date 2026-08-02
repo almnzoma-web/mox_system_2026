@@ -91,11 +91,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 🌍 روابط الانتقال السيادية (يمكنك تعديل الروابط هنا بكل سهولة)
   final String linkZaherMasterZat =
-      "https://almnzoma-mox.blogspot.com/p/blog-page_557.html";
+      "https://almnzoma-mox.blogspot.com/p/blog-page_84.html";
   final String linkZaherGlobalSystem =
       "https://www.facebook.com/AlmnzomaOnline2";
   final String linkMoxOnline = "https://www.facebook.com/AlmnzomaOnlineMOX";
-  final String linkMoxAgents = "https://www.facebook.com/MoxAgents";
+  final String linkMoxAgents =
+      "https://almnzoma-mox.blogspot.com/p/blog-page_02.html";
 
   Future<void> _openExternalLink(String urlTitle, String urlString) async {
     if (urlString.isEmpty) return;
@@ -119,6 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context) => DigitalMapScreen(
           clientMoxId: widget.user.moxId,
           clientName: widget.user.name,
+          user: widget.user,
         ),
       ),
     );
@@ -291,7 +293,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.link, color: Colors.orange),
-              title: const Text("وكلاء موكس"),
+              title: const Text("الادوات المجانية في موكس"),
               onTap: () => _openExternalLink("وكلاء موكس", linkMoxAgents),
             ),
             const Divider(),
@@ -960,7 +962,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                     // مستودع التطبيقات والخدمات (أزرار سيادية تفتح شاشة واسعة ومريحة للقراءة)
                     const Text(
-                      "📦 مستودع التطبيقات والخدمات المعتمدة:",
+                      "📦 تطبيقات الحاسوب:",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
@@ -1043,7 +1045,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "⚙️ الخدمات المتاحة (معروضة من لوحة المدير)",
+                            "⚙️ الخدمات الرقمية",
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -2200,7 +2202,7 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
   // 🔄 دالة لتحديث قائمة التنبيهات بناءً على بيانات المستخدم الحالية
   void _updateAlerts() {
     _alerts = [
-      "🚨 تنبيه MOX: لديك ${_currentUser.points} مستوى الاخطاء في شبكة الإحالة السيادية.",
+      "🚨 تنبيه MOX: لديك ${_currentUser.points} نقطة مكتسبة في شبكة الإحالة السيادية.",
       _currentUser.moxId.isNotEmpty
           ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${_currentUser.moxId}"
           : "⚠️ حسابك لم يُرقَّ بعد، شارك رابط الترقية لتوثيق أصولك.",

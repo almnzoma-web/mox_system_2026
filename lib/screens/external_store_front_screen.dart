@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison
+
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -9,7 +11,7 @@ import 'welcome_screen.dart';
 class ExternalStoreFrontScreen extends StatefulWidget {
   final UserModel? user;
   final List<Map<String, dynamic>> clientCards;
-  final String? directMoxId; // تم التعديل للاعتماد على moxId بالمسطرة
+  final String? directMoxId;
   final double? height;
 
   const ExternalStoreFrontScreen({
@@ -26,7 +28,7 @@ class ExternalStoreFrontScreen extends StatefulWidget {
 }
 
 class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
-  late UserModel? _resolvedUser;
+  UserModel? _resolvedUser;
   late List<Map<String, dynamic>> _resolvedCards;
   bool _isLoading = true;
 
@@ -36,52 +38,98 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // دالة ذكية لتحليل الـ URL أو تحديث البيانات مباشرة من الذاكرة المحلية
+  // دالة ذكية ومحصنة بالكامل لتحليل الـ URL أو تحديث البيانات من الخزينة السيادية
   Future<void> _initializeStoreData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     UserModel? userToUse = widget.user;
-    List<Map<String, dynamic>> cardsToUse = widget.clientCards;
+    List<Map<String, dynamic>> cardsToUse = List<Map<String, dynamic>>.from(
+      widget.clientCards,
+    );
     String? targetMoxId = widget.directMoxId;
 
-    // التأكد من تحديث وتحميل الخزينة السيادية أولاً لضمان جلب أحدث الأصول والبطاقات
-    await StorageService.ensureLoaded();
+    try {
+      // التأكد من جاهزية الخزينة السيادية أولاً
+      await StorageService.ensureLoaded();
 
-    // إذا تم تمرير مستخدم، نقوم بجلب أحدث نسخة مسجلة له من الذاكرة المحلية (لتحديث المتجر تلقائياً)
-    if (userToUse != null) {
-      try {
-        final freshUser = await StorageService.getUserByMoxId(userToUse.moxId);
-        if (freshUser != null) {
-          userToUse = freshUser;
+      // جلب أحدث نسخة للمستخدم بالاعتماد على moxId حصرياً (لتجنب خطأ getUserByPhone غير المعرفة)
+      if (userToUse != null) {
+        UserModel? freshUser;
+        try {
+          if (userToUse.moxId.isNotEmpty && userToUse.moxId != "لم يحدد") {
+            freshUser = await StorageService.getUserByMoxId(userToUse.moxId);
+          }
+        } catch (_) {}
+        userToUse = freshUser ?? userToUse;
+      }
+
+      // التقاط المعرف من الـ URL في حالة الويب
+      if (userToUse == null && targetMoxId == null && kIsWeb) {
+        try {
+          final uri = Uri.base;
+          targetMoxId =
+              uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
+        } catch (_) {}
+      }
+
+      // جلب البيانات بالمعرف المستهدف إن وجد
+      if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
+        try {
+          userToUse = await StorageService.getUserByMoxId(targetMoxId);
+          final fetchedCards = await StorageService.getClientCards(targetMoxId);
+          if (fetchedCards.isNotEmpty) {
+            cardsToUse = List<Map<String, dynamic>>.from(fetchedCards);
+          }
+        } catch (_) {}
+      }
+
+      // تحويل آمن للأصول ومعالجة نماذج التسويق (MarketingCard)
+      if (userToUse != null && userToUse.myAssets.isNotEmpty) {
+        final List<Map<String, dynamic>> convertedAssets = [];
+        for (final asset in userToUse.myAssets) {
+          try {
+            if (asset is Map<String, dynamic>) {
+              convertedAssets.add(asset as Map<String, dynamic>);
+            } else if (asset is Map) {
+              convertedAssets.add(
+                Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
+              );
+            } else if (asset != null) {
+              // معالجة كائنات مثل MarketingCard عبر toJson أو تحويلها لنص
+              final dynamic rawJson = (asset as dynamic).toJson();
+              if (rawJson is Map) {
+                convertedAssets.add(Map<String, dynamic>.from(rawJson));
+              } else {
+                convertedAssets.add({
+                  'title': asset.toString(),
+                  'description': 'أصل رقمي معتمد في منظومة موكس',
+                  'price': 0.0,
+                  'whatsapp': userToUse.phone,
+                  'facebookUrl': '',
+                });
+              }
+            }
+          } catch (_) {
+            convertedAssets.add({
+              'title': 'بطاقة سيادية',
+              'description': 'تفاصيل الأصل الرقمي المعتمد',
+              'price': 0.0,
+              'whatsapp': userToUse.phone,
+              'facebookUrl': '',
+            });
+          }
         }
-      } catch (_) {}
-    }
+        if (convertedAssets.isNotEmpty) {
+          cardsToUse = convertedAssets;
+        }
+      }
+    } catch (_) {}
 
-    // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL
-    if (userToUse == null && targetMoxId == null && kIsWeb) {
-      try {
-        final uri = Uri.base;
-        targetMoxId =
-            uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
-      } catch (_) {}
-    }
-
-    // إذا وجدنا الـ moxId قادماً من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية
-    if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
-      try {
-        userToUse = await StorageService.getUserByMoxId(targetMoxId);
-        cardsToUse = await StorageService.getClientCards(targetMoxId);
-      } catch (_) {}
-    }
-
-    // إذا كان للمستخدم أصول/بطاقات مسجلة (myAssets)، نقوم بتحويلها لعرضها مباشرة
-    if (userToUse != null && userToUse.myAssets.isNotEmpty) {
-      cardsToUse = userToUse.myAssets.map((asset) => asset.toJson()).toList();
-    }
-
-    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن
+    // بناء الكائن الافتراضي الآمن عند عدم وجود المستخدم
     _resolvedUser =
         userToUse ??
         UserModel(
@@ -95,6 +143,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
           accountType: "external",
         );
 
+    // تجهيز البطاقات مع ضمان خلوها من القيم الفارغة
     _resolvedCards = cardsToUse.isNotEmpty
         ? cardsToUse
         : [
@@ -259,7 +308,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    card['title'] ?? "بطاقة سيادية",
+                                    card['title']?.toString() ?? "بطاقة سيادية",
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
@@ -279,7 +328,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              card['description'] ?? "",
+                              card['description']?.toString() ?? "",
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black87,
@@ -297,7 +346,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                     ),
                                     onPressed: () async {
                                       final phoneNum =
-                                          card['whatsapp'] ??
+                                          card['whatsapp']?.toString() ??
                                           resolvedUser.phone;
                                       final url = Uri.parse(
                                         "https://wa.me/$phoneNum",
@@ -332,8 +381,8 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                     ),
                                     onPressed: () async {
                                       final detailsUrl =
-                                          card['facebookUrl'] ??
-                                          card['facebook'] ??
+                                          card['facebookUrl']?.toString() ??
+                                          card['facebook']?.toString() ??
                                           "";
                                       if (detailsUrl.isNotEmpty) {
                                         final url = Uri.parse(detailsUrl);
