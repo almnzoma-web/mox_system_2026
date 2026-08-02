@@ -65,7 +65,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المتقنة: التأكد أولاً من مطابقة رقم موكس للعميل ثم كلمة السر بدقة صارمة
+  // نافذة التحقق الأمني المتقنة: التأكد حصرياً من مطابقة moxId أو guardianMoxId (واستبعاد حقل الوصي العميل الفرعي) ثم كلمة السر
   void _showSecurityLoginDialog() async {
     await StorageService.ensureLoaded();
 
@@ -136,16 +136,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               bool isPasswordMatched = false;
 
               try {
+                // 🛡️ [فحص أمني صارم]: الاعتماد حصرياً على moxId و guardianMoxId واستبعاد guardianMoxIdCustomer لمنع الثغرة
                 bool matchesUserMox =
                     (widget.user.moxId.trim().toUpperCase() ==
                         enteredMox.toUpperCase()) ||
                     (widget.user.guardianMoxId != null &&
                         widget.user.guardianMoxId!.trim().toUpperCase() ==
-                            enteredMox.toUpperCase()) ||
-                    (widget.user.guardianMoxIdCustomer != null &&
-                        widget.user.guardianMoxIdCustomer!
-                                .trim()
-                                .toUpperCase() ==
                             enteredMox.toUpperCase());
 
                 if (enteredMox.isNotEmpty && matchesUserMox) {
@@ -157,9 +153,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                             enteredMox.toUpperCase()) ||
                         (u.guardianMoxId != null &&
                             u.guardianMoxId!.trim().toUpperCase() ==
-                                enteredMox.toUpperCase()) ||
-                        (u.guardianMoxIdCustomer != null &&
-                            u.guardianMoxIdCustomer!.trim().toUpperCase() ==
                                 enteredMox.toUpperCase());
                     if (matchesStorageMox && enteredMox.isNotEmpty) {
                       isMoxMatchedInProfile = true;
@@ -179,9 +172,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               enteredMox.toUpperCase()) ||
                           (u.guardianMoxId != null &&
                               u.guardianMoxId!.trim().toUpperCase() ==
-                                  enteredMox.toUpperCase()) ||
-                          (u.guardianMoxIdCustomer != null &&
-                              u.guardianMoxIdCustomer!.trim().toUpperCase() ==
                                   enteredMox.toUpperCase());
                       if (matchesStorageMox &&
                           u.password == enteredPassword &&
@@ -251,7 +241,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً عميلنا الكريم.. رقم موكس المدخل غير مطابق لملفك أو كلمة السر غير صحيحة. النظام يتطلب مطابقة رقم موكس أولاً ثم كلمة السر بدقة صارمة🤚",
+          "عفواً عميلنا الكريم.. رقم موكس المدخل غير مطابق لملفك أو كلمة السر غير صحيحة. النظام يتطلب مطابقة رقم موكس الأساسي أو المعتمد أولاً ثم كلمة السر بدقة صارمة🤚",
           style: TextStyle(
             fontSize: 13,
             height: 1.5,
@@ -327,7 +317,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       }
 
       // المنطق السيادي الدقيق: إذا كان هناك تاريخ نشر قديم مسجل، نحافظ عليه ولا نغيره ليبقى عداد الـ 365 يوماً محسوباً من أول نشر مطلقاً.
-      // وإذا لم يكن موجوداً (أول نشر إطلاقاً)، نعتمد التوقيت الحالي.
       String finalPublishTimestamp =
           (widget.user.storePublishDate != null &&
               widget.user.storePublishDate!.isNotEmpty)
@@ -335,6 +324,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           : DateTime.now().toIso8601String();
 
       UserModel updatedUser = widget.user.copyWith(
+        name: _storeNameController.text.trim(),
         myAssets: updatedAssets,
         storePublishDate: finalPublishTimestamp, // تثبيت تاريخ أول نشر حصرياً
       );
