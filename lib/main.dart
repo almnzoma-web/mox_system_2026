@@ -3,13 +3,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/external_store_front_screen.dart'; // شاشة متجر العميل الخارجي
-// استيراد خدمة التخزين السيادية الموحدة لضمان قراءة السجل الحقيقي للأبد
 import 'services/storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تفعيل استراتيجية الروابط النظيفة أو الـ Hash لضمان توافقية Vercel
+  // تفعيل استراتيجية الروابط لضمان توافقية Vercel
   setUrlStrategy(HashUrlStrategy());
 
   // تحميل سجل الدولة (قاعدة البيانات المركزية) من الخزينة الدائمة حصرياً
@@ -21,11 +20,23 @@ void main() async {
   if (kIsWeb) {
     try {
       final uri = Uri.base;
-      // التحقق من وجود معرف المتجر في الرابط (سواء في الـ queryParameters أو الـ fragment)
+
+      // 1. محاولة الالتقاط من الـ queryParameters المباشرة
       String? targetMox =
           uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
 
-      // إذا كان هناك محاولة وصول لرابط متجر مباشر، نوجه الزائر لمتجر العميل مباشرة دون تمريره بشاشة الترحيب
+      // 2. 🛡️ [الحل الجذري]: إذا لم يتم العثور عليه، نبحث داخل الـ Fragment (خلف علامة # بسبب HashUrlStrategy)
+      if ((targetMox == null || targetMox.isEmpty) && uri.hasFragment) {
+        final fragmentString =
+            uri.fragment; // مثال: /?mox=ID-005000 أو ?mox=ID-005000
+        // تحويل الـ fragment إلى Uri فرعي لتحليل البارامترات بدقة
+        final parsedFragment = Uri.parse("http://localhost$fragmentString");
+        targetMox =
+            parsedFragment.queryParameters['mox'] ??
+            parsedFragment.queryParameters['phone'];
+      }
+
+      // إذا كان هناك محاولة وصول لرابط متجر مباشر، نوجه الزائر لمتجر العميل مباشرة
       if (targetMox != null && targetMox.isNotEmpty) {
         initialScreen = ExternalStoreFrontScreen(directMoxId: targetMox);
       }
@@ -54,7 +65,6 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Cairo',
       ),
-      // التوجيه الذكي للبوابة الأولى بناءً على حالة الرابط
       home: initialScreen,
     );
   }
