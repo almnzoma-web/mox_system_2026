@@ -44,6 +44,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     super.initState();
     _phoneController.text = widget.user.phone;
 
+    // استرجاع اسم المتجر القديم إن وجد لضمان الاستمرارية
+    if (widget.user.myAssets.isNotEmpty) {
+      _storeNameController.text = widget.user.name;
+    }
+
     _availableCardsPool = widget.clientCards
         .map((card) => card['title'].toString())
         .toList();
@@ -60,9 +65,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المرتبطة برقم موكس وكلمة السر معاَ بدقة تامة
+  // نافذة التحقق الأمني المتقنة: التأكد أولاً من مطابقة رقم موكس للعميل ثم كلمة السر بدقة صارمة
   void _showSecurityLoginDialog() async {
-    // ضمان تحميل السجلات السيادية تماماً قبل فتح نافذة التحقق
     await StorageService.ensureLoaded();
 
     final TextEditingController moxInputController = TextEditingController();
@@ -95,7 +99,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم موكس الخاص بك وكلمة السر للمتابعة بالمسطرة:",
+              "أدخل رقم موكس الخاص بك أولاً للتحقق من وجوده في ملفك، ثم كلمة السر بالمسطرة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
@@ -128,70 +132,75 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               String enteredMox = moxInputController.text.trim();
               String enteredPassword = passwordInputController.text.trim();
 
-              bool isValidFromStorage = false;
+              bool isMoxMatchedInProfile = false;
+              bool isPasswordMatched = false;
+
               try {
-                // التحقق المزدوج الرابط بين رقم موكس وكلمة السر معاً من الخزينة أو السجلات المسجلة
-                for (var u in registeredUsers) {
-                  if (u.role == 'admin' && widget.user.role != 'admin') {
-                    continue;
-                  }
+                bool matchesUserMox =
+                    (widget.user.moxId.trim().toUpperCase() ==
+                        enteredMox.toUpperCase()) ||
+                    (widget.user.guardianMoxId != null &&
+                        widget.user.guardianMoxId!.trim().toUpperCase() ==
+                            enteredMox.toUpperCase()) ||
+                    (widget.user.guardianMoxIdCustomer != null &&
+                        widget.user.guardianMoxIdCustomer!
+                                .trim()
+                                .toUpperCase() ==
+                            enteredMox.toUpperCase());
 
-                  bool matchesMox =
-                      (u.moxId.trim().toUpperCase() ==
-                          enteredMox.toUpperCase()) ||
-                      (u.guardianMoxId != null &&
-                          u.guardianMoxId!.trim().toUpperCase() ==
-                              enteredMox.toUpperCase()) ||
-                      (u.guardianMoxIdCustomer != null &&
-                          u.guardianMoxIdCustomer!.trim().toUpperCase() ==
-                              enteredMox.toUpperCase());
-
-                  if (matchesMox &&
-                      u.password == enteredPassword &&
-                      enteredMox.isNotEmpty &&
-                      enteredPassword.isNotEmpty) {
-                    if (u.moxId == widget.user.moxId ||
-                        u.moxId == widget.user.guardianMoxId ||
-                        u.moxId == widget.user.guardianMoxIdCustomer ||
-                        widget.user.guardianMoxId == u.moxId ||
-                        widget.user.guardianMoxIdCustomer == u.moxId ||
-                        widget.user.moxId.trim().toUpperCase() ==
-                            enteredMox.toUpperCase()) {
-                      isValidFromStorage = true;
+                if (enteredMox.isNotEmpty && matchesUserMox) {
+                  isMoxMatchedInProfile = true;
+                } else {
+                  for (var u in registeredUsers) {
+                    bool matchesStorageMox =
+                        (u.moxId.trim().toUpperCase() ==
+                            enteredMox.toUpperCase()) ||
+                        (u.guardianMoxId != null &&
+                            u.guardianMoxId!.trim().toUpperCase() ==
+                                enteredMox.toUpperCase()) ||
+                        (u.guardianMoxIdCustomer != null &&
+                            u.guardianMoxIdCustomer!.trim().toUpperCase() ==
+                                enteredMox.toUpperCase());
+                    if (matchesStorageMox && enteredMox.isNotEmpty) {
+                      isMoxMatchedInProfile = true;
                       break;
                     }
                   }
                 }
 
-                if (!isValidFromStorage &&
-                    enteredMox.isNotEmpty &&
-                    enteredPassword.isNotEmpty) {
-                  bool isUserMatch =
-                      (widget.user.moxId.trim().toUpperCase() ==
-                          enteredMox.toUpperCase()) ||
-                      (widget.user.guardianMoxId != null &&
-                          widget.user.guardianMoxId!.trim().toUpperCase() ==
+                if (isMoxMatchedInProfile) {
+                  if (widget.user.password == enteredPassword &&
+                      enteredPassword.isNotEmpty) {
+                    isPasswordMatched = true;
+                  } else {
+                    for (var u in registeredUsers) {
+                      bool matchesStorageMox =
+                          (u.moxId.trim().toUpperCase() ==
                               enteredMox.toUpperCase()) ||
-                      (widget.user.guardianMoxIdCustomer != null &&
-                          widget.user.guardianMoxIdCustomer!
-                                  .trim()
-                                  .toUpperCase() ==
-                              enteredMox.toUpperCase());
-
-                  if (isUserMatch && widget.user.password == enteredPassword) {
-                    isValidFromStorage = true;
+                          (u.guardianMoxId != null &&
+                              u.guardianMoxId!.trim().toUpperCase() ==
+                                  enteredMox.toUpperCase()) ||
+                          (u.guardianMoxIdCustomer != null &&
+                              u.guardianMoxIdCustomer!.trim().toUpperCase() ==
+                                  enteredMox.toUpperCase());
+                      if (matchesStorageMox &&
+                          u.password == enteredPassword &&
+                          enteredPassword.isNotEmpty) {
+                        isPasswordMatched = true;
+                        break;
+                      }
+                    }
                   }
                 }
               } catch (_) {
-                isValidFromStorage = false;
+                isMoxMatchedInProfile = false;
+                isPasswordMatched = false;
               }
 
               if (!mounted) return;
               Navigator.pop(ctx);
 
-              if (!isValidFromStorage ||
-                  enteredPassword.isEmpty ||
-                  enteredMox.isEmpty) {
+              if (!isMoxMatchedInProfile || !isPasswordMatched) {
                 setState(() {
                   _isAuthorized = false;
                 });
@@ -203,7 +212,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم التحقق من رقم موكس وكلمة السر بنجاح - مرحباً بك",
+                      "✅ تم التحقق من رقم موكس وكلمة السر بنجاح - مرحباً بك في سيادة الدكان",
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -232,7 +241,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.gpp_bad, color: Colors.red),
             SizedBox(width: 8),
             Text(
-              "خطأ في الاعتماد المالي والسيادي",
+              "خطأ في التحقق والاعتماد السيادي",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.red,
@@ -242,7 +251,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً عميلنا الكريم.. رقم موكس أو كلمة السر غير مطابقة. الرجاء إدراج بيانات حقيقية لامتلاك رقم حساب بنك موكس الرقمي🤚",
+          "عفواً عميلنا الكريم.. رقم موكس المدخل غير مطابق لملفك أو كلمة السر غير صحيحة. النظام يتطلب مطابقة رقم موكس أولاً ثم كلمة السر بدقة صارمة🤚",
           style: TextStyle(
             fontSize: 13,
             height: 1.5,
@@ -265,7 +274,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 حفظ المتجر في الذاكرة وتحديث الصفحة B والعودة بنجاح مع رسالة المنتصف
+  // 🚀 حفظ النشر وتثبيت تاريخ البداية الأول بحيث لا يتغير مع أي تعديلات لاحقة (فترة 365 يوماً ثابتة)
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -289,15 +298,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         return;
       }
 
-      // إظهار رسالة النشر الفاخرة في المنتصف لحظة الضغط
       setState(() {
         _isPublishing = true;
       });
 
-      // محاكاة تأخير زمني فاخر ومستقر
       await Future.delayed(const Duration(seconds: 2));
 
-      // تجهيز قائمة الأصول باستخدام facebookUrl المتوافقة مع نموذج MarketingCard
       List<MarketingCard> updatedAssets = [];
       for (var cardTitle in _selectedCards) {
         if (cardTitle != null && cardTitle.trim().isNotEmpty) {
@@ -320,8 +326,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         }
       }
 
-      // تحديث بيانات المستخدم محلياً وفي السحابة عبر StorageService
-      UserModel updatedUser = widget.user.copyWith(myAssets: updatedAssets);
+      // المنطق السيادي الدقيق: إذا كان هناك تاريخ نشر قديم مسجل، نحافظ عليه ولا نغيره ليبقى عداد الـ 365 يوماً محسوباً من أول نشر مطلقاً.
+      // وإذا لم يكن موجوداً (أول نشر إطلاقاً)، نعتمد التوقيت الحالي.
+      String finalPublishTimestamp =
+          (widget.user.storePublishDate != null &&
+              widget.user.storePublishDate!.isNotEmpty)
+          ? widget.user.storePublishDate!
+          : DateTime.now().toIso8601String();
+
+      UserModel updatedUser = widget.user.copyWith(
+        myAssets: updatedAssets,
+        storePublishDate: finalPublishTimestamp, // تثبيت تاريخ أول نشر حصرياً
+      );
 
       await StorageService.updateUserPartial(updatedUser);
 
@@ -334,13 +350,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم نشر الدكان والمتجر وحفظه محلياً وتحديث الصفحة B بنجاح لمدة 365 يوماً",
+            "🚀 تم تحديث ونشر المتجر بنجاح مع الحفاظ على عداد الـ 365 يوماً من أول انطلاقة",
           ),
           backgroundColor: Colors.green,
         ),
       );
 
-      // العودة للصفحة B مع إرجاع المستخدم المحدث لتحديث واجهتها فوراً
       Navigator.pop(context, updatedUser);
     }
   }
@@ -390,7 +405,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               child: ListView(
                 children: [
                   const Text(
-                    "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف (يكفي اختيار بطاقة واحدة للنشر)",
+                    "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف (النسخة المعتمدة)",
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -576,7 +591,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       color: Colors.white,
                     ),
                     label: const Text(
-                      "نشر الدكان والمتجر وتوليد رابط العميل (365 يوم)",
+                      "نشر وتحديث الدكان والمتجر (365 يوم من أول إطلاق)",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -618,7 +633,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     CircularProgressIndicator(color: Color(0xFF28A9CC)),
                     SizedBox(height: 18),
                     Text(
-                      "جاري نشر متجرك/دكانك...",
+                      "جاري حفظ وتثبيت النسخة المعتمدة لمتجرك...",
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

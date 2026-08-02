@@ -56,7 +56,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       // التأكد من جاهزية الخزينة السيادية أولاً
       await StorageService.ensureLoaded();
 
-      // جلب أحدث نسخة للمستخدم بالاعتماد على moxId حصرياً (لتجنب خطأ getUserByPhone غير المعرفة)
+      // جلب أحدث نسخة للمستخدم بالاعتماد على moxId حصرياً
       if (userToUse != null) {
         UserModel? freshUser;
         try {
@@ -87,7 +87,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // تحويل آمن للأصول ومعالجة نماذج التسويق (MarketingCard)
+      // تحويل آمن للأصول ومعالجة نماذج التسويق (MarketingCard) المسترجعة من زر النشر
       if (userToUse != null && userToUse.myAssets.isNotEmpty) {
         final List<Map<String, dynamic>> convertedAssets = [];
         for (final asset in userToUse.myAssets) {
@@ -99,7 +99,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                 Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
               );
             } else if (asset != null) {
-              // معالجة كائنات مثل MarketingCard عبر toJson أو تحويلها لنص
               final dynamic rawJson = (asset as dynamic).toJson();
               if (rawJson is Map) {
                 convertedAssets.add(Map<String, dynamic>.from(rawJson));
@@ -113,15 +112,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                 });
               }
             }
-          } catch (_) {
-            convertedAssets.add({
-              'title': 'بطاقة سيادية',
-              'description': 'تفاصيل الأصل الرقمي المعتمد',
-              'price': 0.0,
-              'whatsapp': userToUse.phone,
-              'facebookUrl': '',
-            });
-          }
+          } catch (_) {}
         }
         if (convertedAssets.isNotEmpty) {
           cardsToUse = convertedAssets;
@@ -129,7 +120,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       }
     } catch (_) {}
 
-    // بناء الكائن الافتراضي الآمن عند عدم وجود المستخدم
     _resolvedUser =
         userToUse ??
         UserModel(
@@ -143,7 +133,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
           accountType: "external",
         );
 
-    // تجهيز البطاقات مع ضمان خلوها من القيم الفارغة
     _resolvedCards = cardsToUse.isNotEmpty
         ? cardsToUse
         : [
@@ -165,20 +154,8 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
   }
 
   bool _hasActiveStore(UserModel activeUser) {
-    // ignore: unnecessary_nullable_for_final_variable_declarations
-    final String? mox = activeUser.moxId;
-    final String? gMox = activeUser.guardianMoxId;
-
-    return (mox != null &&
-            mox.trim().isNotEmpty &&
-            mox != "لم يحدد" &&
-            mox.toLowerCase() != 'null') ||
-        (gMox != null &&
-            gMox.trim().isNotEmpty &&
-            gMox != "لم يحدد" &&
-            gMox.toLowerCase() != 'null' &&
-            !gMox.startsWith("MOX249-00010001")) ||
-        activeUser.phone.isNotEmpty;
+    return activeUser.myAssets.isNotEmpty ||
+        (activeUser.moxId.isNotEmpty && activeUser.moxId != "لم يحدد");
   }
 
   @override
@@ -283,7 +260,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    "🛒 العروض والبطاقات النشطة للعميل (متاحة للعامة)",
+                    "🛒 البطاقات والأصول المنشورة عبر لوحة التحكم (الصفحة A):",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
@@ -448,7 +425,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          "هذا العميل لم يقوم حتى الآن بتنشيط متجره أو دكانه وأصوله الرقمية.",
+                          "عفواً.. هذا المتجر لم يتم نشره وتفعيل أصوله بعد عبر لوحة التحكم (الصفحة A)🤚",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
@@ -477,7 +454,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                           },
                           icon: const Icon(Icons.login, color: Colors.white),
                           label: const Text(
-                            "الدخول إلى التطبيق والترحيب",
+                            "العودة لتسجيل الدخول والاعتماد",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 15,

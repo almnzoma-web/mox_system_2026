@@ -10,6 +10,7 @@ class UserModel {
   String? guardianMoxId; // حقل الوصي الأصلي الخاص بموكس (يظل خالياً للعميل)
   String?
   guardianMoxIdCustomer; // الحقل الجديد: وصي العميل الجديد أو المدير افتراضياً
+  String? storePublishDate; // حقل تاريخ أول نشر لتثبيت فترة الـ 365 يوماً
   double balance, commission;
   int points; // نقاط الإحالة
   List<MarketingCard> myAssets;
@@ -28,6 +29,7 @@ class UserModel {
     this.customWhatsApp,
     this.guardianMoxId = "", // يظل خالياً افتراضياً للعميل
     this.guardianMoxIdCustomer = "MOX249-00010001", // القيمة الافتراضية للمدير
+    this.storePublishDate,
     this.points = 0,
     this.myAssets = const [],
   });
@@ -41,6 +43,7 @@ class UserModel {
     String? address,
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
+    String? storePublishDate,
     List<MarketingCard>? myAssets,
   }) {
     return UserModel(
@@ -58,6 +61,7 @@ class UserModel {
       guardianMoxId: guardianMoxId ?? this.guardianMoxId,
       guardianMoxIdCustomer:
           guardianMoxIdCustomer ?? this.guardianMoxIdCustomer,
+      storePublishDate: storePublishDate ?? this.storePublishDate,
       points: points ?? this.points,
       myAssets: myAssets ?? this.myAssets,
     );
@@ -78,8 +82,8 @@ class UserModel {
     'guardianMoxId': guardianMoxId ?? '',
     'points': points,
     'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
-    'guardianMoxIdCustomer':
-        guardianMoxIdCustomer ?? '', // الحقل الجديد في الأخير
+    'guardianMoxIdCustomer': guardianMoxIdCustomer ?? '',
+    'storePublishDate': storePublishDate ?? '',
   };
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -119,6 +123,7 @@ class UserModel {
       myAssets: parsedAssets,
       guardianMoxIdCustomer:
           json['guardianMoxIdCustomer']?.toString() ?? "MOX249-00010001",
+      storePublishDate: json['storePublishDate']?.toString(),
     );
   }
 }
