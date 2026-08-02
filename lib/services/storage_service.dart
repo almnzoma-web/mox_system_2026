@@ -191,7 +191,7 @@ class StorageService {
     }
   }
 
-  // التحديث الجزئي مع الحفاظ التام على السجلات في قوقل
+  // التحديث الجزئي مع الحفاظ التام على السجلات في قوقل وتحديث الجلسة النشطة فوراً بالمسطرة
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
@@ -203,6 +203,20 @@ class StorageService {
     if (index != -1) {
       registeredUsers[index] = user;
       await saveUsersList();
+    }
+
+    // 🛡️ التحديث الفوري لجلسة المستخدم النشط (UserKey) لمنع أي تضارب بين الشاشات والروابط
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? currentUserJson = prefs.getString(userKey);
+      if (currentUserJson != null) {
+        UserModel activeUser = UserModel.fromJson(jsonDecode(currentUserJson));
+        if (activeUser.moxId == user.moxId || activeUser.phone == user.phone) {
+          await prefs.setString(userKey, jsonEncode(user.toJson()));
+        }
+      }
+    } catch (e) {
+      debugPrint("❌ [Session Cache] خطأ في تحديث الجلسة النشطة محلياً: $e");
     }
 
     try {
