@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mox_digital_app/models/marketing_model.dart';
 import 'package:mox_digital_app/services/storage_service.dart';
 import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
 import 'package:mox_digital_app/admin_panel/services_manager_tab.dart';
@@ -1259,6 +1260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           builder: (_) =>
                                               ExternalStoreFrontScreen(
                                                 user: widget.user,
+                                                clientCards: _clientCards,
                                                 directMoxId: activeMoxForUrl,
                                               ),
                                         ),
@@ -1453,7 +1455,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        // توليد البطاقات الـ 5 مع ترس التعديل وزر الحفظ وإرسال البيانات
+                        // توليد البطاقات الـ 5 مع ترس التعديل وزر الحفظ التلقائي في الخزينة
                         ..._clientCards.map((card) {
                           final titleCtrl = TextEditingController(
                             text: card['title'],
@@ -1785,16 +1787,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                     36,
                                                   ),
                                                 ),
-                                                onPressed: () {
+                                                onPressed: () async {
+                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: ربط التعديلات بكائن المستخدم ومزامنتها
                                                   setStateModal(() {
                                                     card['isEditing'] = false;
+                                                    widget.user.myAssets =
+                                                        List<
+                                                              Map<
+                                                                String,
+                                                                dynamic
+                                                              >
+                                                            >.from(_clientCards)
+                                                            .cast<
+                                                              MarketingCard
+                                                            >();
                                                   });
+
+                                                  // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
+                                                  await StorageService.updateUserPartial(
+                                                    widget.user,
+                                                  );
+
                                                   ScaffoldMessenger.of(
+                                                    // ignore: use_build_context_synchronously
                                                     context,
                                                   ).showSnackBar(
                                                     const SnackBar(
                                                       content: Text(
-                                                        "✅ تم حفظ وإرسال بيانات البطاقة وجاهزيتها للتغذية بنجاح",
+                                                        "✅ تم حفظ وإرسال بيانات البطاقة وتحديث الخزينة السيادية بنجاح",
                                                       ),
                                                       backgroundColor:
                                                           Colors.teal,
@@ -1835,8 +1855,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               MaterialPageRoute(
                                 builder: (_) => ClientStoreAdminScreen(
                                   user: widget.user,
-                                  clientCards:
-                                      _clientCards, // تمرير الـ 5 بطاقات الحقيقية المعدلة بالمسطرة
+                                  clientCards: _clientCards,
                                 ),
                               ),
                             );
@@ -2232,7 +2251,7 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
         : (_currentUser.guardianMoxId ?? "MOX249-00010001");
 
     final String clientStoreUrl =
-        "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
 
     showModalBottomSheet(
       context: context,
@@ -2294,7 +2313,7 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
         : (_currentUser.guardianMoxId ?? "MOX249-00010001");
 
     final String clientStoreUrl =
-        "https://mox-2026.vercel.app/store?mox=$activeMoxForUrl";
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
