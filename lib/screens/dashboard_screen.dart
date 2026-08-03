@@ -963,7 +963,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                     // مستودع التطبيقات والخدمات (أزرار سيادية تفتح شاشة واسعة ومريحة للقراءة)
                     const Text(
-                      "📦 تطبيقات الحاسوب:",
+                      "📦 المنتجات الرقمية:",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
@@ -999,7 +999,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "📂 التطبيقات المتاحة (معروضة من مستودع الإدارة)",
+                            "📂 تطبيقات الحاسوب )",
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,

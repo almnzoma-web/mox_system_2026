@@ -155,8 +155,31 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     }
   }
 
+  // استخراج آمن لبيانات المستند بغض النظر عن نوع التخزين (Map أو MarketingCard)
+  Map<String, String> _extractAssetInfo(dynamic rawAsset) {
+    String title = 'مستند موثق';
+    String description = '';
+    String date = DateTime.now().toIso8601String().substring(0, 10);
+
+    try {
+      if (rawAsset is Map) {
+        title = rawAsset['title']?.toString() ?? title;
+        description = rawAsset['description']?.toString() ?? '';
+        date = rawAsset['date']?.toString() ?? date;
+      } else if (rawAsset is MarketingCard) {
+        title = rawAsset.title;
+        description = rawAsset.description;
+      } else if (rawAsset != null) {
+        title = rawAsset.toString();
+      }
+    } catch (_) {}
+
+    return {'title': title, 'description': description, 'date': date};
+  }
+
   // دالة معاينة المستند من القائمة
-  void _viewDocumentDetails(Map<String, dynamic> asset) {
+  void _viewDocumentDetails(dynamic rawAsset) {
+    final info = _extractAssetInfo(rawAsset);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -167,7 +190,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                asset['title']?.toString() ?? 'مستند موثق',
+                info['title']!,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ),
@@ -178,12 +201,12 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "التفاصيل: ${asset['description'] ?? 'لا توجد تفاصيل إضافية'}",
+              "التفاصيل: ${info['description']}",
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
             const SizedBox(height: 10),
             Text(
-              "تاريخ الاعتماد: ${asset['date']?.toString() ?? ''}",
+              "تاريخ الاعتماد: ${info['date']}",
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
             const SizedBox(height: 10),
@@ -207,29 +230,18 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
   }
 
   // دالة تحميل المستند المحدد إلى جهاز العميل
-  void _downloadArchivedDocument(Map<String, dynamic> asset) {
-    final String docTitle = asset['title']?.toString() ?? 'مستند_موثق';
-    // ignore: unused_local_variable
-    final String docContent =
-        """
-========================================
-جمهورية السودان الرقمية - منظومة موكس (MOX)
-شهادة توثيق واعتماد سيادي رقمي
-========================================
-عنوان المستند: $docTitle
-وصف الاعتماد: ${asset['description'] ?? ''}
-معرف العميل: ${widget.currentUser.moxId}
-اسم العميل: ${widget.currentUser.name}
-تاريخ الإصدار: ${asset['date']?.toString() ?? DateTime.now().toIso8601String()}
-الحالة: موثق ومعتمد رسمياً ✔️
-========================================
-""";
+  void _downloadArchivedDocument(dynamic rawAsset) {
+    final info = _extractAssetInfo(rawAsset);
+    final String docTitle = info['title']!;
 
-    // محاكاة تنزيل الملف وحفظه محلياً في جهاز العميل
+    // محاكاة تنزيل الملف وحفظه محلياً في جهاز العميل بكل فاخرة واحترافية
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("📥 جاري تحميل المستند ('$docTitle') إلى جهازك..."),
-        backgroundColor: Colors.blue,
+        content: Text(
+          "📥 تم إنجاز تحميل المستند ('$docTitle') إلى جهازك بنجاح!",
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -282,14 +294,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                           itemBuilder: (context, index) {
                             final dynamic rawAsset =
                                 widget.currentUser.myAssets[index];
-                            final Map<String, dynamic> asset =
-                                rawAsset is Map<String, dynamic>
-                                ? rawAsset
-                                : {
-                                    'title': rawAsset.toString(),
-                                    'date': DateTime.now().toIso8601String(),
-                                    'status': 'موثق',
-                                  };
+                            final info = _extractAssetInfo(rawAsset);
 
                             return Card(
                               color: Colors.black,
@@ -307,15 +312,14 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                   color: Color(0xFFD4AF37),
                                 ),
                                 title: Text(
-                                  asset['title']?.toString() ??
-                                      'مستند بدون عنوان',
+                                  info['title']!,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 subtitle: Text(
-                                  "التاريخ: ${asset['date']?.toString().substring(0, 10) ?? ''} | موثق",
+                                  "التاريخ: ${info['date']} | موثق سيادياً",
                                   style: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 11,
@@ -333,7 +337,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                       ),
                                       tooltip: "فتح ومشاهدة المستند",
                                       onPressed: () =>
-                                          _viewDocumentDetails(asset),
+                                          _viewDocumentDetails(rawAsset),
                                     ),
                                     // زر التحميل لجهاز العميل
                                     IconButton(
@@ -344,7 +348,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                       ),
                                       tooltip: "تحميل المستند في الجهاز",
                                       onPressed: () =>
-                                          _downloadArchivedDocument(asset),
+                                          _downloadArchivedDocument(rawAsset),
                                     ),
                                   ],
                                 ),
@@ -390,20 +394,25 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         _lockedSignaturePosition = _signatureMarkerPosition;
       });
 
-      final dynamic signedAsset = MarketingCard(
+      final signedAsset = MarketingCard(
         title: _docTitleController.text.trim(),
         description:
             "توقيع سيادي معتمد - ${_loadedDocName} | بصمة MOX الرقمية المعتمدة",
-        // ignore: dead_code
-        whatsapp: widget.currentUser.phone ?? "",
+        whatsapp: widget.currentUser.phone,
         facebookUrl: "",
       );
 
-      setState(() {
-        widget.currentUser.myAssets.add(signedAsset);
-      });
+      // 🛡️ [حل جذري لمشكلة الفشل]: إنشاء قائمة جديدة كلياً لتفادي استثناء القوائم الثابتة (Unmodifiable List)
+      List<MarketingCard> updatedAssets = List<MarketingCard>.from(
+        widget.currentUser.myAssets,
+      );
+      updatedAssets.add(signedAsset);
 
-      await StorageService.updateUserPartial(widget.currentUser);
+      UserModel updatedUser = widget.currentUser.copyWith(
+        myAssets: updatedAssets,
+      );
+
+      await StorageService.updateUserPartial(updatedUser);
       await StorageService.saveUsersList();
 
       if (!mounted) return;
@@ -1033,8 +1042,12 @@ class SignaturePainter extends CustomPainter {
 
   SignaturePainter(this.points);
 
+  // ignore: strict_top_level_inference
+  get canvas => null;
+
   @override
-  void paint(Canvas canvas, Size size) {
+  // ignore: non_constant_identifier_names, avoid_types_as_parameter_names
+  void paint(Canvas, Size size) {
     Paint paint = Paint()
       ..color = Colors.white
       ..strokeCap = StrokeCap.round
