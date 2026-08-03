@@ -12,18 +12,29 @@ class ClientAssetsScreen extends StatefulWidget {
 }
 
 class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
-  final List<Map<String, dynamic>> _clientCards = List.generate(
-    5,
-    (index) => {
-      'title': 'بطاقة المتجر الرقمي رقم ${index + 1}',
-      'description':
-          'هذا وصف تفصيلي لخدمات أو منتجات هذه البطاقة الرقمية السيادية داخل متجر العميل.',
-      'price': (index + 1) * 5000,
-      'whatsapp': '249900000000',
-      'facebook': 'https://facebook.com',
-      'isEditing': false,
-    },
-  );
+  // دالة مساعدة لتحويل العنصر إلى Map لضمان التعامل الآمن مع الأصول والمستندات
+  Map<String, dynamic> _parseAsset(dynamic rawAsset) {
+    if (rawAsset is Map<String, dynamic>) return rawAsset;
+    if (rawAsset is Map) return Map<String, dynamic>.from(rawAsset);
+    try {
+      final dyn = rawAsset as dynamic;
+      return {
+        'title': dyn.title?.toString() ?? 'بطاقة رقمية',
+        'description': dyn.description?.toString() ?? '',
+        'price': dyn.price ?? 0.0,
+        'whatsapp': dyn.whatsapp?.toString() ?? widget.user.phone,
+        'facebook': dyn.facebookUrl?.toString() ?? '',
+      };
+    } catch (_) {
+      return {
+        'title': rawAsset.toString(),
+        'description': 'مستند رقمي معتمد في منظومة موكس',
+        'price': 0.0,
+        'whatsapp': widget.user.phone,
+        'facebook': '',
+      };
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +52,9 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
             gMox != "لم يحدد" &&
             gMox.toLowerCase() != 'null' &&
             !gMox.startsWith("MOX249-00010001"));
+
+    // جلب البطاقات والأصول والمستندات الحقيقية الخاصة بالعميل من كائن المستخدم
+    final realAssets = widget.user.myAssets;
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -174,148 +188,175 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                 ),
               ),
             const SizedBox(height: 20),
-            const Text(
-              "🛒 بطاقات المتجر الـ 5",
-              style: TextStyle(
+            Text(
+              "🛒 بطاقات ومستندات المتجر المعتمدة (${realAssets.length})",
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
                 color: Colors.indigo,
               ),
             ),
             const SizedBox(height: 10),
-            ..._clientCards.map((card) {
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(
+
+            // العرض الديناميكي للأصول والمستندات الحقيقية للعميل
+            if (realAssets.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              card['title'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Colors.indigo,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            "${card['price']} ج.س",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Colors.green,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.settings,
-                              color: Colors.indigo,
-                              size: 20,
-                            ),
-                            tooltip: "تنبيه النظام",
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "هذا المتجر للعرض فقط. لتعديل البطاقات يرجى تسجيل الدخول من حسابك.",
-                                  ),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        card['description'],
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black87,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                minimumSize: const Size(0, 36),
-                              ),
-                              onPressed: () async {
-                                final url = Uri.parse(
-                                  "https://wa.me/${card['whatsapp']}",
-                                );
-                                if (await canLaunchUrl(url)) {
-                                  await launchUrl(
-                                    url,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.shopping_bag_outlined,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                              label: const Text(
-                                "طلب منتج/خدمة",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                minimumSize: const Size(0, 36),
-                              ),
-                              onPressed: () async {
-                                final url = Uri.parse(card['facebook']);
-                                if (await canLaunchUrl(url)) {
-                                  await launchUrl(
-                                    url,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.link,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                              label: const Text(
-                                "المزيد من التفاصيل",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                child: const Center(
+                  child: Text(
+                    "لا توجد بطاقات أو مستندات موثقة مسجلة لهذا العميل حالياً.",
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              );
-            }),
+              )
+            else
+              ...realAssets.map((rawAsset) {
+                final card = _parseAsset(rawAsset);
+                final String phone =
+                    (card['whatsapp'] != null &&
+                        card['whatsapp'].toString().isNotEmpty)
+                    ? card['whatsapp'].toString()
+                    : widget.user.phone;
+                final double price = card['price'] != null
+                    ? (card['price'] is double
+                          ? card['price']
+                          : double.tryParse(card['price'].toString()) ?? 0.0)
+                    : 0.0;
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                card['title']?.toString() ?? 'بطاقة بدون عنوان',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Colors.indigo,
+                                ),
+                              ),
+                            ),
+                            if (price > 0)
+                              Text(
+                                "$price ج.س",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.green,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          card['description']?.toString() ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  minimumSize: const Size(0, 36),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  final url = Uri.parse("https://wa.me/$phone");
+                                  if (await canLaunchUrl(url)) {
+                                    await launchUrl(
+                                      url,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                label: const Text(
+                                  "طلب منتج/خدمة",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (card['facebook'] != null &&
+                                card['facebook']
+                                    .toString()
+                                    .trim()
+                                    .isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                    minimumSize: const Size(0, 36),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () async {
+                                    final url = Uri.parse(
+                                      card['facebook'].toString(),
+                                    );
+                                    if (await canLaunchUrl(url)) {
+                                      await launchUrl(
+                                        url,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.link,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                  label: const Text(
+                                    "المزيد من التفاصيل",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+
             const SizedBox(height: 20),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(

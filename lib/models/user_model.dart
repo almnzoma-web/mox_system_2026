@@ -7,10 +7,11 @@ class UserModel {
   String address;
   String gender, accountType, moxId, role;
   String? customWhatsApp;
-  String? guardianMoxId; // حقل الوصي الأصلي الخاص بموكس (يظل خالياً للعميل)
+  String? guardianMoxId; // حقل الوصي الأصلي الخاص بموكس
+  String? guardianMoxIdCustomer; // وصي العميل الجديد أو المدير افتراضياً
+  String? storePublishDate; // تاريخ النشر لتثبيت فترة الـ 365 يوماً
   String?
-  guardianMoxIdCustomer; // الحقل الجديد: وصي العميل الجديد أو المدير افتراضياً
-  String? storePublishDate; // حقل تاريخ أول نشر لتثبيت فترة الـ 365 يوماً
+  activationDate; // تاريخ التفعيل (موافق لـ storePublishDate لتجنب أي أخطاء)
   double balance, commission;
   int points; // نقاط الإحالة
   List<MarketingCard> myAssets;
@@ -27,14 +28,15 @@ class UserModel {
     this.moxId = "ID-005000",
     this.role = "free",
     this.customWhatsApp,
-    this.guardianMoxId = "", // يظل خالياً افتراضياً للعميل
-    this.guardianMoxIdCustomer = "MOX249-00010001", // القيمة الافتراضية للمدير
+    this.guardianMoxId = "",
+    this.guardianMoxIdCustomer = "MOX249-00010001",
     this.storePublishDate,
+    this.activationDate,
     this.points = 0,
     this.myAssets = const [],
   });
 
-  // دالة آمنة لتحديث بيانات المستخدم دون المساس ببقية الكود (جعل الهاتف اختيارياً لتسهيل التحديث)
+  // دالة آمنة لتحديث بيانات المستخدم
   UserModel copyWith({
     int? points,
     double? balance,
@@ -45,6 +47,7 @@ class UserModel {
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
     String? storePublishDate,
+    String? activationDate,
     List<MarketingCard>? myAssets,
   }) {
     return UserModel(
@@ -63,6 +66,7 @@ class UserModel {
       guardianMoxIdCustomer:
           guardianMoxIdCustomer ?? this.guardianMoxIdCustomer,
       storePublishDate: storePublishDate ?? this.storePublishDate,
+      activationDate: activationDate ?? this.activationDate,
       points: points ?? this.points,
       myAssets: myAssets ?? this.myAssets,
     );
@@ -85,6 +89,7 @@ class UserModel {
     'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
     'guardianMoxIdCustomer': guardianMoxIdCustomer ?? '',
     'storePublishDate': storePublishDate ?? '',
+    'activationDate': activationDate ?? storePublishDate ?? '',
   };
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -107,6 +112,13 @@ class UserModel {
       parsedAssets = [];
     }
 
+    String? pubDate = json['storePublishDate']?.toString();
+    String? actDate = json['activationDate']?.toString();
+    // توحيد التاريخين لضمان قراءتهما بسلاسة أياً كان المسجل في القاعدة
+    String? finalDate = (pubDate != null && pubDate.isNotEmpty)
+        ? pubDate
+        : actDate;
+
     return UserModel(
       phone: json['phone']?.toString() ?? '',
       password: json['password']?.toString() ?? '',
@@ -124,7 +136,8 @@ class UserModel {
       myAssets: parsedAssets,
       guardianMoxIdCustomer:
           json['guardianMoxIdCustomer']?.toString() ?? "MOX249-00010001",
-      storePublishDate: json['storePublishDate']?.toString(),
+      storePublishDate: finalDate,
+      activationDate: finalDate,
     );
   }
 }

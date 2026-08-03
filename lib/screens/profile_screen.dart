@@ -48,6 +48,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
+  // دالة حساب صلاحية المتجر (365 يوم من تاريخ التفعيل/التسجيل)
+  Map<String, dynamic> _calculateStoreSubscription() {
+    // نفترض أن UserModel يحتوي على حقل تاريخ التفعيل أو نستخدم تاريخ حالي افتراضي إذا لم يوجد
+    // يمكنك ربطها لاحقاً بـ widget.user.activationDate إذا أردت
+    DateTime activationDate;
+    try {
+      activationDate = widget.user.activationDate != null
+          ? DateTime.parse(widget.user.activationDate!)
+          : DateTime.now();
+    } catch (_) {
+      activationDate = DateTime.now();
+    }
+
+    DateTime expiryDate = activationDate.add(const Duration(days: 365));
+    int remainingDays = expiryDate.difference(DateTime.now()).inDays;
+    bool isExpired = remainingDays <= 0;
+
+    return {
+      'expiryDate':
+          "${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}",
+      'remainingDays': isExpired ? 0 : remainingDays,
+      'isExpired': isExpired,
+    };
+  }
+
   // دالة الحفظ السيادية (تحديث محلي + رفع فوري لشيت قوقل)
   Future<void> _saveChanges() async {
     setState(() {
@@ -96,6 +121,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String accountType = widget.user.accountType;
     bool isFree = accountType == 'مجاني';
     bool isAgent = accountType == 'وكيل';
+
+    // فحص فترة الـ 365 يوم للمتجر
+    final subInfo = _calculateStoreSubscription();
 
     return Scaffold(
       appBar: AppBar(
@@ -152,6 +180,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // بطاقة فحص فترة صلاحية المتجر (365 يوم)
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: subInfo['isExpired']
+                    ? Colors.red.withValues(alpha: 0.1)
+                    : Colors.teal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: subInfo['isExpired'] ? Colors.red : Colors.teal,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    subInfo['isExpired']
+                        ? Icons.warning_amber_rounded
+                        : Icons.verified,
+                    color: subInfo['isExpired'] ? Colors.red : Colors.teal,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "صلاحية المتجر الرقمي (فترة 365 يوم)",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subInfo['isExpired']
+                              ? "⚠️ انتهت صلاحية المتجر! يرجى التجديد."
+                              : "الأيام المتبقية: ${subInfo['remainingDays']} يوماً (ينتهي في ${subInfo['expiryDate']})",
+                          style: TextStyle(
+                            color: subInfo['isExpired']
+                                ? Colors.red
+                                : Colors.teal.shade800,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -222,7 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton.icon(
                 onPressed: () => _launchWhatsApp(
                   "249115855164",
-                  "مرحباً.. أريد الاستفسار عن خدمات الحساب المحترف في MOX",
+                  "مرحباً.. أريد الاستفسار عن خدمات الحساب المحترف وتجديد متجر MOX",
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: moxBlue,
@@ -238,14 +321,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 onPressed: () => _launchWhatsApp(
                   "249115855164",
-                  "أريد ترقية حسابي من مجاني إلى محترف في بنك MOX",
+                  "أريد ترقية حسابي وتفعيل متجري لمدة 365 يوم في بنك MOX",
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.amber[700],
                   minimumSize: const Size(double.infinity, 50),
                 ),
                 child: const Text(
-                  "ترقية الحساب الآن",
+                  "ترقية الحساب وتفعيل المتجر الآن",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
