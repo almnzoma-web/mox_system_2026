@@ -45,8 +45,21 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     _phoneController.text = widget.user.phone;
 
     // استرجاع اسم المتجر القديم إن وجد لضمان الاستمرارية
-    if (widget.user.myAssets.isNotEmpty) {
+    if (widget.user.name.isNotEmpty) {
       _storeNameController.text = widget.user.name;
+    }
+
+    // استرجاع المجال التجاري المخزن مسبقاً (في حقل address)
+    if (widget.user.address.isNotEmpty) {
+      _businessCategoryController.text = widget.user.address;
+    }
+
+    // استرجاع الوصف القديم من أصول المستخدم إن وجد بأمان تام
+    if (widget.user.myAssets.isNotEmpty) {
+      try {
+        final firstAsset = widget.user.myAssets.first;
+        _descriptionController.text = firstAsset.description;
+      } catch (_) {}
     }
 
     _availableCardsPool = widget.clientCards
@@ -301,7 +314,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             var originalCardData = widget.clientCards.firstWhere(
               (c) => c['title'].toString() == cardTitle,
             );
-            updatedAssets.add(MarketingCard.fromJson(originalCardData));
+            // دمج وصف المتجر العام ورقم الهاتف المدخل في كل بطاقة لضمان التناسق الفاخر
+            var cardModel = MarketingCard.fromJson(originalCardData);
+            updatedAssets.add(
+              cardModel.copyWith(
+                description: _descriptionController.text.trim(),
+                whatsapp: _phoneController.text.trim(),
+              ),
+            );
           } catch (_) {
             updatedAssets.add(
               MarketingCard(
@@ -323,10 +343,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
+      // 🛡️ التعديل الجذري الحاسم: حفظ اسم المتجر، الهاتف، المجال التجاري (address)، والبطاقات في الخزينة
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: _businessCategoryController.text.trim(),
         myAssets: updatedAssets,
-        storePublishDate: finalPublishTimestamp, // تثبيت تاريخ أول نشر حصرياً
+        storePublishDate: finalPublishTimestamp,
       );
 
       await StorageService.updateUserPartial(updatedUser);
@@ -340,7 +363,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح مع الحفاظ على عداد الـ 365 يوماً من أول انطلاقة",
+            "🚀 تم تحديث ونشر المتجر بنجاح مع حفظ المجال والوصف وتثبيت عداد الـ 365 يوماً",
           ),
           backgroundColor: Colors.green,
         ),

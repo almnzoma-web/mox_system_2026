@@ -34,20 +34,21 @@ class UserModel {
     this.myAssets = const [],
   });
 
-  // دالة آمنة لتحديث بيانات المستخدم دون المساس ببقية الكود
+  // دالة آمنة لتحديث بيانات المستخدم دون المساس ببقية الكود (جعل الهاتف اختيارياً لتسهيل التحديث)
   UserModel copyWith({
     int? points,
     double? balance,
     double? commission,
     String? name,
     String? address,
+    String? phone,
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
     String? storePublishDate,
     List<MarketingCard>? myAssets,
   }) {
     return UserModel(
-      phone: phone,
+      phone: phone ?? this.phone,
       password: password,
       name: name ?? this.name,
       address: address ?? this.address,

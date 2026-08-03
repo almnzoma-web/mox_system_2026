@@ -31,4 +31,23 @@ class MarketingCard {
     price: (json['price'] as num?)?.toDouble() ?? 0.0,
     isApproved: json['isApproved'] ?? false,
   );
+
+  // 3. 🌟 إضافة دالة copyWith السيادية لتحديث خصائص البطاقة بدقة
+  MarketingCard copyWith({
+    String? title,
+    String? description,
+    String? whatsapp,
+    String? facebookUrl,
+    double? price,
+    bool? isApproved,
+  }) {
+    return MarketingCard(
+      title: title ?? this.title,
+      description: description ?? this.description,
+      whatsapp: whatsapp ?? this.whatsapp,
+      facebookUrl: facebookUrl ?? this.facebookUrl,
+      price: price ?? this.price,
+      isApproved: isApproved ?? this.isApproved,
+    );
+  }
 }

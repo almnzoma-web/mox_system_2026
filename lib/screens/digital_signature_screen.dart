@@ -23,24 +23,18 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
 
   final List<Offset?> _points = [];
   bool _isSigned = false;
-  bool _isProcessingSignature = false; // مؤشر حالة التأخير وبناء التوقيع الرقمي
+  bool _isProcessingSignature = false;
 
-  // متغيرات إدارة المستندات وتحديد مكان التوقيع التفاعلي
   String _loadedDocName = "مستند مستقل (بدون ملف خارجي)";
   Uint8List? _loadedFileBytes;
   String _fileExtension = "";
 
-  // إحداثيات موضع علامة التوقيع داخل المستند
   Offset _signatureMarkerPosition = const Offset(150, 150);
-
-  // معامل التكبير والتصغير لمعاينة المستند/الصورة
   double _zoomScale = 1.0;
 
-  // بايتات التوقيع المرسوم بعد اعتماده لتثبيته في المعاينة
   Uint8List? _renderedSignatureBytes;
   Offset? _lockedSignaturePosition;
 
-  // محتوى المستند المستقل الافتراضي
   final String _defaultDocSampleText = """
 جمهورية السودان الرقمية - منظومة موكس (MOX)
 إقرار وتعاقد سيادي معتمد
@@ -154,8 +148,35 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     }
   }
 
-  // دالة معاينة المستند الفعلي والحقيقي من الأرشيف
-  void _viewDocumentDetails(Map<String, dynamic> asset) {
+  // دالة تحويل آمنة لأصول المستندات بغض النظر عن نوع الكائن لتلافي أخطاء الـ TypeCast
+  Map<String, dynamic> _parseAssetToMap(dynamic rawAsset) {
+    if (rawAsset is Map<String, dynamic>) {
+      return rawAsset;
+    } else if (rawAsset is Map) {
+      return Map<String, dynamic>.from(rawAsset);
+    } else {
+      try {
+        // محاولة استخراج الحقول إذا كان كائن MarketingCard أو مشابه
+        final dyn = rawAsset as dynamic;
+        return {
+          'title': dyn.title?.toString() ?? 'مستند موثق',
+          'description': dyn.description?.toString() ?? 'لا توجد تفاصيل إضافية',
+          'date': DateTime.now().toIso8601String(),
+          'status': 'موثق',
+        };
+      } catch (_) {
+        return {
+          'title': rawAsset.toString(),
+          'description': 'مستند رقمي معتمد في منظومة موكس',
+          'date': DateTime.now().toIso8601String(),
+          'status': 'موثق',
+        };
+      }
+    }
+  }
+
+  void _viewDocumentDetails(dynamic rawAsset) {
+    final Map<String, dynamic> asset = _parseAssetToMap(rawAsset);
     final String docTitle = asset['title']?.toString() ?? 'مستند موثق';
     final String docDesc =
         asset['description']?.toString() ?? 'لا توجد تفاصيل إضافية';
@@ -219,13 +240,10 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     );
   }
 
-  // دالة تحميل المستند الحقيقي المحدد إلى جهاز العميل
-  void _downloadArchivedDocument(Map<String, dynamic> asset) {
+  void _downloadArchivedDocument(dynamic rawAsset) {
+    final Map<String, dynamic> asset = _parseAssetToMap(rawAsset);
     final String docTitle = asset['title']?.toString() ?? 'مستند_موثق';
-    // ignore: unused_local_variable
-    final String docDescription = asset['description']?.toString() ?? '';
 
-    // محاكاة تنزيل الملف وحفظه بالاسم الحقيقي الذي كتبه العميل
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -285,14 +303,9 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                           itemBuilder: (context, index) {
                             final dynamic rawAsset =
                                 widget.currentUser.myAssets[index];
-                            final Map<String, dynamic> asset =
-                                rawAsset is Map<String, dynamic>
-                                ? rawAsset
-                                : {
-                                    'title': rawAsset.toString(),
-                                    'date': DateTime.now().toIso8601String(),
-                                    'status': 'موثق',
-                                  };
+                            final Map<String, dynamic> asset = _parseAssetToMap(
+                              rawAsset,
+                            );
 
                             return Card(
                               color: Colors.black,
@@ -327,7 +340,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // زر الفتح للمشاهدة الفورية بالاسم الحقيقي
                                     IconButton(
                                       icon: const Icon(
                                         Icons.visibility,
@@ -336,9 +348,8 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                       ),
                                       tooltip: "معاينة المستند",
                                       onPressed: () =>
-                                          _viewDocumentDetails(asset),
+                                          _viewDocumentDetails(rawAsset),
                                     ),
-                                    // زر التحميل بالاسم الحقيقي
                                     IconButton(
                                       icon: const Icon(
                                         Icons.download_rounded,
@@ -347,7 +358,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                       ),
                                       tooltip: "تحميل المستند",
                                       onPressed: () =>
-                                          _downloadArchivedDocument(asset),
+                                          _downloadArchivedDocument(rawAsset),
                                     ),
                                   ],
                                 ),
@@ -386,12 +397,10 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     }
 
     try {
-      // تفعيل حالة التأخير وعرض رسالة بناء التوقيع الفاخرة
       setState(() {
         _isProcessingSignature = true;
       });
 
-      // تأخير مقصود لعدة ثوانٍ لإتمام بناء التوقيع الرقمي بمهابة وفخامة
       await Future.delayed(const Duration(seconds: 3));
 
       Uint8List? sigBytes = await _exportSignatureAsImage();
@@ -401,13 +410,11 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         _lockedSignaturePosition = _signatureMarkerPosition;
       });
 
-      // حفظ المستند بالاسم الحقيقي الذي كتبه العميل تماماً
       final String customDocTitle = _docTitleController.text.trim();
       final dynamic signedAsset = MarketingCard(
         title: customDocTitle,
         description:
-            // ignore: unnecessary_brace_in_string_interps
-            "توقيع سيادي معتمد - ${_loadedDocName} | بصمة MOX الرقمية المعتمدة",
+            "توقيع سيادي معتمد - $_loadedDocName | بصمة MOX الرقمية المعتمدة",
         whatsapp: widget.currentUser.phone,
         facebookUrl: "",
       );
@@ -480,7 +487,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // زر الأرشيف
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -544,7 +550,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // بطاقة بيانات العميل
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -587,7 +592,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // خيارات تحميل الملفات
                 Row(
                   children: [
                     Expanded(
@@ -674,7 +678,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // عنوان المعاينة مع أزرار التكبير والتصغير
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -727,7 +730,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // حاوية المعاينة
                 SizedBox(
                   height: 320,
                   width: double.infinity,
@@ -759,11 +761,11 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                     ),
                                     child:
                                         _loadedFileBytes != null &&
-                                            ([
+                                            [
                                               'png',
                                               'jpg',
                                               'jpeg',
-                                            ].contains(_fileExtension))
+                                            ].contains(_fileExtension)
                                         ? Image.memory(
                                             _loadedFileBytes!,
                                             fit: BoxFit.contain,
@@ -874,7 +876,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                 ),
                               ),
 
-                              // عرض التوقيع المعتمد
                               if (_renderedSignatureBytes != null &&
                                   _lockedSignaturePosition != null)
                                 Positioned(
@@ -911,7 +912,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                                   ),
                                 ),
 
-                              // مؤشر التوقيع المتحرك
                               if (_renderedSignatureBytes == null)
                                 Positioned(
                                   left: _signatureMarkerPosition.dx.clamp(
@@ -975,7 +975,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // لوحة الرسم اليدوي
                 const Text(
                   "✍️ مساحة التوقيع الرقمي (وقع يدويّاً داخل الإطار بالأسفل):",
                   style: TextStyle(
@@ -1038,7 +1037,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // زر الاعتماد والحفظ
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -1074,7 +1072,6 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
             ),
           ),
 
-          // طبقة التحميل والرسالة الفاخرة في المنتصف عند توليد وتثبيت التوقيع الرقمي
           if (_isProcessingSignature)
             Container(
               color: Colors.black.withValues(alpha: 0.85),
