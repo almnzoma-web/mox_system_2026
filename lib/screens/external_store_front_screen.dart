@@ -37,7 +37,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // الدالة السيادية الحسمية لفك وتوحيد كائن العميل وبطاقاته بالكامل
+  // الدالة السيادية الحسمية لفك وتوحيد كائن العميل وبطاقاته بالكامل مع التحديث الفوري
   Future<void> _initializeStoreData() async {
     if (mounted) {
       setState(() {
@@ -62,7 +62,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
           targetMoxId =
               uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
 
-          // التحقق مما إذا كان هناك كائن JSON كامل مشفر وممرر في الرابط مباشرة
           final String? jsonPayload =
               uri.queryParameters['data'] ?? uri.queryParameters['json'];
           if (jsonPayload != null && jsonPayload.isNotEmpty) {
@@ -79,7 +78,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // 3. جلب العميل من الخزينة السيادية عبر الـ MoxId المستخلص
+      // 3. جلب العميل من الخزينة السيادية والسحابة عبر الـ MoxId المستخلص لضمان التحديث الفوري
       if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
         try {
           userToUse = await StorageService.getUserByMoxId(targetMoxId);
@@ -94,7 +93,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // 4. إذا تم تمرير المستخدم مباشرة، نحدث نسخه من الخزينة
+      // 4. إذا تم تمرير المستخدم مباشرة، نحدث نسخه من أحدث بيانات الخزينة
       if (userToUse != null) {
         try {
           if (userToUse.moxId.isNotEmpty && userToUse.moxId != "لم يحدد") {
@@ -108,7 +107,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // 5. استخراج وتحويل كافة الأصول والبطاقات (myAssets) إلى قائمة متكاملة لتجنب عرض بطاقة واحدة
+      // 5. استخراج وتحويل كافة الأصول والبطاقات (myAssets) إلى قائمة متكاملة
       if (userToUse != null && userToUse.myAssets.isNotEmpty) {
         final List<Map<String, dynamic>> convertedAssets = [];
         for (final asset in userToUse.myAssets) {
@@ -142,7 +141,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       }
     } catch (_) {}
 
-    // بناء الكائن الآمن النهائي
     _resolvedUser =
         userToUse ??
         UserModel(
@@ -176,12 +174,14 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     }
   }
 
-  bool _hasActiveStore(UserModel activeUser) {
+  // 🛡️ دالة التحقق السيادي من تنشيط المتجر وصلاحية الـ 365 يوماً
+  bool _isStoreActiveAndValid(UserModel activeUser) {
     // ignore: unnecessary_nullable_for_final_variable_declarations
     final String? mox = activeUser.moxId;
     final String? gMox = activeUser.guardianMoxId;
 
-    return (mox != null &&
+    bool hasBasicActivity =
+        (mox != null &&
             mox.trim().isNotEmpty &&
             mox != "لم يحدد" &&
             mox.toLowerCase() != 'null') ||
@@ -192,6 +192,38 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
             !gMox.startsWith("MOX249-00010001")) ||
         activeUser.phone.isNotEmpty ||
         activeUser.myAssets.isNotEmpty;
+
+    if (!hasBasicActivity) return false;
+
+    // فحص صلاحية الـ 365 يوماً بناءً على تاريخ أول نشر (storePublishDate)
+    if (activeUser.storePublishDate != null &&
+        activeUser.storePublishDate!.isNotEmpty) {
+      try {
+        DateTime publishDate = DateTime.parse(activeUser.storePublishDate!);
+        DateTime expiryDate = publishDate.add(const Duration(days: 365));
+        if (DateTime.now().isAfter(expiryDate)) {
+          return false; // انتهت فترة الـ 365 يوماً
+        }
+      } catch (_) {}
+    }
+
+    return true;
+  }
+
+  // ⏳ حساب الأيام المتبقية من الـ 365 يوماً بدقة تامة
+  int _getRemainingDays(UserModel activeUser) {
+    if (activeUser.storePublishDate == null ||
+        activeUser.storePublishDate!.isEmpty) {
+      return 365;
+    }
+    try {
+      DateTime publishDate = DateTime.parse(activeUser.storePublishDate!);
+      DateTime expiryDate = publishDate.add(const Duration(days: 365));
+      int remaining = expiryDate.difference(DateTime.now()).inDays;
+      return remaining > 0 ? remaining : 0;
+    } catch (_) {
+      return 365;
+    }
   }
 
   @override
@@ -209,7 +241,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF28A9CC),
           title: const Text(
-            "جاري تحميل المتجر...",
+            "جاري تحديث وتحميل المتجر...",
             style: TextStyle(color: Colors.white, fontSize: 16),
           ),
         ),
@@ -221,7 +253,8 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
 
     final UserModel resolvedUser = _resolvedUser!;
     final List<Map<String, dynamic>> activeCards = _resolvedCards;
-    final bool isStoreActive = _hasActiveStore(resolvedUser);
+    final bool isStoreActive = _isStoreActiveAndValid(resolvedUser);
+    final int remainingDays = _getRemainingDays(resolvedUser);
 
     Widget content = Scaffold(
       appBar: AppBar(
@@ -255,6 +288,60 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         child: isStoreActive
             ? ListView(
                 children: [
+                  // 🌟 عداد الأيام التنازلي (365 يوم) في رأس المتجر
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      border: Border.all(
+                        color: const Color(0xFF28A9CC),
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.timer_outlined,
+                              color: Color(0xFF28A9CC),
+                              size: 24,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "حالة العداد السيادي:",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1B6B80),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF28A9CC),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            "متبقي $remainingDays يوم من إجمالي ٣٦٥ يوماً",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 15),
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -291,6 +378,16 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                             fontSize: 13,
                           ),
                         ),
+                        if (resolvedUser.address.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            "المجال التجاري: ${resolvedUser.address}",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -304,7 +401,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // عرض كافة البطاقات والأصول بدون أي اقتطاع
                   ...activeCards.map((card) {
                     return Card(
                       elevation: 2,
@@ -432,6 +528,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                   }),
                 ],
               )
+            // 🛡️ [الرسالة الفاخرة والمادة الترويجية في حال عدم التنشيط أو انتهاء الفترة]
             : Center(
                 child: SingleChildScrollView(
                   child: Container(
@@ -440,6 +537,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                       color: Colors.red[50],
                       border: Border.all(
                         color: Colors.redAccent.withValues(alpha: 0.5),
+                        width: 1.5,
                       ),
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -453,22 +551,55 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          "⚠️ تنبيه سيادي فاخر",
+                          "⚠️ تنبيه سيادي فاخر: المتجر غير مفعّل",
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.red,
                           ),
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          "هذا العميل لم يقوم حتى الآن بتنشيط متجره أو دكانه وأصوله الرقمية.",
+                          "عفواً.. هذا العميل لم يقوم حتى الآن بتنشيط متجره، أو انتهت فترة اعتماده السيادي (365 يوماً).",
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Colors.black87,
                             height: 1.5,
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // 📄 المادة الترويجية الاحترافية للزوار
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.indigo.shade200),
+                          ),
+                          child: const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "💡 هل تمتلك مشروعاً أو دكاناً تجارياً؟",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B6B80),
+                                  fontSize: 13,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text(
+                                "انضم الآن إلى منظومة موكس السيادية وافتح متجرك الرقمي المتكامل مع إدارة الرفوف، وتوثيق العقود، والوصول الفوري للعملاء على مدار ٣٦٥ يوماً بكل احترافية وثقة ☕🚬.",
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Colors.black54,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -491,10 +622,10 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                           },
                           icon: const Icon(Icons.login, color: Colors.white),
                           label: const Text(
-                            "الدخول إلى التطبيق والترحيب",
+                            "الدخول إلى التطبيق وإنشاء متجرك السيادي",
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 15,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

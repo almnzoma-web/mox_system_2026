@@ -148,15 +148,20 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     }
   }
 
-  // دالة تحويل آمنة لأصول المستندات بغض النظر عن نوع الكائن لتلافي أخطاء الـ TypeCast
   Map<String, dynamic> _parseAssetToMap(dynamic rawAsset) {
-    if (rawAsset is Map<String, dynamic>) {
+    if (rawAsset is MarketingCard) {
+      return {
+        'title': rawAsset.title,
+        'description': rawAsset.description,
+        'date': DateTime.now().toIso8601String(),
+        'status': 'موثق',
+      };
+    } else if (rawAsset is Map<String, dynamic>) {
       return rawAsset;
     } else if (rawAsset is Map) {
       return Map<String, dynamic>.from(rawAsset);
     } else {
       try {
-        // محاولة استخراج الحقول إذا كان كائن MarketingCard أو مشابه
         final dyn = rawAsset as dynamic;
         return {
           'title': dyn.title?.toString() ?? 'مستند موثق',
@@ -203,7 +208,7 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "اسم المستند الحقيقي: $docTitle",
+              "اسم المستند المعتمد: $docTitle",
               style: const TextStyle(
                 color: Color(0xFFD4AF37),
                 fontWeight: FontWeight.bold,
@@ -247,12 +252,70 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          "📥 جاري تحميل المستند الحقيقي ('$docTitle') إلى جهازك بنجاح...",
+          "📥 جاري تحميل المستند ('$docTitle') إلى جهازك أو هاتفك بنجاح...",
         ),
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  Future<void> _clearClientDocuments() async {
+    if (widget.currentUser.myAssets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("ℹ️ قائمة المستندات فارغة بالفعل."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          "⚠️ تنظيف قائمة المستندات",
+          style: TextStyle(color: Colors.orange, fontSize: 16),
+        ),
+        content: const Text(
+          "هل أنت متأكد من رغبتك في حذف وتطهير كافة المستندات الموثقة من الأرشيف؟",
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              "تأكيد التنظيف",
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        widget.currentUser.myAssets.clear();
+      });
+
+      await StorageService.updateUserPartial(widget.currentUser);
+      await StorageService.saveUsersList();
+
+      if (!mounted) return;
+      Navigator.pop(context); // إغلاق المودال
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🧹 تم تنظيف قائمة المستندات الأرشيفية بنجاح."),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    }
   }
 
   void _showClientDocumentsModal() {
@@ -264,112 +327,145 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.5,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter modalSetState) {
+            return Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.55,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "📂 مستندات عميل موكس الأرشيفية",
-                      style: TextStyle(
-                        color: Color(0xFFD4AF37),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "📂 مستندات عميل موكس الأرشيفية",
+                          style: TextStyle(
+                            color: Color(0xFFD4AF37),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                    const Divider(color: Color(0xFFD4AF37)),
+
+                    // زر تنظيف قائمة المستندات
+                    if (widget.currentUser.myAssets.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            await _clearClientDocuments();
+                            modalSetState(() {});
+                            setState(() {});
+                          },
+                          icon: const Icon(
+                            Icons.cleaning_services,
+                            color: Colors.redAccent,
+                            size: 16,
+                          ),
+                          label: const Text(
+                            "تنظيف القائمة بالكامل",
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 5),
+
+                    Expanded(
+                      child: widget.currentUser.myAssets.isEmpty
+                          ? const Center(
+                              child: Text(
+                                "لا توجد مستندات موثقة حتى الآن",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: widget.currentUser.myAssets.length,
+                              itemBuilder: (context, index) {
+                                final dynamic rawAsset =
+                                    widget.currentUser.myAssets[index];
+                                final Map<String, dynamic> asset =
+                                    _parseAssetToMap(rawAsset);
+
+                                return Card(
+                                  color: Colors.black,
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    side: const BorderSide(
+                                      color: Color(0xFFD4AF37),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    leading: const Icon(
+                                      Icons.verified,
+                                      color: Color(0xFFD4AF37),
+                                    ),
+                                    title: Text(
+                                      asset['title']?.toString() ??
+                                          'مستند بدون عنوان',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: const Text(
+                                      "موثق سيادياً عبر بصمة MOX",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.visibility,
+                                            color: Colors.lightBlueAccent,
+                                            size: 20,
+                                          ),
+                                          tooltip: "معاينة المستند",
+                                          onPressed: () =>
+                                              _viewDocumentDetails(rawAsset),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.download_rounded,
+                                            color: Colors.green,
+                                            size: 20,
+                                          ),
+                                          tooltip: "تحميل المستند للجهاز",
+                                          onPressed: () =>
+                                              _downloadArchivedDocument(
+                                                rawAsset,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),
-                const Divider(color: Color(0xFFD4AF37)),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: widget.currentUser.myAssets.isEmpty
-                      ? const Center(
-                          child: Text(
-                            "لا توجد مستندات موثقة حتى الآن",
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: widget.currentUser.myAssets.length,
-                          itemBuilder: (context, index) {
-                            final dynamic rawAsset =
-                                widget.currentUser.myAssets[index];
-                            final Map<String, dynamic> asset = _parseAssetToMap(
-                              rawAsset,
-                            );
-
-                            return Card(
-                              color: Colors.black,
-                              margin: const EdgeInsets.symmetric(vertical: 6),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                side: const BorderSide(
-                                  color: Color(0xFFD4AF37),
-                                  width: 1,
-                                ),
-                              ),
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.verified,
-                                  color: Color(0xFFD4AF37),
-                                ),
-                                title: Text(
-                                  asset['title']?.toString() ??
-                                      'مستند بدون عنوان',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  "التاريخ: ${asset['date']?.toString().substring(0, 10) ?? ''} | موثق",
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.visibility,
-                                        color: Colors.lightBlueAccent,
-                                        size: 20,
-                                      ),
-                                      tooltip: "معاينة المستند",
-                                      onPressed: () =>
-                                          _viewDocumentDetails(rawAsset),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.download_rounded,
-                                        color: Colors.green,
-                                        size: 20,
-                                      ),
-                                      tooltip: "تحميل المستند",
-                                      onPressed: () =>
-                                          _downloadArchivedDocument(rawAsset),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -411,10 +507,12 @@ class _DigitalSignatureScreenState extends State<DigitalSignatureScreen> {
       });
 
       final String customDocTitle = _docTitleController.text.trim();
-      final dynamic signedAsset = MarketingCard(
+
+      final MarketingCard signedAsset = MarketingCard(
         title: customDocTitle,
         description:
             "توقيع سيادي معتمد - $_loadedDocName | بصمة MOX الرقمية المعتمدة",
+        price: 0.0,
         whatsapp: widget.currentUser.phone,
         facebookUrl: "",
       );

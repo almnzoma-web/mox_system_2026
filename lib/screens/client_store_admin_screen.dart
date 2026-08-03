@@ -44,7 +44,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     super.initState();
     _phoneController.text = widget.user.phone;
 
-    // استرجاع اسم المتجر القديم إن وجد لضمان الاستمرارية
+    // استرجاع اسم المتجر القديم إن وجد لضمان الاستمرارية (حقل name)
     if (widget.user.name.isNotEmpty) {
       _storeNameController.text = widget.user.name;
     }
@@ -78,7 +78,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
-  // نافذة التحقق الأمني المتقنة: التأكد حصرياً من مطابقة moxId أو guardianMoxId (واستبعاد حقل الوصي العميل الفرعي) ثم كلمة السر
+  // نافذة التحقق الأمني المتقنة: التأكد حصرياً من مطابقة moxId أو guardianMoxId ثم كلمة السر
   void _showSecurityLoginDialog() async {
     await StorageService.ensureLoaded();
 
@@ -149,7 +149,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               bool isPasswordMatched = false;
 
               try {
-                // 🛡️ [فحص أمني صارم]: الاعتماد حصرياً على moxId و guardianMoxId واستبعاد guardianMoxIdCustomer لمنع الثغرة
                 bool matchesUserMox =
                     (widget.user.moxId.trim().toUpperCase() ==
                         enteredMox.toUpperCase()) ||
@@ -277,7 +276,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 حفظ النشر وتثبيت تاريخ البداية الأول بحيث لا يتغير مع أي تعديلات لاحقة (فترة 365 يوماً ثابتة)
+  // 🚀 حفظ النشر وتثبيت الحقول في الذاكرة وقاعدة البيانات والسحابة
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -314,7 +313,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             var originalCardData = widget.clientCards.firstWhere(
               (c) => c['title'].toString() == cardTitle,
             );
-            // دمج وصف المتجر العام ورقم الهاتف المدخل في كل بطاقة لضمان التناسق الفاخر
             var cardModel = MarketingCard.fromJson(originalCardData);
             updatedAssets.add(
               cardModel.copyWith(
@@ -336,14 +334,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         }
       }
 
-      // المنطق السيادي الدقيق: إذا كان هناك تاريخ نشر قديم مسجل، نحافظ عليه ولا نغيره ليبقى عداد الـ 365 يوماً محسوباً من أول نشر مطلقاً.
       String finalPublishTimestamp =
           (widget.user.storePublishDate != null &&
               widget.user.storePublishDate!.isNotEmpty)
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      // 🛡️ التعديل الجذري الحاسم: حفظ اسم المتجر، الهاتف، المجال التجاري (address)، والبطاقات في الخزينة
+      // 🛡️ الربط المباشر لحفظ اسم المتجر في name والمجال التجاري في address وهاتف الاتصال والأصول
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -352,6 +349,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         storePublishDate: finalPublishTimestamp,
       );
 
+      // استدعاء خدمة التخزين المحدثة لحفظه محلياً، في الجلسة، ورفع البيانات لقوقل
       await StorageService.updateUserPartial(updatedUser);
 
       if (!mounted) return;
@@ -363,7 +361,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح مع حفظ المجال والوصف وتثبيت عداد الـ 365 يوماً",
+            "🚀 تم تحديث ونشر المتجر بنجاح مع حفظ اسم المتجر والمجال التجاري وتثبيت عداد الـ 365 يوماً",
           ),
           backgroundColor: Colors.green,
         ),
