@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -9,7 +10,7 @@ import 'welcome_screen.dart';
 class ExternalStoreFrontScreen extends StatefulWidget {
   final UserModel? user;
   final List<Map<String, dynamic>> clientCards;
-  final String? directMoxId; // تم التعديل للاعتماد على moxId بالمسطرة
+  final String? directMoxId;
   final double? height;
 
   const ExternalStoreFrontScreen({
@@ -36,7 +37,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // دالة ذكية لتحليل الـ URL أو تحديث البيانات مباشرة من الذاكرة المحلية
+  // الدالة السيادية الحسمية لفك وتوحيد كائن العميل وبطاقاته بالكامل
   Future<void> _initializeStoreData() async {
     if (mounted) {
       setState(() {
@@ -51,10 +52,49 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     String? targetMoxId = widget.directMoxId;
 
     try {
-      // التأكد من تحديث وتحميل الخزينة السيادية أولاً لضمان جلب أحدث الأصول والبطاقات
+      // 1. التأكد من تحميل الخزينة السيادية أولاً
       await StorageService.ensureLoaded();
 
-      // إذا تم تمرير مستخدم، نقوم بجلب أحدث نسخة مسجلة له من الذاكرة المحلية (لتحديث المتجر تلقائياً)
+      // 2. إذا كنا نعمل على الويب، فك الـ URL ومعلمات الـ JSON أو الـ mox
+      if (userToUse == null && targetMoxId == null && kIsWeb) {
+        try {
+          final uri = Uri.base;
+          targetMoxId =
+              uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
+
+          // التحقق مما إذا كان هناك كائن JSON كامل مشفر وممرر في الرابط مباشرة
+          final String? jsonPayload =
+              uri.queryParameters['data'] ?? uri.queryParameters['json'];
+          if (jsonPayload != null && jsonPayload.isNotEmpty) {
+            final decodedBytes = base64Url.decode(
+              base64Url.normalize(jsonPayload),
+            );
+            final decodedString = utf8.decode(decodedBytes);
+            final Map<String, dynamic> parsedJson = json.decode(decodedString);
+
+            if (parsedJson.containsKey('moxId')) {
+              targetMoxId = parsedJson['moxId'];
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. جلب العميل من الخزينة السيادية عبر الـ MoxId المستخلص
+      if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
+        try {
+          userToUse = await StorageService.getUserByMoxId(targetMoxId);
+          if (userToUse != null) {
+            final fetchedCards = await StorageService.getClientCards(
+              targetMoxId,
+            );
+            if (fetchedCards.isNotEmpty) {
+              cardsToUse = List<Map<String, dynamic>>.from(fetchedCards);
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 4. إذا تم تمرير المستخدم مباشرة، نحدث نسخه من الخزينة
       if (userToUse != null) {
         try {
           if (userToUse.moxId.isNotEmpty && userToUse.moxId != "لم يحدد") {
@@ -68,27 +108,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // إذا كنا نعمل على الويب ولم يتم تمرير المستخدم مباشرة، نقوم بقراءة الباراميتر من الـ URL
-      if (userToUse == null && targetMoxId == null && kIsWeb) {
-        try {
-          final uri = Uri.base;
-          targetMoxId =
-              uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
-        } catch (_) {}
-      }
-
-      // إذا وجدنا الـ moxId قادماً من الرابط الخارجي، نسحب بيانات العميل وبطاقاته من الخزينة السيادية
-      if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
-        try {
-          userToUse = await StorageService.getUserByMoxId(targetMoxId);
-          final fetchedCards = await StorageService.getClientCards(targetMoxId);
-          if (fetchedCards.isNotEmpty) {
-            cardsToUse = List<Map<String, dynamic>>.from(fetchedCards);
-          }
-        } catch (_) {}
-      }
-
-      // إذا كان للمستخدم أصول/بطاقات مسجلة (myAssets)، نقوم بتحويلها لعرضها مباشرة بأمان تام
+      // 5. استخراج وتحويل كافة الأصول والبطاقات (myAssets) إلى قائمة متكاملة لتجنب عرض بطاقة واحدة
       if (userToUse != null && userToUse.myAssets.isNotEmpty) {
         final List<Map<String, dynamic>> convertedAssets = [];
         for (final asset in userToUse.myAssets) {
@@ -101,14 +121,13 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
               );
               // ignore: unnecessary_null_comparison
             } else if (asset != null) {
-              // التحقق من وجود دالة toJson أو استخراج البيانات كخريطة
               final dynamic rawJson = (asset as dynamic).toJson();
               if (rawJson is Map) {
                 convertedAssets.add(Map<String, dynamic>.from(rawJson));
               } else {
                 convertedAssets.add({
                   'title': asset.toString(),
-                  'description': 'أصل رقمي معتمد في منظومة موكس',
+                  'description': 'أصل رقمي معتمد في منظومة موكس السيادية',
                   'price': 0.0,
                   'whatsapp': userToUse.phone,
                   'facebookUrl': '',
@@ -123,7 +142,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       }
     } catch (_) {}
 
-    // إذا لم نجد العميل، نقوم ببناء كائن افتراضي آمن
+    // بناء الكائن الآمن النهائي
     _resolvedUser =
         userToUse ??
         UserModel(
@@ -285,6 +304,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  // عرض كافة البطاقات والأصول بدون أي اقتطاع
                   ...activeCards.map((card) {
                     return Card(
                       elevation: 2,
