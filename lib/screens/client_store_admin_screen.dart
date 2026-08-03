@@ -32,6 +32,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   bool _isAuthorized = false;
   bool _isPublishing = false;
+  bool _isStoreExpired =
+      false; // فحص ما إذا كان المتجر منتهي الصلاحية (بعد 365 يوم)
 
   @override
   void initState() {
@@ -46,7 +48,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       _businessCategoryController.text = widget.user.address;
     }
 
-    // 🌟 جلب وصف المتجر المستقل لمنع التداخل مع البطاقات
     if (widget.user.storeDescription.isNotEmpty) {
       _descriptionController.text = widget.user.storeDescription;
     }
@@ -55,7 +56,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         .map((card) => card['title'].toString())
         .toList();
 
-    // استرجاع البطاقات المنشطة فقط والمحفوظة مسبقاً
     List<String> activeCardTitles = widget.user.myAssets
         .where((asset) => asset.isApproved && asset.title.isNotEmpty)
         .map((asset) => asset.title)
@@ -67,9 +67,36 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           index < activeCardTitles.length ? activeCardTitles[index] : null,
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showSecurityLoginDialog();
-    });
+    // 🛡️ فحص صلاحية الـ 365 يوم للمتجر:
+    // إذا كان المتجر جديداً كلياً (ليس لديه تاريخ تفعيل أو إطلاق سابق)، يُعتبر مصرحاً له مباشرة دون حوار معوق.
+    // أما إذا كان لديه تاريخ تفعيل قديم وتمضي عليه أكثر من سنة (منتهي)، فيتطلب التحقق والتنشيط.
+    if (widget.user.storePublishDate == null ||
+        widget.user.storePublishDate!.trim().isEmpty ||
+        widget.user.storePublishDate == "null") {
+      _isAuthorized = true; // متجر لأول مرة يفتح مباشرة
+      _isStoreExpired = false;
+    } else {
+      try {
+        DateTime publishDate = DateTime.parse(widget.user.storePublishDate!);
+        DateTime expiryDate = publishDate.add(const Duration(days: 365));
+        if (DateTime.now().isAfter(expiryDate)) {
+          _isStoreExpired = true; // انتهت الـ 365 يوم ويحتاج تنشيط
+          _isAuthorized = false;
+        } else {
+          _isAuthorized = true; // ساري المفعول
+          _isStoreExpired = false;
+        }
+      } catch (_) {
+        _isAuthorized = true;
+      }
+    }
+
+    // استدعاء حوار التحقق فقط إذا كان المتجر منتهياً
+    if (_isStoreExpired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showSecurityLoginDialog();
+      });
+    }
   }
 
   void _showSecurityLoginDialog() async {
@@ -91,11 +118,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.verified_user, color: Color(0xFF28A9CC)),
             SizedBox(width: 8),
             Text(
-              "التحقق برقم موكس وكلمة السر",
+              "تنشيط المتجر (انتهت فترة 365 يوم)",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1B6B80),
-                fontSize: 14,
+                fontSize: 13,
               ),
             ),
           ],
@@ -105,14 +132,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم موكس الخاص بك أولاً للتحقق من وجوده في ملفك، ثم كلمة السر بالمسطرة:",
+              "انتهت صلاحية متجرك (365 يوم). أرجو إدخال رقم موكس وكلمة السر للتنشيط والتجديد:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
             TextField(
               controller: moxInputController,
               decoration: const InputDecoration(
-                labelText: "أدرج رقم موكس (MOX)",
+                labelText: "رقم موكس (MOX)",
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
@@ -203,11 +230,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               } else {
                 setState(() {
                   _isAuthorized = true;
+                  _isStoreExpired = false;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم التحقق من رقم موكس وكلمة السر بنجاح - مرحباً بك في سيادة الدكان",
+                      "✅ تم التنشيط بنجاح لمدة 365 يوم جديدة - مرحباً بك",
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -215,7 +243,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               }
             },
             child: const Text(
-              "تحقق معتمد",
+              "تحقـق وتنشـيط",
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -236,7 +264,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             Icon(Icons.gpp_bad, color: Colors.red),
             SizedBox(width: 8),
             Text(
-              "خطأ في التحقق والاعتماد السيادي",
+              "خطأ في بيانات التنشيط",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.red,
@@ -246,7 +274,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً عميلنا الكريم.. رقم موكس المدخل غير مطابق لملفك أو كلمة السر غير صحيحة. النظام يتطلب مطابقة رقم موكس الأساسي أو المعتمد أولاً ثم كلمة السر بدقة صارمة🤚",
+          "عفواً.. رقم موكس المدخل غير مطابق أو كلمة السر غير صحيحة لتنشيط المتجر 🤚",
           style: TextStyle(
             fontSize: 13,
             height: 1.5,
@@ -270,7 +298,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   Future<void> _publishStore() async {
-    if (!_isAuthorized) {
+    if (!_isAuthorized && _isStoreExpired) {
       _showSecurityLoginDialog();
       return;
     }
@@ -298,7 +326,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       await Future.delayed(const Duration(seconds: 2));
 
-      // 🛡️ تجميع البطاقات المنشطة والمحفوظة فقط (منع نشر البطاقات الفارغة)
       List<MarketingCard> updatedAssets = [];
       for (var cardTitle in _selectedCards) {
         if (cardTitle != null && cardTitle.trim().isNotEmpty) {
@@ -310,28 +337,28 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             updatedAssets.add(
               cardModel.copyWith(
                 whatsapp: _phoneController.text.trim(),
-                isApproved: true, // تأكيد اعتماد وحفظ البطاقة المنشطة
+                isApproved: true,
               ),
             );
           } catch (_) {}
         }
       }
 
+      // إذا كان المتجر ينشأ لأول مرة أو تجدد، نحدث تاريخ النشر والتنشيط
       String finalPublishTimestamp =
           (widget.user.storePublishDate != null &&
               widget.user.storePublishDate!.trim().isNotEmpty &&
-              widget.user.storePublishDate != "null")
+              widget.user.storePublishDate != "null" &&
+              !_isStoreExpired)
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      // 🛡️ حفظ بيانات المتجر مع فصل وصف المتجر تماماً عن وصف البطاقات
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
-        storeDescription: _descriptionController.text
-            .trim(), // حفظ الوصف مستقلاً
-        myAssets: updatedAssets, // حفظ البطاقات المنشطة فقط
+        storeDescription: _descriptionController.text.trim(),
+        myAssets: updatedAssets,
         storePublishDate: finalPublishTimestamp,
         activationDate: finalPublishTimestamp,
       );
@@ -348,9 +375,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح وحفظ البطاقات المنشطة فقط بدون أي تداخل",
-          ),
+          content: Text("🚀 تم تحديث ونشر المتجر بنجاح لمدة 365 يوم"),
           backgroundColor: Colors.green,
         ),
       );
@@ -361,19 +386,43 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isAuthorized) {
+    // إذا كان المتجر منتهي الصلاحية ولم يتم ترخيصه بعد، اعرض شاشة الانتظار أو التنبيه بدلاً من الشاشة البيضاء
+    if (!_isAuthorized && _isStoreExpired) {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.redAccent,
           title: const Text(
-            "منطقة مقفلة برهون الاعتماد",
-            style: TextStyle(color: Colors.white),
+            "متجر منتهي الصلاحية (يتطلب تنشيط 365 يوم)",
+            style: TextStyle(color: Colors.white, fontSize: 14),
           ),
         ),
-        body: const Center(
-          child: Text(
-            "جاري التحقق برقم موكس وكلمة السر...",
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock_clock, size: 60, color: Colors.redAccent),
+                const SizedBox(height: 16),
+                const Text(
+                  "انتهت صلاحية الـ 365 يوم لهذا المتجر.",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF28A9CC),
+                  ),
+                  onPressed: _showSecurityLoginDialog,
+                  icon: const Icon(Icons.verified, color: Colors.white),
+                  label: const Text(
+                    "إدخال بيانات التنشيط الآن",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -385,7 +434,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           appBar: AppBar(
             backgroundColor: const Color(0xFF28A9CC),
             title: const Text(
-              "لوحة النشر (الصفحة A)",
+              "لوحة إعدادات المتجر",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -449,7 +498,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         : null,
                   ),
                   const SizedBox(height: 15),
-                  // 🌟 حقل وصف المتجر العام المستقل منعاً لأي تداخل مع البطاقات
                   TextFormField(
                     controller: _descriptionController,
                     maxLength: 256,

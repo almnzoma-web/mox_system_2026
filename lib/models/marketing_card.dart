@@ -12,14 +12,26 @@ class MarketingCard {
     this.isApproved = false,
   });
 
-  // دالة مساعدة ذكية لتحويل السعر القادم من JSON (سواء كان نصاً يحوي فواصل مثل "210,000" أو رقماً مباشراً مثل 210000)
+  // 🌟 دالة مساعدة ذكية ومحدثة لمعالجة الأسعار والتحويل بدقة مطلقة
   static double _parsePrice(dynamic value) {
     if (value == null) return 0.0;
     if (value is num) return value.toDouble();
     if (value is String) {
-      // إزالة الفواصل والعلامات غير الرقمية لتحويل النص إلى رقم بشكل صحيح
-      String cleanValue = value.replaceAll(RegExp(r'[^\d.]'), '');
-      return double.tryParse(cleanValue) ?? 0.0;
+      String val = value.trim();
+      if (val.isEmpty) return 0.0;
+
+      // إذا كانت الفاصلة تستخدم كفاصل آلاف (مثال: 210,000) أو فاصل عشري
+      // نقوم بتنظيف النص مع الاحتفاظ بالأرقام والنقاط والفواصل لتعديلها
+      val = val.replaceAll(RegExp(r'[^\d.,]'), '');
+
+      // إذا كان النص يحتوي على فاصلة وفراغات أو صيغة معينة
+      if (val.contains(',')) {
+        // لو كانت الفاصلة تستخدم كفاصل آلاف (مثال: 210,000 أو 210,00)
+        // يمكننا استبدال الفواصل بنقاط أو إزالتها بناء على موضعها، أو تنظيفها مباشرة:
+        val = val.replaceAll(',', '');
+      }
+
+      return double.tryParse(val) ?? 0.0;
     }
     return 0.0;
   }
@@ -44,7 +56,7 @@ class MarketingCard {
     isApproved: json['isApproved'] ?? false,
   );
 
-  // 3. 🌟 إضافة دالة copyWith السيادية لتحديث خصائص البطاقة بدقة
+  // 3. 🌟 دالة copyWith السيادية لتحديث خصائص البطاقة بدقة
   MarketingCard copyWith({
     String? title,
     String? description,
