@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
-// ignore: unnecessary_import
-import 'package:flutter/services.dart';
 import '../models/user_model.dart';
-import '../models/marketing_model.dart'; // استيراد نموذج البطاقات التسويقية
-// ربط خزينة البيانات السيادية للاستعلام الحسابات المسجلة
+import '../models/marketing_card.dart';
 import '../data/user_data.dart';
-// ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
 import '../services/storage_service.dart';
-// استيراد شاشة التوقيع الرقمي السيادي الفعلية
 import 'digital_signature_screen.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
-  final List<Map<String, dynamic>>
-  clientCards; // استقبال الـ 5 بطاقات الحقيقية المعدلة
+  final List<Map<String, dynamic>> clientCards;
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
@@ -36,49 +30,48 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   late List<String?> _selectedCards;
   late List<String> _availableCardsPool;
 
-  bool _isAuthorized = false; // متغير لحراسة وجملة الأمان السيادي
-  bool _isPublishing = false; // مؤشر إظهار رسالة النشر الفاخرة في المنتصف
+  bool _isAuthorized = false;
+  bool _isPublishing = false;
 
   @override
   void initState() {
     super.initState();
     _phoneController.text = widget.user.phone;
 
-    // استرجاع اسم المتجر القديم إن وجد لضمان الاستمرارية (حقل name)
     if (widget.user.name.isNotEmpty) {
       _storeNameController.text = widget.user.name;
     }
 
-    // استرجاع المجال التجاري المخزن مسبقاً (في حقل address)
     if (widget.user.address.isNotEmpty) {
       _businessCategoryController.text = widget.user.address;
     }
 
-    // استرجاع الوصف القديم من أصول المستخدم إن وجد بأمان تام
-    if (widget.user.myAssets.isNotEmpty) {
-      try {
-        final firstAsset = widget.user.myAssets.first;
-        _descriptionController.text = firstAsset.description;
-      } catch (_) {}
+    // 🌟 جلب وصف المتجر المستقل لمنع التداخل مع البطاقات
+    if (widget.user.storeDescription.isNotEmpty) {
+      _descriptionController.text = widget.user.storeDescription;
     }
 
     _availableCardsPool = widget.clientCards
         .map((card) => card['title'].toString())
         .toList();
+
+    // استرجاع البطاقات المنشطة فقط والمحفوظة مسبقاً
+    List<String> activeCardTitles = widget.user.myAssets
+        .where((asset) => asset.isApproved && asset.title.isNotEmpty)
+        .map((asset) => asset.title)
+        .toList();
+
     _selectedCards = List.generate(
       5,
-      (index) => index < _availableCardsPool.length
-          ? _availableCardsPool[index]
-          : null,
+      (index) =>
+          index < activeCardTitles.length ? activeCardTitles[index] : null,
     );
 
-    // إطلاق شاشة التحقق الأمني الفوري عبر الخزينة فور فتح الصفحة A
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSecurityLoginDialog();
     });
   }
 
-  // نافذة التحقق الأمني المتقنة: التأكد حصرياً من مطابقة moxId أو guardianMoxId ثم كلمة السر
   void _showSecurityLoginDialog() async {
     await StorageService.ensureLoaded();
 
@@ -276,7 +269,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 حفظ النشر وتثبيت الحقول في الذاكرة وقاعدة البيانات والسحابة
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -292,7 +284,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "⚠️ تنبيه: يجب اختيار بطاقة واحدة على الأقل من الـ 5 بطاقات المتاحة لنشر المتجر!",
+              "⚠️ تنبيه: يجب اختيار بطاقة منشطة واحدة على الأقل لنشر المتجر!",
             ),
             backgroundColor: Colors.redAccent,
           ),
@@ -306,6 +298,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       await Future.delayed(const Duration(seconds: 2));
 
+      // 🛡️ تجميع البطاقات المنشطة والمحفوظة فقط (منع نشر البطاقات الفارغة)
       List<MarketingCard> updatedAssets = [];
       for (var cardTitle in _selectedCards) {
         if (cardTitle != null && cardTitle.trim().isNotEmpty) {
@@ -316,40 +309,35 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             var cardModel = MarketingCard.fromJson(originalCardData);
             updatedAssets.add(
               cardModel.copyWith(
-                description: _descriptionController.text.trim(),
                 whatsapp: _phoneController.text.trim(),
+                isApproved: true, // تأكيد اعتماد وحفظ البطاقة المنشطة
               ),
             );
-          } catch (_) {
-            updatedAssets.add(
-              MarketingCard(
-                title: cardTitle,
-                description: _descriptionController.text.trim(),
-                price: 0.0,
-                whatsapp: _phoneController.text.trim(),
-                facebookUrl: '',
-              ),
-            );
-          }
+          } catch (_) {}
         }
       }
 
       String finalPublishTimestamp =
           (widget.user.storePublishDate != null &&
-              widget.user.storePublishDate!.isNotEmpty)
+              widget.user.storePublishDate!.trim().isNotEmpty &&
+              widget.user.storePublishDate != "null")
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      // 🛡️ الربط المباشر لحفظ اسم المتجر في name والمجال التجاري في address وهاتف الاتصال والأصول
+      // 🛡️ حفظ بيانات المتجر مع فصل وصف المتجر تماماً عن وصف البطاقات
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
-        myAssets: updatedAssets,
+        storeDescription: _descriptionController.text
+            .trim(), // حفظ الوصف مستقلاً
+        myAssets: updatedAssets, // حفظ البطاقات المنشطة فقط
         storePublishDate: finalPublishTimestamp,
+        activationDate: finalPublishTimestamp,
       );
 
-      // استدعاء خدمة التخزين المحدثة لحفظه محلياً، في الجلسة، ورفع البيانات لقوقل
+      await StorageService.addUser(updatedUser);
+      await StorageService.saveUser(updatedUser);
       await StorageService.updateUserPartial(updatedUser);
 
       if (!mounted) return;
@@ -361,7 +349,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح مع حفظ اسم المتجر والمجال التجاري وتثبيت عداد الـ 365 يوماً",
+            "🚀 تم تحديث ونشر المتجر بنجاح وحفظ البطاقات المنشطة فقط بدون أي تداخل",
           ),
           backgroundColor: Colors.green,
         ),
@@ -461,21 +449,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         : null,
                   ),
                   const SizedBox(height: 15),
+                  // 🌟 حقل وصف المتجر العام المستقل منعاً لأي تداخل مع البطاقات
                   TextFormField(
                     controller: _descriptionController,
                     maxLength: 256,
                     maxLines: 3,
                     decoration: const InputDecoration(
-                      labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
+                      labelText: "٥- وصف المتجر العام في حدود ٢٥٦ حرف (إلزامي)",
                       border: OutlineInputBorder(),
                     ),
                     validator: (val) => val == null || val.isEmpty
-                        ? "يرجى كتابة وصف موجز"
+                        ? "يرجى كتابة وصف موجز للمتجر"
                         : null,
                   ),
                   const SizedBox(height: 15),
                   const Text(
-                    "٦ & ٧- ربط البطاقات (اختياري، شرط النشر اختيار بطاقة واحدة على الأقل)",
+                    "٦ & ٧- ربط البطاقات المنشطة (لا يتم نشر سوى البطاقات المحفوظة والمعتمدة فقط)",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.indigo,
@@ -525,7 +514,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   }),
                   const SizedBox(height: 20),
 
-                  // 🌟 بوابة التوقيع الرقمي السيادي الفاخر في الصفحة A
                   Card(
                     elevation: 3,
                     shape: RoundedRectangleBorder(
@@ -617,7 +605,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ),
         ),
 
-        // 🌟 طبقة إظهار رسالة النشر الفاخرة في المنتصف عند الضغط
         if (_isPublishing)
           Container(
             color: Colors.black.withValues(alpha: 0.6),

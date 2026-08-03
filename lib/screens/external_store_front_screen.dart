@@ -1,15 +1,18 @@
+// ignore_for_file: dead_code
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
-import '../services/storage_service.dart'; // الخزينة السيادية لجلب بيانات العميل الحقيقية
+import '../models/marketing_card.dart';
+import '../services/storage_service.dart';
 import 'welcome_screen.dart';
 
 class ExternalStoreFrontScreen extends StatefulWidget {
   final UserModel? user;
-  final List<Map<String, dynamic>> clientCards;
+  final List<dynamic> clientCards;
   final String? directMoxId;
   final double? height;
 
@@ -28,7 +31,7 @@ class ExternalStoreFrontScreen extends StatefulWidget {
 
 class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
   UserModel? _resolvedUser;
-  late List<Map<String, dynamic>> _resolvedCards;
+  late List<MarketingCard> _resolvedCards;
   bool _isLoading = true;
 
   @override
@@ -37,7 +40,31 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _initializeStoreData();
   }
 
-  // الدالة السيادية الحسمية لفك وتوحيد كائن العميل وبطاقاته بالكامل مع التحديث الفوري
+  List<MarketingCard> _parseMarketingCards(List<dynamic> rawCards) {
+    List<MarketingCard> parsedList = [];
+    for (final card in rawCards) {
+      try {
+        if (card is MarketingCard) {
+          parsedList.add(card);
+        } else if (card is Map<String, dynamic>) {
+          parsedList.add(MarketingCard.fromJson(card));
+        } else if (card is Map) {
+          parsedList.add(
+            MarketingCard.fromJson(Map<String, dynamic>.from(card)),
+          );
+        } else {
+          final dynamic rawJson = (card as dynamic).toJson();
+          if (rawJson is Map) {
+            parsedList.add(
+              MarketingCard.fromJson(Map<String, dynamic>.from(rawJson)),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+    return parsedList;
+  }
+
   Future<void> _initializeStoreData() async {
     if (mounted) {
       setState(() {
@@ -46,21 +73,21 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     }
 
     UserModel? userToUse = widget.user;
-    List<Map<String, dynamic>> cardsToUse = List<Map<String, dynamic>>.from(
-      widget.clientCards,
-    );
+    List<MarketingCard> cardsToUse = _parseMarketingCards(widget.clientCards);
     String? targetMoxId = widget.directMoxId;
 
     try {
-      // 1. التأكد من تحميل الخزينة السيادية أولاً
       await StorageService.ensureLoaded();
 
-      // 2. إذا كنا نعمل على الويب، فك الـ URL ومعلمات الـ JSON أو الـ mox
-      if (userToUse == null && targetMoxId == null && kIsWeb) {
+      // فحص الويب واستخراج الرابط المحدث ومعلمات المعرف فوريًا لمنع ثبات البيانات القديمة
+      if (kIsWeb) {
         try {
           final uri = Uri.base;
-          targetMoxId =
+          final String? queryMox =
               uri.queryParameters['mox'] ?? uri.queryParameters['phone'];
+          if (queryMox != null && queryMox.isNotEmpty) {
+            targetMoxId = queryMox;
+          }
 
           final String? jsonPayload =
               uri.queryParameters['data'] ?? uri.queryParameters['json'];
@@ -78,22 +105,21 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // 3. جلب العميل من الخزينة السيادية والسحابة عبر الـ MoxId المستخلص لضمان التحديث الفوري
-      if (userToUse == null && targetMoxId != null && targetMoxId.isNotEmpty) {
+      if (targetMoxId != null && targetMoxId.isNotEmpty) {
         try {
-          userToUse = await StorageService.getUserByMoxId(targetMoxId);
-          if (userToUse != null) {
+          final fetchedUser = await StorageService.getUserByMoxId(targetMoxId);
+          if (fetchedUser != null) {
+            userToUse = fetchedUser;
             final fetchedCards = await StorageService.getClientCards(
               targetMoxId,
             );
             if (fetchedCards.isNotEmpty) {
-              cardsToUse = List<Map<String, dynamic>>.from(fetchedCards);
+              cardsToUse = _parseMarketingCards(fetchedCards);
             }
           }
         } catch (_) {}
       }
 
-      // 4. إذا تم تمرير المستخدم مباشرة، نحدث نسخه من أحدث بيانات الخزينة
       if (userToUse != null) {
         try {
           if (userToUse.moxId.isNotEmpty && userToUse.moxId != "لم يحدد") {
@@ -107,30 +133,39 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // 5. استخراج وتحويل كافة الأصول والبطاقات (myAssets) إلى قائمة متكاملة
       if (userToUse != null && userToUse.myAssets.isNotEmpty) {
-        final List<Map<String, dynamic>> convertedAssets = [];
+        final List<MarketingCard> convertedAssets = [];
         for (final asset in userToUse.myAssets) {
           try {
-            if (asset is Map<String, dynamic>) {
-              convertedAssets.add(asset as Map<String, dynamic>);
+            // ignore: unnecessary_type_check
+            if (asset is MarketingCard) {
+              convertedAssets.add(asset);
+            } else if (asset is Map<String, dynamic>) {
+              convertedAssets.add(
+                MarketingCard.fromJson(asset as Map<String, dynamic>),
+              );
             } else if (asset is Map) {
               convertedAssets.add(
-                Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
+                MarketingCard.fromJson(
+                  Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
+                ),
               );
-              // ignore: unnecessary_null_comparison
-            } else if (asset != null) {
+            } else {
               final dynamic rawJson = (asset as dynamic).toJson();
               if (rawJson is Map) {
-                convertedAssets.add(Map<String, dynamic>.from(rawJson));
+                convertedAssets.add(
+                  MarketingCard.fromJson(Map<String, dynamic>.from(rawJson)),
+                );
               } else {
-                convertedAssets.add({
-                  'title': asset.toString(),
-                  'description': 'أصل رقمي معتمد في منظومة موكس السيادية',
-                  'price': 0.0,
-                  'whatsapp': userToUse.phone,
-                  'facebookUrl': '',
-                });
+                convertedAssets.add(
+                  MarketingCard(
+                    title: asset.toString(),
+                    description: 'أصل رقمي معتمد في منظومة موكس السيادية',
+                    price: 0.0,
+                    whatsapp: userToUse.phone,
+                    facebookUrl: '',
+                  ),
+                );
               }
             }
           } catch (_) {}
@@ -147,6 +182,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
           name: targetMoxId != null ? "متجر العميل الرقمي" : "العميل السيادي",
           phone: "0000000000",
           address: "المتجر الرقمي المفتوح",
+          storeDescription: "متجر رقمي معتمد عبر منظومة موكس السيادية",
           moxId: targetMoxId ?? "MOX-ACTIVE",
           password: "",
           balance: 0.0,
@@ -157,14 +193,14 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     _resolvedCards = cardsToUse.isNotEmpty
         ? cardsToUse
         : [
-            {
-              'title': 'بطاقة المتجر السيادي الافتراضية',
-              'description':
+            MarketingCard(
+              title: 'بطاقة المتجر السيادي الافتراضية',
+              description:
                   'هذه البطاقة معتمدة وجاهزة للعرض التجاري الفاخر عبر الرابط المنسوخ للزوار.',
-              'price': 0.0,
-              'whatsapp': _resolvedUser!.phone,
-              'facebookUrl': '',
-            },
+              price: 0.0,
+              whatsapp: _resolvedUser!.phone,
+              facebookUrl: '',
+            ),
           ];
 
     if (mounted) {
@@ -174,15 +210,12 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     }
   }
 
-  // 🛡️ دالة التحقق السيادي من تنشيط المتجر وصلاحية الـ 365 يوماً
   bool _isStoreActiveAndValid(UserModel activeUser) {
-    // ignore: unnecessary_nullable_for_final_variable_declarations
-    final String? mox = activeUser.moxId;
+    final String mox = activeUser.moxId;
     final String? gMox = activeUser.guardianMoxId;
 
     bool hasBasicActivity =
-        (mox != null &&
-            mox.trim().isNotEmpty &&
+        (mox.trim().isNotEmpty &&
             mox != "لم يحدد" &&
             mox.toLowerCase() != 'null') ||
         (gMox != null &&
@@ -195,14 +228,13 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
 
     if (!hasBasicActivity) return false;
 
-    // فحص صلاحية الـ 365 يوماً بناءً على تاريخ أول نشر (storePublishDate)
     if (activeUser.storePublishDate != null &&
         activeUser.storePublishDate!.isNotEmpty) {
       try {
         DateTime publishDate = DateTime.parse(activeUser.storePublishDate!);
         DateTime expiryDate = publishDate.add(const Duration(days: 365));
         if (DateTime.now().isAfter(expiryDate)) {
-          return false; // انتهت فترة الـ 365 يوماً
+          return false;
         }
       } catch (_) {}
     }
@@ -210,7 +242,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     return true;
   }
 
-  // ⏳ حساب الأيام المتبقية من الـ 365 يوماً بدقة تامة
   int _getRemainingDays(UserModel activeUser) {
     if (activeUser.storePublishDate == null ||
         activeUser.storePublishDate!.isEmpty) {
@@ -252,7 +283,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     }
 
     final UserModel resolvedUser = _resolvedUser!;
-    final List<Map<String, dynamic>> activeCards = _resolvedCards;
+    final List<MarketingCard> activeCards = _resolvedCards;
     final bool isStoreActive = _isStoreActiveAndValid(resolvedUser);
     final int remainingDays = _getRemainingDays(resolvedUser);
 
@@ -286,122 +317,151 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: isStoreActive
-            ? ListView(
-                children: [
-                  // 🌟 عداد الأيام التنازلي (365 يوم) في رأس المتجر
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
-                      border: Border.all(
-                        color: const Color(0xFF28A9CC),
-                        width: 1.5,
+            ? ListView.builder(
+                itemCount: activeCards.length + 3,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 15),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        border: Border.all(
+                          color: const Color(0xFF28A9CC),
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.timer_outlined,
-                              color: Color(0xFF28A9CC),
-                              size: 24,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.timer_outlined,
+                                color: Color(0xFF28A9CC),
+                                size: 24,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                "حالة العداد السيادي:",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B6B80),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
-                            SizedBox(width: 8),
-                            Text(
-                              "حالة العداد السيادي:",
-                              style: TextStyle(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF28A9CC),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              "متبقي $remainingDays يوم من إجمالي ٣٦٥ يوماً",
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF1B6B80),
-                                fontSize: 13,
+                                fontSize: 12,
                               ),
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                    );
+                  } else if (index == 1) {
+                    return Container(
+                      padding: const EdgeInsets.all(20),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF28A9CC), Colors.indigo],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF28A9CC),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            "متبقي $remainingDays يوم من إجمالي ٣٦٥ يوماً",
-                            style: const TextStyle(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "🌟 السوق المفتوح والواجهة السيادية المعتمدة",
+                            style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                              fontSize: 14,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF28A9CC), Colors.indigo],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "🌟 السوق المفتوح والواجهة السيادية المعتمدة",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                          const SizedBox(height: 8),
+                          Text(
+                            "العميل: ${resolvedUser.name}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "العميل: ${resolvedUser.name}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "معرف MOX: ${resolvedUser.moxId}",
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                        if (resolvedUser.address.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
-                            "المجال التجاري: ${resolvedUser.address}",
+                            "معرف MOX: ${resolvedUser.moxId}",
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                             ),
                           ),
+                          if (resolvedUser.address.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              "المجال التجاري: ${resolvedUser.address}",
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                          // ignore: unnecessary_null_comparison
+                          if (resolvedUser.storeDescription != null &&
+                              // ignore: unnecessary_non_null_assertion
+                              resolvedUser.storeDescription!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                // ignore: unnecessary_non_null_assertion
+                                resolvedUser.storeDescription!,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.5,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "🛒 العروض والبطاقات النشطة للعميل (متاحة للعامة)",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.indigo,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ...activeCards.map((card) {
+                      ),
+                    );
+                  } else if (index == 2) {
+                    return const Padding(
+                      padding: EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        "🛒 العروض والبطاقات النشطة للعميل (متاحة للعامة)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.indigo,
+                        ),
+                      ),
+                    );
+                  } else {
+                    final int cardIndex = index - 3;
+                    final card = activeCards[cardIndex];
                     return Card(
                       elevation: 2,
                       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -418,7 +478,9 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    card['title']?.toString() ?? "بطاقة سيادية",
+                                    card.title.isNotEmpty
+                                        ? card.title
+                                        : "بطاقة سيادية",
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
@@ -427,7 +489,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                   ),
                                 ),
                                 Text(
-                                  "${card['price'] ?? 0} ج.س",
+                                  "${card.price} ج.س",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
@@ -438,7 +500,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              card['description']?.toString() ?? "",
+                              card.description,
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black87,
@@ -455,9 +517,9 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                       minimumSize: const Size(0, 36),
                                     ),
                                     onPressed: () async {
-                                      final phoneNum =
-                                          card['whatsapp']?.toString() ??
-                                          resolvedUser.phone;
+                                      final phoneNum = card.whatsapp.isNotEmpty
+                                          ? card.whatsapp
+                                          : resolvedUser.phone;
                                       final url = Uri.parse(
                                         "https://wa.me/$phoneNum",
                                       );
@@ -490,10 +552,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                       minimumSize: const Size(0, 36),
                                     ),
                                     onPressed: () async {
-                                      final detailsUrl =
-                                          card['facebookUrl']?.toString() ??
-                                          card['facebook']?.toString() ??
-                                          "";
+                                      final detailsUrl = card.facebookUrl;
                                       if (detailsUrl.isNotEmpty) {
                                         final url = Uri.parse(detailsUrl);
                                         if (await canLaunchUrl(url)) {
@@ -525,10 +584,9 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                         ),
                       ),
                     );
-                  }),
-                ],
+                  }
+                },
               )
-            // 🛡️ [الرسالة الفاخرة والمادة الترويجية في حال عدم التنشيط أو انتهاء الفترة]
             : Center(
                 child: SingleChildScrollView(
                   child: Container(
@@ -571,7 +629,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // 📄 المادة الترويجية الاحترافية للزوار
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(

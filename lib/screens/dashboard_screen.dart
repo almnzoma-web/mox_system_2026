@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mox_digital_app/models/marketing_model.dart';
+import 'package:mox_digital_app/models/marketing_card.dart';
 import 'package:mox_digital_app/services/storage_service.dart';
 import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
 import 'package:mox_digital_app/admin_panel/services_manager_tab.dart';

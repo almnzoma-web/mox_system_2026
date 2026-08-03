@@ -1,19 +1,19 @@
 import 'dart:convert';
-import '../models/marketing_model.dart';
+import '../models/marketing_card.dart';
 
 class UserModel {
   String phone, password;
   String name;
   String address;
+  String storeDescription; // 🌟 حقل وصف المتجر العام المستقل
   String gender, accountType, moxId, role;
   String? customWhatsApp;
-  String? guardianMoxId; // حقل الوصي الأصلي الخاص بموكس
-  String? guardianMoxIdCustomer; // وصي العميل الجديد أو المدير افتراضياً
-  String? storePublishDate; // تاريخ النشر لتثبيت فترة الـ 365 يوماً
-  String?
-  activationDate; // تاريخ التفعيل (موافق لـ storePublishDate لتجنب أي أخطاء)
+  String? guardianMoxId;
+  String? guardianMoxIdCustomer;
+  String? storePublishDate;
+  String? activationDate;
   double balance, commission;
-  int points; // نقاط الإحالة
+  int points;
   List<MarketingCard> myAssets;
 
   UserModel({
@@ -21,6 +21,7 @@ class UserModel {
     required this.password,
     required this.name,
     required this.address,
+    this.storeDescription = '', // القيمة الافتراضية فارغة
     required this.balance,
     this.commission = 0.0,
     required this.gender,
@@ -36,13 +37,13 @@ class UserModel {
     this.myAssets = const [],
   });
 
-  // دالة آمنة لتحديث بيانات المستخدم
   UserModel copyWith({
     int? points,
     double? balance,
     double? commission,
     String? name,
     String? address,
+    String? storeDescription, // 🌟 إضافته هنا في الـ copyWith
     String? phone,
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
@@ -55,6 +56,7 @@ class UserModel {
       password: password,
       name: name ?? this.name,
       address: address ?? this.address,
+      storeDescription: storeDescription ?? this.storeDescription, // 🌟 تحديثه
       balance: balance ?? this.balance,
       commission: commission ?? this.commission,
       gender: gender,
@@ -77,6 +79,7 @@ class UserModel {
     'password': password,
     'name': name,
     'address': address,
+    'storeDescription': storeDescription, // 🌟 حفظه في الـ JSON
     'balance': balance,
     'commission': commission,
     'gender': gender,
@@ -114,7 +117,6 @@ class UserModel {
 
     String? pubDate = json['storePublishDate']?.toString();
     String? actDate = json['activationDate']?.toString();
-    // توحيد التاريخين لضمان قراءتهما بسلاسة أياً كان المسجل في القاعدة
     String? finalDate = (pubDate != null && pubDate.isNotEmpty)
         ? pubDate
         : actDate;
@@ -124,6 +126,8 @@ class UserModel {
       password: json['password']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
+      storeDescription:
+          json['storeDescription']?.toString() ?? '', // 🌟 قراءته من الـ JSON
       balance: double.tryParse(json['balance']?.toString() ?? '0') ?? 0.0,
       commission: double.tryParse(json['commission']?.toString() ?? '0') ?? 0.0,
       gender: json['gender']?.toString() ?? '',

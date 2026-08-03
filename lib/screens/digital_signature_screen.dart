@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:mox_digital_app/models/marketing_model.dart';
+import 'package:mox_digital_app/models/marketing_card.dart';
 import '../../models/user_model.dart';
 import '../../services/storage_service.dart';
 

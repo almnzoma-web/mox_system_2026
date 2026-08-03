@@ -57,13 +57,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // بناء رابط الـ GET مع الباراميترات لتجاوز قيود قوقل والـ CORS بالمسطرة
+      // بناء رابط الـ GET مع الباراميترات متضمناً حقل وصف المتجر العام الجديد
       final queryParameters = {
         'action': 'save',
         'phone': user.phone,
         'password': user.password,
         'name': user.name,
         'address': user.address,
+        'storeDescription':
+            user.storeDescription, // 🌟 إضافته هنا لتحديثه في السحابة
         'balance': user.balance.toString(),
         'commission': user.commission.toString(),
         'gender': user.gender,
@@ -72,7 +74,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'role': user.role,
         'customWhatsApp': user.customWhatsApp ?? '',
         'guardianMoxId': user.guardianMoxId ?? '',
+        'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
         'points': user.points.toString(),
+        'storePublishDate': user.storePublishDate ?? '',
         'myAssets': json.encode(user.myAssets.map((a) => a.toJson()).toList()),
       };
 
@@ -109,7 +113,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       appBar: AppBar(
         title: const Text(
           "لوحة تحكم المدير - السجل السيادي",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: moxBlue,
         centerTitle: true,
@@ -121,7 +125,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: moxBlue))
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SingleChildScrollView(

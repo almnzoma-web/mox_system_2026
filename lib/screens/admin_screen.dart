@@ -1,3 +1,5 @@
+// ignore_for_file: duplicate_ignore, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:mox_digital_app/admin_panel/clients_management.dart';
 import '../admin_panel/visitors_tab.dart';
@@ -53,6 +55,20 @@ class _AdminScreenState extends State<AdminScreen> {
     if (mounted) setState(() {});
   }
 
+  // دالة مساعدة للتحقق مما إذا أتم العملاء 365 يوماً (بناءً على تاريخ النشر)
+  bool _hasCompleted365Days(UserModel client) {
+    if (client.storePublishDate == null || client.storePublishDate!.isEmpty) {
+      return false;
+    }
+    try {
+      DateTime pubDate = DateTime.parse(client.storePublishDate!);
+      DateTime now = DateTime.now();
+      return now.difference(pubDate).inDays >= 365;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> menuItems = [
@@ -100,6 +116,12 @@ class _AdminScreenState extends State<AdminScreen> {
       },
     ];
 
+    // تصفية المتاجر التي أكملت 365 يوماً
+    final List<UserModel> pendingActivationClients = StorageService
+        .registeredUsers
+        .where((u) => _hasCompleted365Days(u) && u.role != 'reviewed_active')
+        .toList();
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -124,6 +146,137 @@ class _AdminScreenState extends State<AdminScreen> {
             )
           : Column(
               children: [
+                // 🌟 نافذة منفصلة في أعلى الصفحة خاصة بالمتاجر التي أكملت 365 يوم (تنشيط المتاجر)
+                if (pendingActivationClients.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber[50],
+                      border: Border.all(color: Colors.amber, width: 1.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.notification_important,
+                              color: Colors.orange,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              "تنشيط المتاجر (أكملت 365 يوماً)",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.brown,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 65,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: pendingActivationClients.length,
+                            itemBuilder: (context, index) {
+                              final client = pendingActivationClients[index];
+                              bool isActivated =
+                                  client.role == 'reviewed_active';
+                              return Container(
+                                width: 230,
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            client.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          Text(
+                                            "MOX: ${client.moxId}",
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isActivated
+                                            ? Colors.green
+                                            : Colors.orange,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        minimumSize: const Size(60, 30),
+                                      ),
+                                      onPressed: () async {
+                                        setState(() {
+                                          client.role = 'reviewed_active';
+                                        });
+                                        await _saveLocalData(client);
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              "✅ تم التنشيط بنجاح - وتمت إزالة الطلب من شاشة التنشيط",
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Text(
+                                        isActivated
+                                            ? "تم التنشيط"
+                                            : "طلب تنشيط",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 Container(
                   height: 110,
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -485,7 +638,6 @@ class _AdminScreenState extends State<AdminScreen> {
                       });
                       await _saveLocalData(client);
                       if (!mounted) return;
-                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(

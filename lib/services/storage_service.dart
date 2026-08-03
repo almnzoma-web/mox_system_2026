@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 // ignore: unused_import
-import '../models/marketing_model.dart';
+import '../models/marketing_card.dart';
 
 class StorageService {
   static const String userKey = 'current_mox_user';
@@ -22,6 +22,7 @@ class StorageService {
     password: "MOX1234567890MOX",
     name: "مدير النظام",
     address: "المركز الرئيسي",
+    storeDescription: "المركز الرئيسي لمنصة MOX الرقمية",
     balance: 5000.0,
     commission: 0.0,
     gender: "ذكر",
@@ -169,6 +170,8 @@ class StorageService {
         'password': newUser.password,
         'name': newUser.name,
         'address': newUser.address,
+        'storeDescription':
+            newUser.storeDescription, // 🌟 إضافة وصف المتجر العام
         'balance': newUser.balance.toString(),
         'commission': newUser.commission.toString(),
         'gender': newUser.gender,
@@ -236,6 +239,7 @@ class StorageService {
         'password': user.password,
         'name': user.name,
         'address': user.address,
+        'storeDescription': user.storeDescription, // 🌟 إضافة وصف المتجر العام
         'balance': user.balance.toString(),
         'commission': user.commission.toString(),
         'gender': user.gender,
