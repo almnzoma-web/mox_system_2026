@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
 import '../models/user_model.dart';
-import '../models/marketing_card.dart'; // استيراد نموذج البطاقات التسويقية
-// ربط خزينة البيانات السيادية للاستعلام الحسابات المسجلة
+import '../models/marketing_card.dart';
 import '../data/user_data.dart';
-// ربط خدمة التخزين لضمان التحميل الفوري وتحديث السجلات
 import '../services/storage_service.dart';
-// استيراد شاشة التوقيع الرقمي السيادي الفعلية
 import 'digital_signature_screen.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
-  final List<Map<String, dynamic>> clientCards; // استقبال الـ 5 بطاقات الحقيقية
+  final List<Map<String, dynamic>> clientCards;
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
@@ -32,15 +29,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  // خريطة لتخزين حالة كل بطاقة (مفعلة بـ صح أم لا، والتصنيف الفرعي: بطاقة/قسم/رف)
   final Map<String, bool> _cardActivationStatus = {};
   final Map<String, String> _cardCategories = {};
 
-  bool _isAuthorized = false; // متغير حراسة وجملة الأمان السيادي
-  bool _isPublishing = false; // مؤشر إظهار رسالة النشر الفاخرة
-
-  // حالات زر التنشيط الأساسي في الأسفل: 0 = طلب تنشيط، 1 = قيد المراجعة، 2 = نشط
-  int _activationButtonState = 0;
+  bool _isAuthorized = false;
+  bool _isPublishing = false;
+  int _activationButtonState = 0; // 0 = طلب تنشيط، 1 = نشط (بدء حساب ٣٦٥ يوم)
 
   @override
   void initState() {
@@ -62,31 +56,27 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       } catch (_) {}
     }
 
-    // تهيئة حالة البطاقات المتاحة
     for (var card in widget.clientCards) {
       String title = card['title'].toString();
-      // التحقق هل البطاقة موجودة مسبقاً في أصول المستخدم المفعلة
       bool isAlreadyActive = widget.user.myAssets.any(
         (asset) => asset.title == title,
       );
       _cardActivationStatus[title] = isAlreadyActive;
-      _cardCategories[title] =
-          'بطاقة'; // القيمة الافتراضية للقائمة المنسدلة الصغيرة
+      _cardCategories[title] = 'بطاقة';
     }
 
-    // إذا كان المتجر منشراً مسبقاً ولديه تاريخ نشر صالح ضمن الـ 365 يوماً
-    if (widget.user.storePublishDate != null &&
-        widget.user.storePublishDate!.isNotEmpty) {
-      _activationButtonState = 2; // نشط
+    // مزامنة حالة زر التنشيط مباشرة بناءً على تاريخ النشر أو حالة الحساب
+    if (widget.user.role == 'reviewed_active' ||
+        (widget.user.storePublishDate != null &&
+            widget.user.storePublishDate!.isNotEmpty)) {
+      _activationButtonState = 1; // نشط
     }
 
-    // إطلاق شاشة التحقق الأمني الفوري بعد بناء الإطار لتجنب الشاشة الرمادية
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSecurityLoginDialog();
     });
   }
 
-  // نافذة التحقق الأمني المتقنة
   void _showSecurityLoginDialog() async {
     await StorageService.ensureLoaded();
 
@@ -120,7 +110,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم موكس الخاص بك أولاً للتحقق من وجوده في ملفك، ثم كلمة السر بالمسطرة:",
+              "أدخل رقم موكس الخاص بك وكلمة السر بالمسطرة:",
               style: TextStyle(fontSize: 12, color: Colors.black87),
             ),
             const SizedBox(height: 15),
@@ -222,7 +212,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم التحقق من رقم موكس وكلمة السر بنجاح - مرحباً بك في سيادة الدكان",
+                      "✅ تم التحقق بنجاح - مرحباً بك في سيادة الدكان",
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -261,7 +251,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ],
         ),
         content: const Text(
-          "عفواً عميلنا الكريم.. رقم موكس المدخل غير مطابق لملفك أو كلمة السر غير صحيحة. النظام يتطلب مطابقة رقم موكس الأساسي أو المعتمد أولاً ثم كلمة السر بدقة صارمة🤚",
+          "عفواً.. رقم موكس غير مطابق أو كلمة السر غير صحيحة ✋",
           style: TextStyle(
             fontSize: 13,
             height: 1.5,
@@ -284,49 +274,34 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 معالجة الضغط على زر التنشيط الموجود في الأسفل وفق المنطق المطلوب
-  void _handleActivationButtonPress() {
-    setState(() {
-      if (_activationButtonState == 0) {
-        // التحول إلى قيد المراجعة
-        _activationButtonState = 1;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "⏳ تم إرسال طلب التنشيط بنجاح.. الحالة الآن: قيد المراجعة من المدير",
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else if (_activationButtonState == 1) {
-        // محاكاة موافقة المدير الفورية لتفعيل النظام وتدفق مربعات الصح
-        _activationButtonState = 2;
-        // تفعيل كافة مربعات التنشيط للبطاقات تلقائياً بعد الموافقة
+  // 🚀 زر التنشيط المستقل لتفعيل الـ 365 يوماً وفتح مربعات الصح مباشرة
+  void _handleActivationButtonPress() async {
+    if (_activationButtonState == 0) {
+      setState(() {
+        _activationButtonState = 1; // التحول من طلب تنشيط إلى نشط
+        // تفعيل كافة مربعات التنشيط تلقائياً عند النقر ليكون صاح
         for (var key in _cardActivationStatus.keys) {
           _cardActivationStatus[key] = true;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "✅ تمت موافقة المدير! أصبحت الحالة (نشط) وتم فتح صلاحية تفعيل مربعات البطاقات للـ 365 يوماً",
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "🌟 المتجر نشط بالفعل ومحمي بقاعدة الـ 365 يوماً من أول إطلاق.",
-            ),
-            backgroundColor: Colors.blue,
-          ),
-        );
-      }
-    });
+      });
+
+      // حفظ تاريخ بدء الـ 365 يوماً محلياً فوراً
+      UserModel tempUser = widget.user.copyWith(
+        storePublishDate: DateTime.now().toIso8601String(),
+        role: 'reviewed_active',
+      );
+      await StorageService.updateUserPartial(tempUser);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ تم بدء حساب الـ 365 يوماً بنجاح وتم تنشيط البطاقات"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
-  // 🚀 حفظ النشر وتثبيت الحقول في الذاكرة والقاعدة والسحابة
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -334,15 +309,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
 
     if (_formKey.currentState!.validate()) {
-      // قاعدة التحقق: لا ينشر إلا البطاقات التي تحمل علامة صح ومفعلة
       List<MarketingCard> updatedAssets = [];
 
       for (var cardData in widget.clientCards) {
         String title = cardData['title'].toString();
         bool isChecked = _cardActivationStatus[title] ?? false;
 
-        // شرط حاسم: البطاقة التي ليس مفعل مربع التنشيط الخاص بها لا تنشر
-        if (isChecked && _activationButtonState == 2) {
+        if (isChecked &&
+            (_activationButtonState == 1 ||
+                widget.user.role == 'reviewed_active')) {
           try {
             var cardModel = MarketingCard.fromJson(cardData);
             updatedAssets.add(
@@ -369,7 +344,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "⚠️ تنبيه صارم: لا يمكن النشر! يجب أن يكون زر التنشيط الأساسي (نشط) وتفعيل بطاقة واحدة على الأقل بعلامة صح.",
+              "⚠️ تنبيه: يجب أن يكون المتجر نشطاً وتفعيل بطاقة واحدة على الأقل بعلامة صح.",
             ),
             backgroundColor: Colors.redAccent,
           ),
@@ -395,6 +370,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         address: _businessCategoryController.text.trim(),
         myAssets: updatedAssets,
         storePublishDate: finalPublishTimestamp,
+        role: 'reviewed_active',
       );
 
       await StorageService.updateUserPartial(updatedUser);
@@ -408,7 +384,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح وتثبيت عداد الـ 365 يوماً للبطاقات المفعلة فقط",
+            "🚀 تم تحديث ونشر المتجر بنجاح وتثبيت عداد الـ 365 يوماً",
           ),
           backgroundColor: Colors.green,
         ),
@@ -437,6 +413,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         ),
       );
     }
+
+    bool isStoreActive =
+        (_activationButtonState == 1 || widget.user.role == 'reviewed_active');
 
     return Stack(
       children: [
@@ -531,7 +510,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // عرض البطاقات ككروت كاملة بدل القوائم المنسدلة
                   ...widget.clientCards.map((cardData) {
                     String title = cardData['title'].toString();
                     String description =
@@ -551,7 +529,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // رأس الكارت: قائمة منسدلة صغيرة (بطاقة، قسم، رف) + عنوان القسم المختار
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -598,7 +575,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     },
                                   ),
                                 ),
-                                // مربع التنشيط المرتبط بمنطق زر التنشيط الأساسي
                                 Row(
                                   children: [
                                     const Text(
@@ -611,15 +587,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     Checkbox(
                                       value: isChecked,
                                       activeColor: const Color(0xFF28A9CC),
-                                      // لا تفعّل مربع التنشيط إلا بعد أن يصبح زر التنشيط الأساسي (نشط / حالة 2)
-                                      onChanged: (_activationButtonState == 2)
+                                      // تفعيل مربعات الصح عندما يكون المتجر نشطاً
+                                      onChanged: isStoreActive
                                           ? (bool? val) {
                                               setState(() {
                                                 _cardActivationStatus[title] =
                                                     val ?? false;
                                               });
                                             }
-                                          : null, // معطلة حتى تتم الموافقة الأساسية
+                                          : null,
                                     ),
                                   ],
                                 ),
@@ -659,7 +635,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const SizedBox(height: 20),
 
-                  // 🌟 بوابة التوقيع الرقمي السيادي الفاخر
                   Card(
                     elevation: 3,
                     shape: RoundedRectangleBorder(
@@ -723,13 +698,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const SizedBox(height: 25),
 
-                  // 🎯 زر التنشيط الأساسي في الأسفل (يتحول نصه وتأثيره حسب الخطوات)
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _activationButtonState == 2
+                      backgroundColor: isStoreActive
                           ? Colors.green
-                          : _activationButtonState == 1
-                          ? Colors.orange
                           : const Color(0xFF1B6B80),
                       minimumSize: const Size(double.infinity, 48),
                       shape: RoundedRectangleBorder(
@@ -739,10 +711,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     onPressed: _handleActivationButtonPress,
                     child: Text(
                       _activationButtonState == 0
-                          ? "طلب تنشيط (صالحة لـ 365 يوم)"
-                          : _activationButtonState == 1
-                          ? "قيد المراجعة"
-                          : "نشط (معتمد ومفعل للـ 365 يوماً)",
+                          ? "طلب تنشيط (بدء حساب ٣٦٥ يوماً)"
+                          : "نشط (معتمد ومفعل للـ ٣٦٥ يوماً)",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -753,7 +723,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const SizedBox(height: 15),
 
-                  // 🚀 زر النشر والحفظ النهائي في الذاكرة
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF28A9CC),
@@ -783,7 +752,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ),
         ),
 
-        // 🌟 طبقة إظهار رسالة النشر الفاخرة في المنتصف عند الضغط
         if (_isPublishing)
           Container(
             color: Colors.black.withValues(alpha: 0.6),

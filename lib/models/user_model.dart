@@ -45,6 +45,7 @@ class UserModel {
     String? address,
     String? storeDescription, // 🌟 إضافته هنا في الـ copyWith
     String? phone,
+    String? role, // 🌟 إضافة role هنا لحل المشكلة بالمسطرة
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
     String? storePublishDate,
@@ -62,7 +63,7 @@ class UserModel {
       gender: gender,
       accountType: accountType,
       moxId: moxId,
-      role: role,
+      role: role ?? this.role, // 🌟 تحديث role هنا
       customWhatsApp: customWhatsApp,
       guardianMoxId: guardianMoxId ?? this.guardianMoxId,
       guardianMoxIdCustomer:
