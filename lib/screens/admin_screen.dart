@@ -117,7 +117,13 @@ class _AdminScreenState extends State<AdminScreen> {
 
     final List<UserModel> pendingActivationClients = StorageService
         .registeredUsers
-        .where((u) => _hasCompleted365Days(u) && u.role != 'reviewed_active')
+        .where(
+          (u) =>
+              (_hasCompleted365Days(u) ||
+                  (u.storePublishDate != null &&
+                      u.storePublishDate!.isNotEmpty)) &&
+              u.role != 'reviewed_active',
+        )
         .toList();
 
     return Scaffold(
@@ -164,7 +170,7 @@ class _AdminScreenState extends State<AdminScreen> {
                             ),
                             SizedBox(width: 6),
                             Text(
-                              "تنشيط المتاجر (أكملت 365 يوماً)",
+                              "طلبات تنشيط المتاجر (بانتظار موافقة المدير)",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
@@ -175,7 +181,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         ),
                         const SizedBox(height: 8),
                         SizedBox(
-                          height: 65,
+                          height: 75,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
                             itemCount: pendingActivationClients.length,
@@ -184,7 +190,7 @@ class _AdminScreenState extends State<AdminScreen> {
                               bool isActivated =
                                   client.role == 'reviewed_active';
                               return Container(
-                                width: 230,
+                                width: 240,
                                 margin: const EdgeInsets.only(right: 8),
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
@@ -210,7 +216,9 @@ class _AdminScreenState extends State<AdminScreen> {
                                             MainAxisAlignment.center,
                                         children: [
                                           Text(
-                                            client.name,
+                                            client.name.isNotEmpty
+                                                ? client.name
+                                                : "متجر بدون اسم",
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 12,
@@ -224,6 +232,13 @@ class _AdminScreenState extends State<AdminScreen> {
                                               color: Colors.grey,
                                             ),
                                           ),
+                                          const Text(
+                                            "طالب تنشيط (365 يوم)",
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              color: Colors.indigo,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -231,16 +246,24 @@ class _AdminScreenState extends State<AdminScreen> {
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: isActivated
                                             ? Colors.green
-                                            : Colors.orange,
+                                            : const Color(0xFF1B6B80),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 8,
                                           vertical: 4,
                                         ),
-                                        minimumSize: const Size(60, 30),
+                                        minimumSize: const Size(65, 30),
                                       ),
                                       onPressed: () async {
                                         setState(() {
                                           client.role = 'reviewed_active';
+                                          // تحديث أصول العميل لتعتمد تلقائياً
+                                          client.myAssets = client.myAssets
+                                              .map(
+                                                (asset) => asset.copyWith(
+                                                  isApproved: true,
+                                                ),
+                                              )
+                                              .toList();
                                         });
                                         await _saveLocalData(client);
                                         if (!mounted) return;
@@ -249,18 +272,17 @@ class _AdminScreenState extends State<AdminScreen> {
                                         ).showSnackBar(
                                           const SnackBar(
                                             content: Text(
-                                              "✅ تم التنشيط بنجاح - وتمت إزالة الطلب من شاشة التنشيط",
+                                              "✅ تم الاعتماد والتنشيط بنجاح لمدة 365 يوماً وتفعيل مربعات التنشيط",
                                             ),
                                           ),
                                         );
                                       },
                                       child: Text(
-                                        isActivated
-                                            ? "تم التنشيط"
-                                            : "طلب تنشيط",
+                                        isActivated ? "نشط" : "موافقة",
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 10,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
@@ -913,6 +935,9 @@ class _AdminScreenState extends State<AdminScreen> {
                         client.role = 'free';
                       } else {
                         client.role = 'reviewed_active';
+                        client.myAssets = client.myAssets
+                            .map((asset) => asset.copyWith(isApproved: true))
+                            .toList();
                       }
                     });
                     await _saveLocalData(client);
@@ -921,7 +946,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       SnackBar(
                         content: Text(
                           client.role == 'reviewed_active'
-                              ? "✅ تمت المراجعة - تم نشر بطاقة العميل بنجاح لمدة 365 يوماً"
+                              ? "✅ تمت المراجعة والاعتماد - تم نشر بطاقة العميل بنجاح لمدة 365 يوماً"
                               : "⏳ الطلب قيد المراجعة",
                         ),
                         duration: const Duration(milliseconds: 1500),

@@ -1,6 +1,9 @@
+// ignore_for_file: duplicate_ignore, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
+import '../services/storage_service.dart';
 import 'welcome_screen.dart';
 
 class ClientAssetsScreen extends StatefulWidget {
@@ -12,7 +15,8 @@ class ClientAssetsScreen extends StatefulWidget {
 }
 
 class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
-  // دالة مساعدة لتحويل العنصر إلى Map لضمان التعامل الآمن مع الأصول والمستندات
+  bool isActivatingStore = false;
+
   Map<String, dynamic> _parseAsset(dynamic rawAsset) {
     if (rawAsset is Map<String, dynamic>) return rawAsset;
     if (rawAsset is Map) return Map<String, dynamic>.from(rawAsset);
@@ -24,6 +28,7 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
         'price': dyn.price ?? 0.0,
         'whatsapp': dyn.whatsapp?.toString() ?? widget.user.phone,
         'facebook': dyn.facebookUrl?.toString() ?? '',
+        'isApproved': dyn.isApproved ?? false,
       };
     } catch (_) {
       return {
@@ -32,7 +37,48 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
         'price': 0.0,
         'whatsapp': widget.user.phone,
         'facebook': '',
+        'isApproved': false,
       };
+    }
+  }
+
+  Future<void> _requestStoreActivation() async {
+    setState(() {
+      isActivatingStore = true;
+    });
+
+    try {
+      if (widget.user.storePublishDate == null ||
+          widget.user.storePublishDate!.isEmpty) {
+        widget.user.storePublishDate = DateTime.now().toIso8601String();
+      }
+
+      await StorageService.updateUserPartial(widget.user);
+      await StorageService.saveUsersList();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "🚀 تم إرسال طلب تنشيط المتجر بنجاح إلى لوحة المدير السيادية (365 يوماً)",
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("⚠️ حدث خطأ أثناء إرسال الطلب: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isActivatingStore = false;
+        });
+      }
     }
   }
 
@@ -53,8 +99,8 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
             gMox.toLowerCase() != 'null' &&
             !gMox.startsWith("MOX249-00010001"));
 
-    // جلب البطاقات والأصول والمستندات الحقيقية الخاصة بالعميل من كائن المستخدم
     final realAssets = widget.user.myAssets;
+    final bool isStoreActive = widget.user.role == 'reviewed_active';
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -129,6 +175,10 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                         Text("الهاتف: ${widget.user.phone}"),
                         const SizedBox(height: 4),
                         Text("العنوان: ${widget.user.address}"),
+                        const SizedBox(height: 4),
+                        Text(
+                          "حالة المتجر: ${isStoreActive ? 'نشط ومعتمد (365 يوم)' : 'بانتظار المراجعة والتنشيط'}",
+                        ),
                       ],
                     ),
                   ),
@@ -147,7 +197,7 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                 child: const Column(
                   children: [
                     Text(
-                      "⚠️ لم تتم ترقية حساب العميل",
+                      "⚠️ لم تتم ترقية حساب العميل برقم MOX سيادي",
                       style: TextStyle(
                         color: Colors.red,
                         fontWeight: FontWeight.bold,
@@ -188,17 +238,28 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                 ),
               ),
             const SizedBox(height: 20),
-            Text(
-              "🛒 بطاقات ومستندات المتجر المعتمدة (${realAssets.length})",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: Colors.indigo,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "🛒 بطاقات ومستندات المتجر (${realAssets.length})",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.indigo,
+                  ),
+                ),
+                if (isStoreActive)
+                  const Chip(
+                    backgroundColor: Colors.green,
+                    label: Text(
+                      "متجر نشط ومعتمد",
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 10),
-
-            // العرض الديناميكي للأصول والمستندات الحقيقية للعميل
             if (realAssets.isEmpty)
               Container(
                 padding: const EdgeInsets.all(25),
@@ -356,7 +417,6 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                   ),
                 );
               }),
-
             const SizedBox(height: 20),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
@@ -366,16 +426,22 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () {
-                // منطق تنشيط المتجر
-              },
-              icon: const Icon(
-                Icons.verified_outlined,
-                color: Color(0xFF28A9CC),
-              ),
-              label: const Text(
-                "تنشيط المتجر",
-                style: TextStyle(
+              onPressed: isActivatingStore ? null : _requestStoreActivation,
+              icon: isActivatingStore
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(
+                      Icons.verified_outlined,
+                      color: Color(0xFF28A9CC),
+                    ),
+              label: Text(
+                isActivatingStore
+                    ? "جاري إرسال الطلب..."
+                    : "تنشيط المتجر (365 يوم)",
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                   color: Color(0xFF1B6B80),
