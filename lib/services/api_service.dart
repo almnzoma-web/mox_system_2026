@@ -18,11 +18,16 @@ class ApiService {
 
       debugPrint("جاري الاتصال بـ: $uri");
 
-      final response = await http.get(uri);
+      // استخدام http.Client أو متابعة إعادة التوجيه للتعامل مع روابط غوغل
+      final client = http.Client();
+      final request = http.Request('GET', uri);
+
+      final streamedResponse = await client.send(request);
+      final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
-        // تنظيف الاستجابة قبل فك التشفير
-        final String body = response.body.trim();
+        // تنظيف الاستجابة وفك ترميز النصوص العربية بشكل صحيح
+        final String body = utf8.decode(response.bodyBytes).trim();
         if (body.isEmpty) return [];
 
         final dynamic decoded = json.decode(body);
