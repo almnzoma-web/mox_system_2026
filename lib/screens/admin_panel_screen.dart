@@ -57,15 +57,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // بناء رابط الـ GET مع الباراميترات متضمناً حقل وصف المتجر العام الجديد
+      // بناء رابط الـ GET مع الباراميترات متضمناً كافة الحقول والأصول والبطاقات المحدثة بالمسطرة
       final queryParameters = {
         'action': 'save',
         'phone': user.phone,
         'password': user.password,
         'name': user.name,
         'address': user.address,
-        'storeDescription':
-            user.storeDescription, // 🌟 إضافته هنا لتحديثه في السحابة
+        'storeDescription': user.storeDescription,
         'balance': user.balance.toString(),
         'commission': user.commission.toString(),
         'gender': user.gender,
@@ -77,6 +76,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
         'points': user.points.toString(),
         'storePublishDate': user.storePublishDate ?? '',
+        'activationDate': user.activationDate ?? '',
         'myAssets': json.encode(user.myAssets.map((a) => a.toJson()).toList()),
       };
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
-import '../data/user_data.dart';
 import '../services/storage_service.dart';
 import 'digital_signature_screen.dart';
 
@@ -27,13 +26,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  late List<String?> _selectedCards;
-  late List<String> _availableCardsPool;
+  // قوائم للتحكم بالبطاقات وتنشيطها وتصنيفاتها
+  late List<bool> _cardActivationFlags;
+  late List<String> _cardCategoryTypes;
+  late List<MarketingCard> _availableCardsPoolObjects;
 
-  bool _isAuthorized = false;
   bool _isPublishing = false;
-  bool _isStoreExpired =
-      false; // فحص ما إذا كان المتجر منتهي الصلاحية (بعد 365 يوم)
+
+  // حالة زر التنشيط الأساسي السفلي: "طلب تنشيط"، "قيد المراجعة"، "نشط"
+  String _activationButtonState = "طلب تنشيط";
 
   @override
   void initState() {
@@ -43,276 +44,146 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     if (widget.user.name.isNotEmpty) {
       _storeNameController.text = widget.user.name;
     }
-
     if (widget.user.address.isNotEmpty) {
       _businessCategoryController.text = widget.user.address;
     }
-
     if (widget.user.storeDescription.isNotEmpty) {
       _descriptionController.text = widget.user.storeDescription;
     }
 
-    _availableCardsPool = widget.clientCards
-        .map((card) => card['title'].toString())
+    // جلب البطاقات المتاحة ككائنات
+    _availableCardsPoolObjects = widget.clientCards
+        .map((cardMap) => MarketingCard.fromJson(cardMap))
         .toList();
 
-    List<String> activeCardTitles = widget.user.myAssets
-        .where((asset) => asset.isApproved && asset.title.isNotEmpty)
-        .map((asset) => asset.title)
-        .toList();
+    // تهيئة حالة مربعات التنشيط لكل بطاقة بناءً على أصول المستخدم المحفوظة
+    _cardActivationFlags = List.generate(_availableCardsPoolObjects.length, (
+      index,
+    ) {
+      String cardTitle = _availableCardsPoolObjects[index].title;
+      var existingAsset = widget.user.myAssets.firstWhere(
+        (asset) => asset.title == cardTitle,
+        orElse: () => MarketingCard(
+          title: '',
+          description: '',
+          whatsapp: '',
+          facebookUrl: '',
+          isApproved: false,
+        ),
+      );
+      return existingAsset.isApproved && existingAsset.title.isNotEmpty;
+    });
 
-    _selectedCards = List.generate(
-      5,
-      (index) =>
-          index < activeCardTitles.length ? activeCardTitles[index] : null,
-    );
+    // تهيئة التصنيفات الافتراضية لكل بطاقة (بطاقة)
+    _cardCategoryTypes = List.generate(_availableCardsPoolObjects.length, (
+      index,
+    ) {
+      return "بطاقة";
+    });
 
-    // 🛡️ فحص صلاحية الـ 365 يوم للمتجر:
-    // إذا كان المتجر جديداً كلياً (ليس لديه تاريخ تفعيل أو إطلاق سابق)، يُعتبر مصرحاً له مباشرة دون حوار معوق.
-    // أما إذا كان لديه تاريخ تفعيل قديم وتمضي عليه أكثر من سنة (منتهي)، فيتطلب التحقق والتنشيط.
+    // فحص حالة التنشيط وصلاحية الـ 365 يوم
+    _checkStoreActivationStatus();
+  }
+
+  void _checkStoreActivationStatus() {
     if (widget.user.storePublishDate == null ||
         widget.user.storePublishDate!.trim().isEmpty ||
         widget.user.storePublishDate == "null") {
-      _isAuthorized = true; // متجر لأول مرة يفتح مباشرة
-      _isStoreExpired = false;
+      _activationButtonState = "طلب تنشيط";
     } else {
       try {
         DateTime publishDate = DateTime.parse(widget.user.storePublishDate!);
         DateTime expiryDate = publishDate.add(const Duration(days: 365));
         if (DateTime.now().isAfter(expiryDate)) {
-          _isStoreExpired = true; // انتهت الـ 365 يوم ويحتاج تنشيط
-          _isAuthorized = false;
+          _activationButtonState =
+              "طلب تنشيط"; // انتهت الـ 365 يوم وتحتاج تجديد
         } else {
-          _isAuthorized = true; // ساري المفعول
-          _isStoreExpired = false;
+          _activationButtonState = "نشط"; // سارية ضمن الـ 365 يوم
         }
       } catch (_) {
-        _isAuthorized = true;
+        _activationButtonState = "طلب تنشيط";
       }
     }
+  }
 
-    // استدعاء حوار التحقق فقط إذا كان المتجر منتهياً
-    if (_isStoreExpired) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showSecurityLoginDialog();
+  // منطق زر التنشيط الأساسي في أسفل الصفحة
+  void _handleActivationButtonPress() {
+    if (_activationButtonState == "طلب تنشيط") {
+      setState(() {
+        _activationButtonState = "قيد المراجعة";
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "⏳ تم إرسال طلب التنشيط للمدير.. بانتظار الاعتماد السيادي.",
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+
+      // محاكاة موافقة المدير بعد ثوانٍ لتفعيل المتجر والبطاقات لمدة 365 يوم
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _activationButtonState = "نشط";
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "✅ تمت موافقة المدير! تم تنشيط المتجر لمدة 365 يوم بنجاح.",
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       });
     }
   }
 
-  void _showSecurityLoginDialog() async {
-    await StorageService.ensureLoaded();
-
-    final TextEditingController moxInputController = TextEditingController();
-    final TextEditingController passwordInputController =
-        TextEditingController();
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.verified_user, color: Color(0xFF28A9CC)),
-            SizedBox(width: 8),
-            Text(
-              "تنشيط المتجر (انتهت فترة 365 يوم)",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1B6B80),
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "انتهت صلاحية متجرك (365 يوم). أرجو إدخال رقم موكس وكلمة السر للتنشيط والتجديد:",
-              style: TextStyle(fontSize: 12, color: Colors.black87),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: moxInputController,
-              decoration: const InputDecoration(
-                labelText: "رقم موكس (MOX)",
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: passwordInputController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "كلمة السر",
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF28A9CC),
-            ),
-            onPressed: () async {
-              String enteredMox = moxInputController.text.trim();
-              String enteredPassword = passwordInputController.text.trim();
-
-              bool isMoxMatchedInProfile = false;
-              bool isPasswordMatched = false;
-
-              try {
-                bool matchesUserMox =
-                    (widget.user.moxId.trim().toUpperCase() ==
-                        enteredMox.toUpperCase()) ||
-                    (widget.user.guardianMoxId != null &&
-                        widget.user.guardianMoxId!.trim().toUpperCase() ==
-                            enteredMox.toUpperCase());
-
-                if (enteredMox.isNotEmpty && matchesUserMox) {
-                  isMoxMatchedInProfile = true;
-                } else {
-                  for (var u in registeredUsers) {
-                    bool matchesStorageMox =
-                        (u.moxId.trim().toUpperCase() ==
-                            enteredMox.toUpperCase()) ||
-                        (u.guardianMoxId != null &&
-                            u.guardianMoxId!.trim().toUpperCase() ==
-                                enteredMox.toUpperCase());
-                    if (matchesStorageMox && enteredMox.isNotEmpty) {
-                      isMoxMatchedInProfile = true;
-                      break;
-                    }
-                  }
-                }
-
-                if (isMoxMatchedInProfile) {
-                  if (widget.user.password == enteredPassword &&
-                      enteredPassword.isNotEmpty) {
-                    isPasswordMatched = true;
-                  } else {
-                    for (var u in registeredUsers) {
-                      bool matchesStorageMox =
-                          (u.moxId.trim().toUpperCase() ==
-                              enteredMox.toUpperCase()) ||
-                          (u.guardianMoxId != null &&
-                              u.guardianMoxId!.trim().toUpperCase() ==
-                                  enteredMox.toUpperCase());
-                      if (matchesStorageMox &&
-                          u.password == enteredPassword &&
-                          enteredPassword.isNotEmpty) {
-                        isPasswordMatched = true;
-                        break;
-                      }
-                    }
-                  }
-                }
-              } catch (_) {
-                isMoxMatchedInProfile = false;
-                isPasswordMatched = false;
-              }
-
-              if (!mounted) return;
-              Navigator.pop(ctx);
-
-              if (!isMoxMatchedInProfile || !isPasswordMatched) {
-                setState(() {
-                  _isAuthorized = false;
-                });
-                _showLuxuryErrorDialog();
-              } else {
-                setState(() {
-                  _isAuthorized = true;
-                  _isStoreExpired = false;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "✅ تم التنشيط بنجاح لمدة 365 يوم جديدة - مرحباً بك",
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              "تحقـق وتنشـيط",
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLuxuryErrorDialog() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.gpp_bad, color: Colors.red),
-            SizedBox(width: 8),
-            Text(
-              "خطأ في بيانات التنشيط",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
-          "عفواً.. رقم موكس المدخل غير مطابق أو كلمة السر غير صحيحة لتنشيط المتجر 🤚",
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.5,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF28A9CC),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context);
-            },
-            child: const Text("حسناً", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _publishStore() async {
-    if (!_isAuthorized && _isStoreExpired) {
-      _showSecurityLoginDialog();
+    // شرط: يجب أن يكون زر التنشيط الأساسي في وضع "نشط"
+    if (_activationButtonState != "نشط") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "⚠️ تنبيه: يجب اعتماد طلب التنشيط (أن يصبح نشطاً) أولاً لحفظ ونشر البطاقات!",
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
       return;
     }
 
     if (_formKey.currentState!.validate()) {
-      bool hasAtLeastOneCard = _selectedCards.any(
-        (card) => card != null && card.trim().isNotEmpty,
-      );
+      setState(() {
+        _isPublishing = true;
+      });
 
-      if (!hasAtLeastOneCard) {
+      await Future.delayed(const Duration(seconds: 2));
+
+      // جمع البطاقات التي تم تفعيل مربع التنشيط الخاص بها فقط
+      List<MarketingCard> updatedAssets = [];
+      for (int i = 0; i < _availableCardsPoolObjects.length; i++) {
+        if (_cardActivationFlags[i]) {
+          var card = _availableCardsPoolObjects[i];
+          updatedAssets.add(
+            card.copyWith(
+              whatsapp: _phoneController.text.trim(),
+              isApproved: true,
+            ),
+          );
+        }
+      }
+
+      if (updatedAssets.isEmpty) {
+        setState(() {
+          _isPublishing = false;
+        });
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "⚠️ تنبيه: يجب اختيار بطاقة منشطة واحدة على الأقل لنشر المتجر!",
+              "⚠️ تنبيه: لم تقم بتنشيط أي بطاقة (بوضع علامة صح) لنشرها!",
             ),
             backgroundColor: Colors.redAccent,
           ),
@@ -320,38 +191,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         return;
       }
 
-      setState(() {
-        _isPublishing = true;
-      });
-
-      await Future.delayed(const Duration(seconds: 2));
-
-      List<MarketingCard> updatedAssets = [];
-      for (var cardTitle in _selectedCards) {
-        if (cardTitle != null && cardTitle.trim().isNotEmpty) {
-          try {
-            var originalCardData = widget.clientCards.firstWhere(
-              (c) => c['title'].toString() == cardTitle,
-            );
-            var cardModel = MarketingCard.fromJson(originalCardData);
-            updatedAssets.add(
-              cardModel.copyWith(
-                whatsapp: _phoneController.text.trim(),
-                isApproved: true,
-              ),
-            );
-          } catch (_) {}
-        }
-      }
-
-      // إذا كان المتجر ينشأ لأول مرة أو تجدد، نحدث تاريخ النشر والتنشيط
-      String finalPublishTimestamp =
-          (widget.user.storePublishDate != null &&
-              widget.user.storePublishDate!.trim().isNotEmpty &&
-              widget.user.storePublishDate != "null" &&
-              !_isStoreExpired)
-          ? widget.user.storePublishDate!
-          : DateTime.now().toIso8601String();
+      String finalPublishTimestamp = DateTime.now().toIso8601String();
 
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
@@ -375,7 +215,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("🚀 تم تحديث ونشر المتجر بنجاح لمدة 365 يوم"),
+          content: Text(
+            "🚀 تم تحديث ونشر الدكان وبطاقاته المعتمدة في رابط العميل بنجاح",
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -386,55 +228,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // إذا كان المتجر منتهي الصلاحية ولم يتم ترخيصه بعد، اعرض شاشة الانتظار أو التنبيه بدلاً من الشاشة البيضاء
-    if (!_isAuthorized && _isStoreExpired) {
-      return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.redAccent,
-          title: const Text(
-            "متجر منتهي الصلاحية (يتطلب تنشيط 365 يوم)",
-            style: TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.lock_clock, size: 60, color: Colors.redAccent),
-                const SizedBox(height: 16),
-                const Text(
-                  "انتهت صلاحية الـ 365 يوم لهذا المتجر.",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF28A9CC),
-                  ),
-                  onPressed: _showSecurityLoginDialog,
-                  icon: const Icon(Icons.verified, color: Colors.white),
-                  label: const Text(
-                    "إدخال بيانات التنشيط الآن",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Stack(
       children: [
         Scaffold(
           appBar: AppBar(
             backgroundColor: const Color(0xFF28A9CC),
             title: const Text(
-              "لوحة إعدادات المتجر",
+              "لوحة إعدادات المتجر السيادي",
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -453,7 +253,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               child: ListView(
                 children: [
                   const Text(
-                    "🛒 إعدادات المتجر السيادي وإدارة الـ 5 رفوف (النسخة المعتمدة)",
+                    "🛒 إعدادات المتجر السيادي وإدارة البطاقات الكاملة",
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -510,9 +310,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         ? "يرجى كتابة وصف موجز للمتجر"
                         : null,
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
                   const Text(
-                    "٦ & ٧- ربط البطاقات المنشطة (لا يتم نشر سوى البطاقات المحفوظة والمعتمدة فقط)",
+                    "٦ & ٧- استعراض البطاقات الكاملة مع خيارات (بطاقة، قسم، رف) وتنشيطها:",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.indigo,
@@ -520,48 +320,191 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  ...List.generate(5, (index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _selectedCards[index],
-                        decoration: InputDecoration(
-                          labelText: "بطاقة/رف - ${index + 1} (اختياري)",
-                          border: const OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: [
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text(
-                              "-- فارغ (بدون بطاقة) --",
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
+
+                  // عرض جميع البطاقات المتاحة بالكامل مع القائمة المنسدلة ومربع التنشيط لكل بطاقة
+                  ...List.generate(_availableCardsPoolObjects.length, (index) {
+                    var card = _availableCardsPoolObjects[index];
+                    return Card(
+                      elevation: 3,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // رأس البطاقة: القائمة المنسدلة الصغيرة (بطاقة، قسم، رف) + مربع التنشيط
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: DropdownButton<String>(
+                                    value: _cardCategoryTypes[index],
+                                    underline: const SizedBox(),
+                                    isDense: true,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF1B6B80),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    items: ["بطاقة", "قسم", "رف"].map((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    }).toList(),
+                                    onChanged: (newValue) {
+                                      if (newValue != null) {
+                                        setState(() {
+                                          _cardCategoryTypes[index] = newValue;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    const Text(
+                                      "تنشيط",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.indigo,
+                                      ),
+                                    ),
+                                    Checkbox(
+                                      value: _cardActivationFlags[index],
+                                      activeColor: const Color(0xFF28A9CC),
+                                      // مشروط: لا يعمل الا إذا كان زر التنشيط الأساسي في وضع "نشط"
+                                      onChanged:
+                                          (_activationButtonState == "نشط")
+                                          ? (bool? value) {
+                                              setState(() {
+                                                _cardActivationFlags[index] =
+                                                    value ?? false;
+                                              });
+                                            }
+                                          : null,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const Divider(),
+                            Text(
+                              card.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Color(0xFF1B6B80),
                               ),
                             ),
-                          ),
-                          ..._availableCardsPool.map((cardTitle) {
-                            return DropdownMenuItem(
-                              value: cardTitle,
-                              child: Text(
-                                cardTitle,
-                                style: const TextStyle(fontSize: 13),
+                            const SizedBox(height: 4),
+                            Text(
+                              card.description,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
                               ),
-                            );
-                          }),
-                        ],
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedCards[index] = val;
-                          });
-                        },
-                        validator: (val) => null,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "السعر: ${card.price}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Chip(
+                                label: Text(
+                                  "التصنيف المحدد: ${_cardCategoryTypes[index]}",
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                backgroundColor: const Color(0xFF1B6B80),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }),
+
                   const SizedBox(height: 20),
 
+                  // زر التنشيط الأساسي في أسفل الصفحة (وفق قاعدة 365 يوم)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF28A9CC)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          "منظومة التنشيط السيادي (كل 365 يوم)",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Color(0xFF1B6B80),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _activationButtonState == "نشط"
+                                ? Colors.green
+                                : _activationButtonState == "قيد المراجعة"
+                                ? Colors.orange
+                                : const Color(0xFF28A9CC),
+                            minimumSize: const Size(double.infinity, 45),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: _activationButtonState == "طلب تنشيط"
+                              ? _handleActivationButtonPress
+                              : null,
+                          child: Text(
+                            _activationButtonState,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // زر التوقيع الرقمي السيادي بنفس تصميمه الأصلي
                   Card(
                     elevation: 3,
                     shape: RoundedRectangleBorder(
@@ -624,6 +567,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
 
                   const SizedBox(height: 25),
+
+                  // زر النشر والحفظ في الذاكرة الدائمة
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF28A9CC),
@@ -638,7 +583,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       color: Colors.white,
                     ),
                     label: const Text(
-                      "نشر وتحديث الدكان والمتجر (365 يوم من أول إطلاق)",
+                      "نشر وتحديث الدكان والبطاقات المفعلة",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -679,9 +624,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     CircularProgressIndicator(color: Color(0xFF28A9CC)),
                     SizedBox(height: 18),
                     Text(
-                      "جاري حفظ وتثبيت النسخة المعتمدة لمتجرك...",
+                      "جاري حفظ ونشر البطاقات المفعلة في رابط العميل...",
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1B6B80),
                         decoration: TextDecoration.none,

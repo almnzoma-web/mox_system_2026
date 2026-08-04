@@ -133,39 +133,27 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
+      // جلب البطاقات المعتمدة والمفعلة تماماً من أصول العميل (myAssets القادمة من الصفحة A)
       if (userToUse != null && userToUse.myAssets.isNotEmpty) {
         final List<MarketingCard> convertedAssets = [];
         for (final asset in userToUse.myAssets) {
           try {
             // ignore: unnecessary_type_check
             if (asset is MarketingCard) {
-              convertedAssets.add(asset);
+              if (asset.isApproved && asset.title.isNotEmpty) {
+                convertedAssets.add(asset);
+              }
             } else if (asset is Map<String, dynamic>) {
-              convertedAssets.add(
-                MarketingCard.fromJson(asset as Map<String, dynamic>),
-              );
+              var card = MarketingCard.fromJson(asset as Map<String, dynamic>);
+              if (card.isApproved && card.title.isNotEmpty) {
+                convertedAssets.add(card);
+              }
             } else if (asset is Map) {
-              convertedAssets.add(
-                MarketingCard.fromJson(
-                  Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
-                ),
+              var card = MarketingCard.fromJson(
+                Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
               );
-            } else {
-              final dynamic rawJson = (asset as dynamic).toJson();
-              if (rawJson is Map) {
-                convertedAssets.add(
-                  MarketingCard.fromJson(Map<String, dynamic>.from(rawJson)),
-                );
-              } else {
-                convertedAssets.add(
-                  MarketingCard(
-                    title: asset.toString(),
-                    description: 'أصل رقمي معتمد في منظومة موكس السيادية',
-                    price: 0.0,
-                    whatsapp: userToUse.phone,
-                    facebookUrl: '',
-                  ),
-                );
+              if (card.isApproved && card.title.isNotEmpty) {
+                convertedAssets.add(card);
               }
             }
           } catch (_) {}
@@ -228,13 +216,15 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
 
     if (!hasBasicActivity) return false;
 
+    // فحص مدة الـ 365 يوماً المعتمدة من الصفحة A
     if (activeUser.storePublishDate != null &&
-        activeUser.storePublishDate!.isNotEmpty) {
+        activeUser.storePublishDate!.isNotEmpty &&
+        activeUser.storePublishDate != "null") {
       try {
         DateTime publishDate = DateTime.parse(activeUser.storePublishDate!);
         DateTime expiryDate = publishDate.add(const Duration(days: 365));
         if (DateTime.now().isAfter(expiryDate)) {
-          return false;
+          return false; // انتهت فترة الـ 365 يوماً
         }
       } catch (_) {}
     }
@@ -244,7 +234,8 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
 
   int _getRemainingDays(UserModel activeUser) {
     if (activeUser.storePublishDate == null ||
-        activeUser.storePublishDate!.isEmpty) {
+        activeUser.storePublishDate!.isEmpty ||
+        activeUser.storePublishDate == "null") {
       return 365;
     }
     try {
@@ -424,8 +415,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                           ],
                           // ignore: unnecessary_null_comparison
                           if (resolvedUser.storeDescription != null &&
-                              // ignore: unnecessary_non_null_assertion
-                              resolvedUser.storeDescription!.isNotEmpty) ...[
+                              resolvedUser.storeDescription.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.all(10),
@@ -434,8 +424,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                // ignore: unnecessary_non_null_assertion
-                                resolvedUser.storeDescription!,
+                                resolvedUser.storeDescription,
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12.5,
@@ -451,7 +440,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                     return const Padding(
                       padding: EdgeInsets.only(bottom: 10),
                       child: Text(
-                        "🛒 العروض والبطاقات النشطة للعميل (متاحة للعامة)",
+                        "🛒 العروض والبطاقات المنشطة للعميل (متاحة للعامة بالمسطرة)",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
