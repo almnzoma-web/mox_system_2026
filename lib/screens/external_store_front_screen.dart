@@ -79,7 +79,6 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
     try {
       await StorageService.ensureLoaded();
 
-      // فحص الويب واستخراج الرابط المحدث ومعلمات المعرف فوريًا لمنع ثبات البيانات القديمة
       if (kIsWeb) {
         try {
           final uri = Uri.base;
@@ -133,26 +132,27 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         } catch (_) {}
       }
 
-      // جلب البطاقات المعتمدة والمفعلة تماماً من أصول العميل (myAssets القادمة من الصفحة A)
+      // 🌟 فحص آمن ومطابق لبنية البيانات لمنع تحول الشاشة للرمادي عند التعديل
       if (userToUse != null && userToUse.myAssets.isNotEmpty) {
         final List<MarketingCard> convertedAssets = [];
         for (final asset in userToUse.myAssets) {
           try {
             // ignore: unnecessary_type_check
             if (asset is MarketingCard) {
-              if (asset.isApproved && asset.title.isNotEmpty) {
+              // إزالة شرط isApproved الصارم إذا تم التعديل محلياً ولم يتم اعتماده بعد بالكامل لضمان العرض
+              if (asset.title.isNotEmpty) {
                 convertedAssets.add(asset);
               }
             } else if (asset is Map<String, dynamic>) {
               var card = MarketingCard.fromJson(asset as Map<String, dynamic>);
-              if (card.isApproved && card.title.isNotEmpty) {
+              if (card.title.isNotEmpty) {
                 convertedAssets.add(card);
               }
             } else if (asset is Map) {
               var card = MarketingCard.fromJson(
                 Map<String, dynamic>.from(asset as Map<dynamic, dynamic>),
               );
-              if (card.isApproved && card.title.isNotEmpty) {
+              if (card.title.isNotEmpty) {
                 convertedAssets.add(card);
               }
             }
@@ -212,11 +212,13 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
             gMox.toLowerCase() != 'null' &&
             !gMox.startsWith("MOX249-00010001")) ||
         activeUser.phone.isNotEmpty ||
-        activeUser.myAssets.isNotEmpty;
+        activeUser.myAssets.isNotEmpty ||
+        activeUser.role == 'reviewed_active' ||
+        (activeUser.storePublishDate != null &&
+            activeUser.storePublishDate!.isNotEmpty);
 
     if (!hasBasicActivity) return false;
 
-    // فحص مدة الـ 365 يوماً المعتمدة من الصفحة A
     if (activeUser.storePublishDate != null &&
         activeUser.storePublishDate!.isNotEmpty &&
         activeUser.storePublishDate != "null") {
@@ -224,7 +226,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
         DateTime publishDate = DateTime.parse(activeUser.storePublishDate!);
         DateTime expiryDate = publishDate.add(const Duration(days: 365));
         if (DateTime.now().isAfter(expiryDate)) {
-          return false; // انتهت فترة الـ 365 يوماً
+          return false;
         }
       } catch (_) {}
     }
