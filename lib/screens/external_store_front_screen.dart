@@ -413,9 +413,7 @@ class _ExternalStoreFrontScreenState extends State<ExternalStoreFrontScreen> {
                               ),
                             ),
                           ],
-                          // ignore: unnecessary_null_comparison
-                          if (resolvedUser.storeDescription != null &&
-                              resolvedUser.storeDescription.isNotEmpty) ...[
+                          if (resolvedUser.storeDescription.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.all(10),

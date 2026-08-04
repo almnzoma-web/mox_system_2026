@@ -240,7 +240,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       ),
                       _buildFinanceTabButton("النقاط", 3, Icons.stars),
                       _buildFinanceTabButton("المؤشر", 4, Icons.analytics),
-                      // 🌟 التبويب الجديد والمستقل تماماً لطلبات المتاجر
+                      // 🌟 التبويب الجديد والمستقل تماماً لطلبات المتاجر المتصل بالمسطرة
                       _buildFinanceTabButton(
                         "طلبات المتاجر",
                         5,
@@ -322,9 +322,8 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  // 🌟 نافذة مستقلة تماماً خاصة بطلبات تنشيط المتاجر المستقبلة من العميل
+  // 🌟 نافذة مستقلة تماماً خاصة بطلبات تنشيط المتاجر المستقبلة من العميل عبر المسطرة
   Widget _buildStoreActivationRequestsView() {
-    // تصفية العملاء الذين قاموا بطلب التنشيط من صفحتهم أو أكملوا 365 يوماً
     final List<UserModel> storeRequests = StorageService.registeredUsers
         .where(
           (u) => u.storePublishDate != null && u.storePublishDate!.isNotEmpty,
@@ -379,7 +378,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "حالة المتجر الحالية: ${isStoreActive ? 'نشط (تم التنشيط)' : 'قيد المراجعة'}",
+                        "حالة المتجر: ${isStoreActive ? 'نشط ومعتمد' : 'قيد المراجعة'}",
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -405,7 +404,6 @@ class _AdminScreenState extends State<AdminScreen> {
                         client.role = 'free';
                       } else {
                         client.role = 'reviewed_active';
-                        // تفعيل حالة الاعتماد لكل بطاقات العميل تلقائياً لتكتمل الدائرة
                         // ignore: unnecessary_type_check
                         if (client.myAssets is List) {
                           for (var asset in client.myAssets) {
@@ -422,14 +420,14 @@ class _AdminScreenState extends State<AdminScreen> {
                       SnackBar(
                         content: Text(
                           client.role == 'reviewed_active'
-                              ? "✅ تم التنشيط بنجاح وتفعيل مربعات البطاقات للعميل"
+                              ? "✅ تمت الموافقة السيادية وتفعيل البطاقات للعميل"
                               : "⏳ تم إرجاع المتجر للحالة العادية",
                         ),
                       ),
                     );
                   },
                   child: Text(
-                    isStoreActive ? "تم التنشيط أو نشط" : "قيد المراجعة",
+                    isStoreActive ? "نشط (معتمد)" : "موافقة وتنشيط",
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11,
@@ -637,7 +635,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         SnackBar(
                           content: Text(
                             client.role == 'banned'
-                                ? "⛔ تم حظر العميل وتحديث الخزينة والسيستم"
+                                ? "⛔ تم حظر العميل وتحديث الخزينة"
                                 : "✅ تم إلغاء حظر العميل بنجاح",
                           ),
                         ),
@@ -697,7 +695,7 @@ class _AdminScreenState extends State<AdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم MOX السيادي (مثال: MOX249-xxxx-xxxx):",
+              "أدخل رقم MOX السيادي:",
               style: TextStyle(fontSize: 11, color: Colors.black54),
             ),
             const SizedBox(height: 10),
@@ -733,7 +731,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم حفظ وتحديث رقم MOX في قوقل والذاكرة المحلية والملف بنجاح",
+                      "✅ تم حفظ وتحديث رقم MOX في الخزينة والملف بنجاح",
                     ),
                   ),
                 );
@@ -760,7 +758,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         content: Text(
-          "هل أنت متأكد من حذف العميل (${client.name}) نهائياً من الذاكرة والسيستم؟",
+          "هل أنت متأكد من حذف العميل (${client.name}) نهائياً؟",
           style: const TextStyle(fontSize: 12),
         ),
         actions: [
@@ -778,7 +776,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    "🗑️ تم حذف العميل نهائياً من الخزينة والذاكرة المحلية والسحابة",
+                    "🗑️ تم حذف العميل نهائياً من الخزينة والسحابة",
                   ),
                 ),
               );
@@ -844,9 +842,7 @@ class _AdminScreenState extends State<AdminScreen> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    "🔊 تم الحفظ وتحديث الخزينة والترحيل السحابي بنجاح",
-                  ),
+                  content: Text("🔊 تم الحفظ وتحديث الخزينة بنجاح"),
                 ),
               );
             },
@@ -857,7 +853,6 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // 🌟 نافذة طلبيات والمنتجات القديمة والمحافظ عليها بالكامل كما هي
   Widget _buildCardRequestsView() {
     return ListView.builder(
       itemCount: StorageService.registeredUsers.length,
@@ -921,7 +916,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       SnackBar(
                         content: Text(
                           client.role == 'reviewed_active'
-                              ? "✅ تمت المراجعة - تم نشر بطاقة العميل بنجاح لمدة 365 يوماً"
+                              ? "✅ تمت المراجعة - تم نشر بطاقة العميل بنجاح"
                               : "⏳ الطلب قيد المراجعة",
                         ),
                         duration: const Duration(milliseconds: 1500),
@@ -964,7 +959,7 @@ class _AdminScreenState extends State<AdminScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             subtitle: Text(
-              "رقم MOX: ${client.moxId} | نظام النقاط السيادي",
+              "رقم MOX: ${client.moxId} | نظام النقاط",
               style: const TextStyle(fontSize: 11, color: Colors.black54),
             ),
             trailing: Row(
@@ -1057,9 +1052,7 @@ class _AdminScreenState extends State<AdminScreen> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text(
-                    "🔊 تم حفظ وتحديث رصيد النقاط في الخزينة والسيستم بنجاح",
-                  ),
+                  content: Text("🔊 تم حفظ وتحديث رصيد النقاط بنجاح"),
                 ),
               );
             },
