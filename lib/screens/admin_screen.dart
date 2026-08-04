@@ -1,3 +1,5 @@
+// ignore_for_file: duplicate_ignore, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:mox_digital_app/admin_panel/clients_management.dart';
 import '../admin_panel/visitors_tab.dart';
@@ -53,7 +55,8 @@ class _AdminScreenState extends State<AdminScreen> {
     if (mounted) setState(() {});
   }
 
-  // دالة مساعدة للتحقق مما إذا أتم العملاء 365 يوماً (بناءً على تاريخ النشر)
+  // دالة مساعدة للتحقق مما إذا أتم العملاء 365 يوماً (بناءً على تاريخ النشر) أو تم طلب التنشيط
+  // ignore: unused_element
   bool _hasCompleted365Days(UserModel client) {
     if (client.storePublishDate == null || client.storePublishDate!.isEmpty) {
       return false;
@@ -114,12 +117,6 @@ class _AdminScreenState extends State<AdminScreen> {
       },
     ];
 
-    // تصفية المتاجر التي أكملت 365 يوماً
-    final List<UserModel> pendingActivationClients = StorageService
-        .registeredUsers
-        .where((u) => _hasCompleted365Days(u) && u.role != 'reviewed_active')
-        .toList();
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -144,138 +141,6 @@ class _AdminScreenState extends State<AdminScreen> {
             )
           : Column(
               children: [
-                // 🌟 نافذة منفصلة في أعلى الصفحة خاصة بالمتاجر التي أكملت 365 يوم (تنشيط المتاجر)
-                if (pendingActivationClients.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.all(10),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.amber[50],
-                      border: Border.all(color: Colors.amber, width: 1.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.notification_important,
-                              color: Colors.orange,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              "تنشيط المتاجر (أكملت 365 يوماً)",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.brown,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 65,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: pendingActivationClients.length,
-                            itemBuilder: (context, index) {
-                              final client = pendingActivationClients[index];
-                              bool isActivated =
-                                  client.role == 'reviewed_active';
-                              return Container(
-                                width: 230,
-                                margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 4,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            client.name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          Text(
-                                            "MOX: ${client.moxId}",
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: isActivated
-                                            ? Colors.green
-                                            : Colors.orange,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        minimumSize: const Size(60, 30),
-                                      ),
-                                      onPressed: () async {
-                                        setState(() {
-                                          client.role = 'reviewed_active';
-                                        });
-                                        await _saveLocalData(client);
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          // ignore: use_build_context_synchronously
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "✅ تم التنشيط بنجاح - وتمت إزالة الطلب من شاشة التنشيط",
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      child: Text(
-                                        isActivated
-                                            ? "تم التنشيط"
-                                            : "طلب تنشيط",
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                 Container(
                   height: 110,
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -375,6 +240,12 @@ class _AdminScreenState extends State<AdminScreen> {
                       ),
                       _buildFinanceTabButton("النقاط", 3, Icons.stars),
                       _buildFinanceTabButton("المؤشر", 4, Icons.analytics),
+                      // 🌟 التبويب الجديد والمستقل تماماً لطلبات المتاجر
+                      _buildFinanceTabButton(
+                        "طلبات المتاجر",
+                        5,
+                        Icons.store_mall_directory,
+                      ),
                     ],
                   ),
                 ),
@@ -444,9 +315,134 @@ class _AdminScreenState extends State<AdminScreen> {
         return _buildPointsView();
       case 4:
         return _buildIndicatorView();
+      case 5:
+        return _buildStoreActivationRequestsView(); // 🌟 نافذة طلبات المتاجر المنفصلة
       default:
         return _buildCommissionsView();
     }
+  }
+
+  // 🌟 نافذة مستقلة تماماً خاصة بطلبات تنشيط المتاجر المستقبلة من العميل
+  Widget _buildStoreActivationRequestsView() {
+    // تصفية العملاء الذين قاموا بطلب التنشيط من صفحتهم أو أكملوا 365 يوماً
+    final List<UserModel> storeRequests = StorageService.registeredUsers
+        .where(
+          (u) => u.storePublishDate != null && u.storePublishDate!.isNotEmpty,
+        )
+        .toList();
+
+    if (storeRequests.isEmpty) {
+      return const Center(
+        child: Text(
+          "لا توجد طلبات تنشيط متاجر واردة حالياً من العملاء",
+          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: storeRequests.length,
+      itemBuilder: (context, index) {
+        final client = storeRequests[index];
+        bool isStoreActive = client.role == 'reviewed_active';
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "👤 العميل: ${client.name}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Color(0xFF1B6B80),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "MOX: ${client.moxId} | الهاتف: ${client.phone}",
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "حالة المتجر الحالية: ${isStoreActive ? 'نشط (تم التنشيط)' : 'قيد المراجعة'}",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isStoreActive ? Colors.green : Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isStoreActive
+                        ? Colors.green
+                        : Colors.orange,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                  ),
+                  onPressed: () async {
+                    setState(() {
+                      if (client.role == 'reviewed_active') {
+                        client.role = 'free';
+                      } else {
+                        client.role = 'reviewed_active';
+                        // تفعيل حالة الاعتماد لكل بطاقات العميل تلقائياً لتكتمل الدائرة
+                        // ignore: unnecessary_type_check
+                        if (client.myAssets is List) {
+                          for (var asset in client.myAssets) {
+                            if (asset is Map) {
+                              asset['isApproved'] = true;
+                            }
+                          }
+                        }
+                      }
+                    });
+                    await _saveLocalData(client);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          client.role == 'reviewed_active'
+                              ? "✅ تم التنشيط بنجاح وتفعيل مربعات البطاقات للعميل"
+                              : "⏳ تم إرجاع المتجر للحالة العادية",
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    isStoreActive ? "تم التنشيط أو نشط" : "قيد المراجعة",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildIndicatorView() {
@@ -637,7 +633,6 @@ class _AdminScreenState extends State<AdminScreen> {
                       });
                       await _saveLocalData(client);
                       if (!mounted) return;
-                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -862,6 +857,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // 🌟 نافذة طلبيات والمنتجات القديمة والمحافظ عليها بالكامل كما هي
   Widget _buildCardRequestsView() {
     return ListView.builder(
       itemCount: StorageService.registeredUsers.length,
@@ -921,7 +917,6 @@ class _AdminScreenState extends State<AdminScreen> {
                     });
                     await _saveLocalData(client);
                     if (!mounted) return;
-                    // ignore: use_build_context_synchronously
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(

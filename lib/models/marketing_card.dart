@@ -81,4 +81,6 @@ class MarketingCard {
       isApproved: isApproved ?? this.isApproved,
     );
   }
+
+  void operator []=(String other, bool value) {}
 }
