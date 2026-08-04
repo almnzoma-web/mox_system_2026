@@ -1,12 +1,10 @@
-// ignore_for_file: duplicate_ignore, use_build_context_synchronously
-
 import 'package:flutter/material.dart';
-import '../admin_panel/clients_manager_tab.dart';
+import 'package:mox_digital_app/admin_panel/clients_management.dart';
 import '../admin_panel/visitors_tab.dart';
 import '../admin_panel/services_manager_tab.dart';
 import '../admin_panel/app_warehouse_tab.dart';
-import '../services/storage_service.dart';
-import '../models/user_model.dart';
+import '../../services/storage_service.dart';
+import '../../models/user_model.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -55,6 +53,7 @@ class _AdminScreenState extends State<AdminScreen> {
     if (mounted) setState(() {});
   }
 
+  // دالة مساعدة للتحقق مما إذا أتم العملاء 365 يوماً (بناءً على تاريخ النشر)
   bool _hasCompleted365Days(UserModel client) {
     if (client.storePublishDate == null || client.storePublishDate!.isEmpty) {
       return false;
@@ -103,7 +102,7 @@ class _AdminScreenState extends State<AdminScreen> {
         "title": "العملاء",
         "icon": Icons.people,
         "color": Colors.orange,
-        "page": const ClientsManagerTab(),
+        "page": const ClientsManager(),
         "isIndicator": false,
       },
       {
@@ -115,6 +114,7 @@ class _AdminScreenState extends State<AdminScreen> {
       },
     ];
 
+    // تصفية المتاجر التي أكملت 365 يوماً
     final List<UserModel> pendingActivationClients = StorageService
         .registeredUsers
         .where((u) => _hasCompleted365Days(u) && u.role != 'reviewed_active')
@@ -144,6 +144,7 @@ class _AdminScreenState extends State<AdminScreen> {
             )
           : Column(
               children: [
+                // 🌟 نافذة منفصلة في أعلى الصفحة خاصة بالمتاجر التي أكملت 365 يوم (تنشيط المتاجر)
                 if (pendingActivationClients.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.all(10),
@@ -245,6 +246,7 @@ class _AdminScreenState extends State<AdminScreen> {
                                         await _saveLocalData(client);
                                         if (!mounted) return;
                                         ScaffoldMessenger.of(
+                                          // ignore: use_build_context_synchronously
                                           context,
                                         ).showSnackBar(
                                           const SnackBar(
@@ -273,6 +275,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       ],
                     ),
                   ),
+
                 Container(
                   height: 110,
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -634,6 +637,7 @@ class _AdminScreenState extends State<AdminScreen> {
                       });
                       await _saveLocalData(client);
                       if (!mounted) return;
+                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -917,6 +921,7 @@ class _AdminScreenState extends State<AdminScreen> {
                     });
                     await _saveLocalData(client);
                     if (!mounted) return;
+                    // ignore: use_build_context_synchronously
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
