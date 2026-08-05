@@ -82,5 +82,27 @@ class MarketingCard {
     );
   }
 
-  void operator []=(String other, bool value) {}
+  // 🌟 معالجة معامل التشغيل لمنع أي خطأ نوع أو تعارض مع الخرائط
+  void operator []=(String key, dynamic value) {
+    switch (key) {
+      case 'title':
+        title = value?.toString() ?? '';
+        break;
+      case 'description':
+        description = value?.toString() ?? '';
+        break;
+      case 'whatsapp':
+        whatsapp = value?.toString() ?? '';
+        break;
+      case 'facebookUrl':
+        facebookUrl = value?.toString() ?? '';
+        break;
+      case 'price':
+        price = _parsePrice(value);
+        break;
+      case 'isApproved':
+        isApproved = value == true;
+        break;
+    }
+  }
 }
