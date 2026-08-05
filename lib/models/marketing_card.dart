@@ -1,6 +1,6 @@
 class MarketingCard {
   final String? id;
-  String title, description, whatsapp, facebookUrl;
+  String title, description, whatsapp, facebookUrl, category;
   double price;
   bool isApproved;
 
@@ -10,6 +10,7 @@ class MarketingCard {
     required this.description,
     required this.whatsapp,
     required this.facebookUrl,
+    this.category = 'بطاقة',
     this.price = 0.0,
     this.isApproved = false,
   });
@@ -42,17 +43,19 @@ class MarketingCard {
     'description': description,
     'whatsapp': whatsapp,
     'facebookUrl': facebookUrl,
+    'category': category,
     'price': price,
     'isApproved': isApproved,
   };
 
-  // 2. إنشاء كائن من Map مع دعم الصيغتين للسعر والـ Casting الآمن
+  // 2. إنشاء كائن من Map مع دعم الصيغتين للسعر والـ Casting الآمن ودعم التصنيف
   factory MarketingCard.fromJson(Map<String, dynamic> json) => MarketingCard(
     id: json['id']?.toString(),
     title: json['title']?.toString() ?? '',
     description: json['description']?.toString() ?? '',
     whatsapp: json['whatsapp']?.toString() ?? '',
     facebookUrl: json['facebookUrl']?.toString() ?? '',
+    category: json['category']?.toString() ?? 'بطاقة',
     price: _parsePrice(json['price']),
     isApproved: json['isApproved'] == true,
   );
@@ -68,6 +71,7 @@ class MarketingCard {
     String? description,
     String? whatsapp,
     String? facebookUrl,
+    String? category,
     double? price,
     bool? isApproved,
   }) {
@@ -77,6 +81,7 @@ class MarketingCard {
       description: description ?? this.description,
       whatsapp: whatsapp ?? this.whatsapp,
       facebookUrl: facebookUrl ?? this.facebookUrl,
+      category: category ?? this.category,
       price: price ?? this.price,
       isApproved: isApproved ?? this.isApproved,
     );
@@ -97,12 +102,39 @@ class MarketingCard {
       case 'facebookUrl':
         facebookUrl = value?.toString() ?? '';
         break;
+      case 'category':
+        category = value?.toString() ?? 'بطاقة';
+        break;
       case 'price':
         price = _parsePrice(value);
         break;
       case 'isApproved':
         isApproved = value == true;
         break;
+    }
+  }
+
+  // 🌟 إمكانية القراءة المباشرة عبر المشغل لتعامل سلس مع الخرائط
+  dynamic operator [](String key) {
+    switch (key) {
+      case 'id':
+        return id;
+      case 'title':
+        return title;
+      case 'description':
+        return description;
+      case 'whatsapp':
+        return whatsapp;
+      case 'facebookUrl':
+        return facebookUrl;
+      case 'category':
+        return category;
+      case 'price':
+        return price;
+      case 'isApproved':
+        return isApproved;
+      default:
+        return null;
     }
   }
 }

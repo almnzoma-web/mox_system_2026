@@ -55,21 +55,6 @@ class _AdminScreenState extends State<AdminScreen> {
     if (mounted) setState(() {});
   }
 
-  // دالة مساعدة للتحقق مما إذا أتم العملاء 365 يوماً (بناءً على تاريخ النشر) أو تم طلب التنشيط
-  // ignore: unused_element
-  bool _hasCompleted365Days(UserModel client) {
-    if (client.storePublishDate == null || client.storePublishDate!.isEmpty) {
-      return false;
-    }
-    try {
-      DateTime pubDate = DateTime.parse(client.storePublishDate!);
-      DateTime now = DateTime.now();
-      return now.difference(pubDate).inDays >= 365;
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>> menuItems = [
@@ -240,12 +225,6 @@ class _AdminScreenState extends State<AdminScreen> {
                       ),
                       _buildFinanceTabButton("النقاط", 3, Icons.stars),
                       _buildFinanceTabButton("المؤشر", 4, Icons.analytics),
-                      // 🌟 التبويب الجديد والمستقل تماماً لطلبات المتاجر المتصل بالمسطرة
-                      _buildFinanceTabButton(
-                        "طلبات المتاجر",
-                        5,
-                        Icons.store_mall_directory,
-                      ),
                     ],
                   ),
                 ),
@@ -315,132 +294,9 @@ class _AdminScreenState extends State<AdminScreen> {
         return _buildPointsView();
       case 4:
         return _buildIndicatorView();
-      case 5:
-        return _buildStoreActivationRequestsView(); // 🌟 نافذة طلبات المتاجر المنفصلة
       default:
         return _buildCommissionsView();
     }
-  }
-
-  // 🌟 نافذة مستقلة تماماً خاصة بطلبات تنشيط المتاجر المستقبلة من العميل عبر المسطرة
-  Widget _buildStoreActivationRequestsView() {
-    final List<UserModel> storeRequests = StorageService.registeredUsers
-        .where(
-          (u) => u.storePublishDate != null && u.storePublishDate!.isNotEmpty,
-        )
-        .toList();
-
-    if (storeRequests.isEmpty) {
-      return const Center(
-        child: Text(
-          "لا توجد طلبات تنشيط متاجر واردة حالياً من العملاء",
-          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: storeRequests.length,
-      itemBuilder: (context, index) {
-        final client = storeRequests[index];
-        bool isStoreActive = client.role == 'reviewed_active';
-
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "👤 العميل: ${client.name}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Color(0xFF1B6B80),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "MOX: ${client.moxId} | الهاتف: ${client.phone}",
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "حالة المتجر: ${isStoreActive ? 'نشط ومعتمد' : 'قيد المراجعة'}",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isStoreActive ? Colors.green : Colors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isStoreActive
-                        ? Colors.green
-                        : Colors.orange,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                  ),
-                  onPressed: () async {
-                    setState(() {
-                      if (client.role == 'reviewed_active') {
-                        client.role = 'free';
-                      } else {
-                        client.role = 'reviewed_active';
-                        // ignore: unnecessary_type_check
-                        if (client.myAssets is List) {
-                          for (var asset in client.myAssets) {
-                            if (asset is Map) {
-                              asset['isApproved'] = true;
-                            }
-                          }
-                        }
-                      }
-                    });
-                    await _saveLocalData(client);
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          client.role == 'reviewed_active'
-                              ? "✅ تمت الموافقة السيادية وتفعيل البطاقات للعميل"
-                              : "⏳ تم إرجاع المتجر للحالة العادية",
-                        ),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    isStoreActive ? "نشط (معتمد)" : "موافقة وتنشيط",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildIndicatorView() {
@@ -635,7 +491,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         SnackBar(
                           content: Text(
                             client.role == 'banned'
-                                ? "⛔ تم حظر العميل وتحديث الخزينة"
+                                ? "⛔ تم حظر العميل وتحديث الخزينة والسيستم"
                                 : "✅ تم إلغاء حظر العميل بنجاح",
                           ),
                         ),
@@ -695,7 +551,7 @@ class _AdminScreenState extends State<AdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "أدخل رقم MOX السيادي:",
+              "أدخل رقم MOX السيادي (مثال: MOX249-xxxx-xxxx):",
               style: TextStyle(fontSize: 11, color: Colors.black54),
             ),
             const SizedBox(height: 10),
@@ -731,7 +587,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم حفظ وتحديث رقم MOX في الخزينة والملف بنجاح",
+                      "✅ تم حفظ وتحديث رقم MOX في قوقل والذاكرة المحلية والملف بنجاح",
                     ),
                   ),
                 );
@@ -758,7 +614,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
         content: Text(
-          "هل أنت متأكد من حذف العميل (${client.name}) نهائياً؟",
+          "هل أنت متأكد من حذف العميل (${client.name}) نهائياً من الذاكرة والسيستم؟",
           style: const TextStyle(fontSize: 12),
         ),
         actions: [
@@ -776,7 +632,7 @@ class _AdminScreenState extends State<AdminScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    "🗑️ تم حذف العميل نهائياً من الخزينة والسحابة",
+                    "🗑️ تم حذف العميل نهائياً من الخزينة والذاكرة المحلية والسحابة",
                   ),
                 ),
               );
@@ -842,7 +698,9 @@ class _AdminScreenState extends State<AdminScreen> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text("🔊 تم الحفظ وتحديث الخزينة بنجاح"),
+                  content: Text(
+                    "🔊 تم الحفظ وتحديث الخزينة والترحيل السحابي بنجاح",
+                  ),
                 ),
               );
             },
@@ -853,6 +711,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
+  // 🌟 نافذة طلبيات والمنتجات القديمة والمحافظ عليها بالكامل كما هي
   Widget _buildCardRequestsView() {
     return ListView.builder(
       itemCount: StorageService.registeredUsers.length,
@@ -959,7 +818,7 @@ class _AdminScreenState extends State<AdminScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             subtitle: Text(
-              "رقم MOX: ${client.moxId} | نظام النقاط",
+              "رقم MOX: ${client.moxId} | نظام النقاط السيادي",
               style: const TextStyle(fontSize: 11, color: Colors.black54),
             ),
             trailing: Row(
@@ -1052,7 +911,9 @@ class _AdminScreenState extends State<AdminScreen> {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text("🔊 تم حفظ وتحديث رصيد النقاط بنجاح"),
+                  content: Text(
+                    "🔊 تم حفظ وتحديث رصيد النقاط في الخزينة والسيستم بنجاح",
+                  ),
                 ),
               );
             },

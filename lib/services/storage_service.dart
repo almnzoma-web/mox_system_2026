@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
-// ignore: unused_import
 import '../models/marketing_card.dart';
 
 class StorageService {
@@ -158,8 +157,11 @@ class StorageService {
       try {
         encodedAssets = json.encode(
           newUser.myAssets.map((a) {
-            if (a is Map) return a;
-            return a.toJson();
+            // ignore: unnecessary_type_check
+            if (a is MarketingCard) return a.toJson();
+            // ignore: dead_code
+            if (a is Map<String, dynamic>) return a;
+            return (a as dynamic).toJson();
           }).toList(),
         );
       } catch (_) {}
@@ -170,8 +172,7 @@ class StorageService {
         'password': newUser.password,
         'name': newUser.name,
         'address': newUser.address,
-        'storeDescription':
-            newUser.storeDescription, // 🌟 إضافة وصف المتجر العام
+        'storeDescription': newUser.storeDescription,
         'balance': newUser.balance.toString(),
         'commission': newUser.commission.toString(),
         'gender': newUser.gender,
@@ -227,8 +228,11 @@ class StorageService {
       try {
         encodedAssets = json.encode(
           user.myAssets.map((a) {
-            if (a is Map) return a;
-            return a.toJson();
+            // ignore: unnecessary_type_check
+            if (a is MarketingCard) return a.toJson();
+            // ignore: dead_code
+            if (a is Map<String, dynamic>) return a;
+            return (a as dynamic).toJson();
           }).toList(),
         );
       } catch (_) {}
@@ -239,7 +243,7 @@ class StorageService {
         'password': user.password,
         'name': user.name,
         'address': user.address,
-        'storeDescription': user.storeDescription, // 🌟 إضافة وصف المتجر العام
+        'storeDescription': user.storeDescription,
         'balance': user.balance.toString(),
         'commission': user.commission.toString(),
         'gender': user.gender,
@@ -415,6 +419,10 @@ class StorageService {
         for (var asset in user.myAssets) {
           if (asset is Map<String, dynamic>) {
             formattedAssets.add(asset as Map<String, dynamic>);
+            // ignore: unnecessary_type_check
+          } else if (asset is MarketingCard) {
+            formattedAssets.add(asset.toJson());
+            // ignore: dead_code
           } else {
             try {
               final jsonMap = (asset as dynamic).toJson();

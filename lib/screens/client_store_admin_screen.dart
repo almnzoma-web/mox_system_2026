@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import '../models/marketing_card.dart';
 import '../data/user_data.dart';
 import '../services/storage_service.dart';
 import 'digital_signature_screen.dart';
+import '../widgets/store_preview_widget.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
@@ -28,6 +31,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _linkController = TextEditingController();
 
   final Map<String, bool> _cardActivationStatus = {};
   final Map<String, String> _cardCategories = {};
@@ -55,6 +59,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         _descriptionController.text = firstAsset.description;
       } catch (_) {}
     }
+
+    // توليد رابط المعاينة الخاص بالمتجر بناءً على رقم موكس
+    _linkController.text =
+        "https://mox-system.web.app/?mox=${widget.user.moxId}";
 
     for (var card in widget.clientCards) {
       String title = card['title'].toString();
@@ -274,7 +282,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 زر التنشيط المستقل لتفعيل الـ 365 يوماً وفتح مربعات الصح مباشرة
+  // 🚀 زر التنشيط المستقل داخل الصفحة فقط لتفعيل الـ 365 يوماً وفتح مربعات الصح مباشرة
   void _handleActivationButtonPress() async {
     if (_activationButtonState == 0) {
       setState(() {
@@ -302,6 +310,25 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
+  // 🌟 فتح نافذة المعاينة المنبثقة
+  void _openStorePreview() {
+    UserModel liveUser = widget.user.copyWith(
+      name: _storeNameController.text.trim(),
+      address: _businessCategoryController.text.trim(),
+      phone: _phoneController.text.trim(),
+      storeDescription: _descriptionController.text.trim(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => StorePreviewWidget(
+        user: liveUser,
+        allCards: widget.clientCards,
+        activeStatus: _cardActivationStatus,
+      ),
+    );
+  }
+
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -315,6 +342,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         String title = cardData['title'].toString();
         bool isChecked = _cardActivationStatus[title] ?? false;
 
+        // النشر فقط للبطاقات التي تم تفعيل مربع النشط الخاص بها بعلامة صح
         if (isChecked &&
             (_activationButtonState == 1 ||
                 widget.user.role == 'reviewed_active')) {
@@ -324,6 +352,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               cardModel.copyWith(
                 description: _descriptionController.text.trim(),
                 whatsapp: _phoneController.text.trim(),
+                isApproved: true,
               ),
             );
           } catch (_) {
@@ -334,6 +363,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 price: 0.0,
                 whatsapp: _phoneController.text.trim(),
                 facebookUrl: '',
+                isApproved: true,
               ),
             );
           }
@@ -434,6 +464,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () => Navigator.pop(context),
             ),
+            actions: [
+              // 🌟 زر معاينة المتجر في الشريط العلوي كصفحة منبثقة
+              IconButton(
+                icon: const Icon(Icons.remove_red_eye, color: Colors.white),
+                tooltip: "معاينة المتجر المنبثقة",
+                onPressed: _openStorePreview,
+              ),
+            ],
           ),
           body: Padding(
             padding: const EdgeInsets.all(20),
@@ -499,6 +537,99 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         ? "يرجى كتابة وصف موجز"
                         : null,
                   ),
+                  const SizedBox(height: 20),
+
+                  // 🌟 قسم رابط المتجر ومعاينة الرابط ونسخه بالمسطرة
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF28A9CC),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "🔗 رابط المتجر الرقمي السيادي (للمشاركة والمعاينة):",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Color(0xFF1B6B80),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _linkController,
+                                readOnly: true,
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                ),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF28A9CC),
+                                minimumSize: const Size(0, 40),
+                              ),
+                              onPressed: () {
+                                Clipboard.setData(
+                                  ClipboardData(text: _linkController.text),
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "📋 تم نسخ الرابط بنجاح بالمسطرة!",
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.copy,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              label: const Text(
+                                "نسخ",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // 🌟 زر إضافي صريح لفتح المعاينة المنبثقة داخل الحقل
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1B6B80),
+                            minimumSize: const Size(double.infinity, 38),
+                          ),
+                          onPressed: _openStorePreview,
+                          icon: const Icon(
+                            Icons.remove_red_eye,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          label: const Text(
+                            "معاينة المتجر المنبثقة الحية",
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 20),
                   const Text(
                     "٦- عرض البطاقات كاملة مع التصنيف الفرعي ومربع التنشيط:",

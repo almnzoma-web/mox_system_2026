@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -57,7 +59,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // بناء رابط الـ GET مع الباراميترات متضمناً كافة الحقول والأصول والبطاقات المحدثة بالمسطرة
       final queryParameters = {
         'action': 'save',
         'phone': user.phone,
@@ -94,7 +95,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        _fetchFromCloud(); // تحديث القائمة بعد الترحيل
+        _fetchFromCloud();
       }
     } catch (e) {
       if (!mounted) return;
