@@ -1141,6 +1141,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة الكاملة والمحدثة مع المحافظة على كافة أسطر الملف الأصلية)
   void _showClientAssetsScreen(BuildContext context) {
+    // جلب قائمة البطاقات الخاصة بالمستخدم أو تهيئتها كقائمة فارغة قابلة للتعديل لضمان عدم حدوث خطأ Undefined name
+    // ignore: no_leading_underscores_for_local_identifiers, unnecessary_null_comparison
+    final List<Map<String, dynamic>> _clientCards = widget.user.myAssets != null
+        // ignore: unnecessary_non_null_assertion
+        ? widget.user.myAssets!
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList()
+        // ignore: dead_code
+        : [];
+
     // تحديد الـ moxId الآمن للرابط بالمسطرة الهندسية
     final String activeMoxForUrl =
         (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
@@ -1248,8 +1258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           builder: (_) =>
                                               ExternalStoreFrontScreen(
                                                 user: widget.user,
-                                                clientCards:
-                                                    widget.user.myAssets,
+                                                clientCards: _clientCards,
                                                 directMoxId: activeMoxForUrl,
                                               ),
                                         ),
@@ -1445,7 +1454,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 10),
 
                         // توليد البطاقات الـ 5 مع ترس التعديل وزر الحفظ التلقائي في الخزينة
-                        ...widget.user.myAssets.map((card) {
+                        ..._clientCards.map((card) {
                           final titleCtrl = TextEditingController(
                             text: card['title'],
                           );
@@ -1777,24 +1786,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   ),
                                                 ),
                                                 onPressed: () async {
+                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: ربط التعديلات بكائن المستخدم ومزامنتها
                                                   setStateModal(() {
                                                     card['isEditing'] = false;
-                                                    widget.user.myAssets =
-                                                        List<
-                                                              Map<
-                                                                String,
-                                                                dynamic
-                                                              >
-                                                            >.from(
-                                                              widget
-                                                                  .user
-                                                                  .myAssets,
-                                                            )
-                                                            .cast<
-                                                              MarketingCard
-                                                            >();
+                                                    widget
+                                                        .user
+                                                        .myAssets = _clientCards
+                                                        .cast<MarketingCard>();
                                                   });
 
+                                                  // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
                                                   await StorageService.updateUserPartial(
                                                     widget.user,
                                                   );
@@ -1846,9 +1847,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               MaterialPageRoute(
                                 builder: (_) => ClientStoreAdminScreen(
                                   user: widget.user,
-                                  clientCards: widget.user.myAssets
-                                      .map((e) => e as Map<String, dynamic>)
-                                      .toList(),
+                                  clientCards: _clientCards,
                                 ),
                               ),
                             );
