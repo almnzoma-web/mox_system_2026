@@ -17,6 +17,7 @@ class ClientStoreAdminScreen extends StatefulWidget {
     super.key,
     required this.user,
     required this.clientCards,
+    required String directMoxId,
   });
 
   @override

@@ -7,7 +7,6 @@ import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
 import 'package:mox_digital_app/admin_panel/services_manager_tab.dart';
 import 'package:mox_digital_app/screens/client_store_admin_screen.dart';
 import 'package:mox_digital_app/screens/digital_map_screen.dart';
-import 'package:mox_digital_app/screens/external_store_front_screen.dart';
 import '../models/user_model.dart';
 import 'admin_screen.dart';
 import 'store_orders_screen.dart';
@@ -1139,7 +1138,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة الكاملة والمحدثة مع المحافظة على كافة أسطر الملف الأصلية)
+  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة المنقحة والهندسية الخالية من التداخل)
   void _showClientAssetsScreen(BuildContext context) {
     // جلب قائمة البطاقات الخاصة بالمستخدم مع دعم التحويل الآمن سواء كانت Map أو ProductModel لضمان ظهور البطاقات فوراً
     // ignore: no_leading_underscores_for_local_identifiers, unnecessary_null_comparison
@@ -1166,15 +1165,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ignore: dead_code
         : [];
 
-    // تحديد الـ moxId الآمن للرابط بالمسطرة الهندسية
+    // تحديد الـ moxId الآمن بالمسطرة الهندسية
     final String activeMoxForUrl =
         (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
         ? widget.user.moxId
         : (widget.user.guardianMoxId ?? "MOX249-00010001");
-
-    // بناء الرابط السيادي المتوافق تماماً مع إستراتيجية الويب والـ Hash
-    final String clientStoreUrl =
-        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
 
     showModalBottomSheet(
       context: context,
@@ -1229,113 +1224,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: ListView(
                       children: [
-                        // مربع وزر نسخ رابط متجر العميل ومعاينة الصفحة B مباشرة
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.indigo[50],
-                            border: Border.all(
-                              color: Colors.indigo.withValues(alpha: 0.3),
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    "🔗 رابط متجر العميل الخاص",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      color: Colors.indigo,
-                                    ),
-                                  ),
-                                  TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      minimumSize: const Size(50, 30),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      backgroundColor: const Color(0xFF28A9CC),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              ExternalStoreFrontScreen(
-                                                user: widget.user,
-                                                clientCards: _clientCards,
-                                                directMoxId: activeMoxForUrl,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(
-                                      Icons.visibility,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                    label: const Text(
-                                      "معاينة المتجر (الصفحة B)",
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: SelectableText(
-                                      clientStoreUrl,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.copy,
-                                      size: 18,
-                                      color: Colors.indigo,
-                                    ),
-                                    tooltip: "نسخ الرابط",
-                                    onPressed: () {
-                                      Clipboard.setData(
-                                        ClipboardData(text: clientStoreUrl),
-                                      );
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "تم نسخ رابط متجر العميل بنجاح",
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-
                         // بطاقة بيانات العميل المعتمدة
                         Card(
                           elevation: 2,
@@ -1801,7 +1689,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   ),
                                                 ),
                                                 onPressed: () async {
-                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: التحويل الآمن للخرائط إلى كائنات MarketingCard لتفادي أخطاء الـ Casting
+                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]
                                                   setStateModal(() {
                                                     card['isEditing'] = false;
                                                     widget
@@ -1816,7 +1704,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                         .toList();
                                                   });
 
-                                                  // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
                                                   await StorageService.updateUserPartial(
                                                     widget.user,
                                                   );
@@ -1828,7 +1715,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   ).showSnackBar(
                                                     const SnackBar(
                                                       content: Text(
-                                                        "✅ تم حفظ وإرسال بيانات البطاقة وتحديث الخزينة السيادية بنجاح",
+                                                        "✅ تم حفظ وتحديث بيانات البطاقة بنجاح",
                                                       ),
                                                       backgroundColor:
                                                           Colors.teal,
@@ -1841,7 +1728,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   size: 16,
                                                 ),
                                                 label: const Text(
-                                                  "حفظ البطاقة وتجهيزها للصفحة (A)",
+                                                  "حفظ البطاقة",
                                                   style: TextStyle(
                                                     color: Colors.white,
                                                     fontSize: 11,
@@ -1858,10 +1745,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           );
                         }),
 
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 25),
 
-                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ _clientCards المحولة بدقة
-                        OutlinedButton.icon(
+                        // زر الانتقال المباشر للصفحة (A) لإدارة ونشر المتجر ومعاينته
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF28A9CC),
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                           onPressed: () {
                             Navigator.pop(context);
                             Navigator.push(
@@ -1870,19 +1764,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 builder: (_) => ClientStoreAdminScreen(
                                   user: widget.user,
                                   clientCards: _clientCards,
+                                  directMoxId: activeMoxForUrl,
                                 ),
                               ),
                             );
                           },
                           icon: const Icon(
-                            Icons.send,
-                            color: Color(0xFF28A9CC),
+                            Icons.storefront,
+                            color: Colors.white,
                           ),
                           label: const Text(
-                            "فتح لوحة إعداد ونشر المتجر (الصفحة A)",
+                            "الانتقال إلى لوحة إعداد ونشر المتجر (الصفحة A)",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1B6B80),
+                              color: Colors.white,
+                              fontSize: 13,
                             ),
                           ),
                         ),
