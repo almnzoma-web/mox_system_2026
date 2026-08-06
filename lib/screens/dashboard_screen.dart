@@ -1141,13 +1141,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة الكاملة والمحدثة مع المحافظة على كافة أسطر الملف الأصلية)
   void _showClientAssetsScreen(BuildContext context) {
-    // جلب قائمة البطاقات الخاصة بالمستخدم أو تهيئتها كقائمة فارغة قابلة للتعديل لضمان عدم حدوث خطأ Undefined name
+    // جلب قائمة البطاقات الخاصة بالمستخدم مع دعم التحويل الآمن سواء كانت Map أو ProductModel لضمان ظهور البطاقات فوراً
     // ignore: no_leading_underscores_for_local_identifiers, unnecessary_null_comparison
     final List<Map<String, dynamic>> _clientCards = widget.user.myAssets != null
         // ignore: unnecessary_non_null_assertion
-        ? widget.user.myAssets!
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList()
+        ? widget.user.myAssets!.map((e) {
+            if (e is Map) {
+              return Map<String, dynamic>.from(e as Map<dynamic, dynamic>);
+            } else {
+              return {
+                'id': e.id ?? '',
+                // ignore: dead_code, dead_null_aware_expression
+                'title': e.title ?? '',
+                // ignore: dead_null_aware_expression
+                'description': e.category ?? '',
+                // ignore: dead_null_aware_expression
+                'price': e.price ?? 0.0,
+                'whatsapp': "249${widget.user.phone}",
+                'facebook': '',
+                'isEditing': false,
+              };
+            }
+          }).toList()
         // ignore: dead_code
         : [];
 
@@ -1838,7 +1853,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         const SizedBox(height: 15),
 
-                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ clientCards الحقيقية بالملي
+                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ _clientCards المحولة بدقة
                         OutlinedButton.icon(
                           onPressed: () {
                             Navigator.pop(context);
