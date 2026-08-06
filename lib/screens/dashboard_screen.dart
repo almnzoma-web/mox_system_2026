@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+// ignore: unnecessary_import
 import 'package:flutter/services.dart';
 // ignore: unused_import
 import 'package:mox_digital_app/models/marketing_card.dart';
@@ -7,7 +8,6 @@ import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
 import 'package:mox_digital_app/admin_panel/services_manager_tab.dart';
 import 'package:mox_digital_app/screens/client_store_admin_screen.dart';
 import 'package:mox_digital_app/screens/digital_map_screen.dart';
-import 'package:mox_digital_app/screens/external_store_front_screen.dart';
 import '../models/user_model.dart';
 import 'admin_screen.dart';
 import 'store_orders_screen.dart';
@@ -1166,16 +1166,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ignore: dead_code
         : [];
 
-    // تحديد الـ moxId الآمن للرابط بالمسطرة الهندسية
-    final String activeMoxForUrl =
-        (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
-        ? widget.user.moxId
-        : (widget.user.guardianMoxId ?? "MOX249-00010001");
-
-    // بناء الرابط السيادي المتوافق تماماً مع إستراتيجية الويب والـ Hash
-    final String clientStoreUrl =
-        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1229,113 +1219,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: ListView(
                       children: [
-                        // مربع وزر نسخ رابط متجر العميل ومعاينة الصفحة B مباشرة
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.indigo[50],
-                            border: Border.all(
-                              color: Colors.indigo.withValues(alpha: 0.3),
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    "🔗 رابط متجر العميل الخاص",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                      color: Colors.indigo,
-                                    ),
-                                  ),
-                                  TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      minimumSize: const Size(50, 30),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      backgroundColor: const Color(0xFF28A9CC),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              ExternalStoreFrontScreen(
-                                                user: widget.user,
-                                                clientCards: _clientCards,
-                                                directMoxId: activeMoxForUrl,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(
-                                      Icons.visibility,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                    label: const Text(
-                                      "معاينة المتجر (الصفحة B)",
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: SelectableText(
-                                      clientStoreUrl,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.copy,
-                                      size: 18,
-                                      color: Colors.indigo,
-                                    ),
-                                    tooltip: "نسخ الرابط",
-                                    onPressed: () {
-                                      Clipboard.setData(
-                                        ClipboardData(text: clientStoreUrl),
-                                      );
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "تم نسخ رابط متجر العميل بنجاح",
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                        // تم تنظيف الجزئية وحذف صندوق رابط المتجر ومعاينة الصفحة B بنجاح
                         const SizedBox(height: 15),
-
                         // بطاقة بيانات العميل المعتمدة
                         Card(
                           elevation: 2,
