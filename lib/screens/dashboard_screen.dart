@@ -1777,12 +1777,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   ),
                                                 ),
                                                 onPressed: () async {
-                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: ربط التعديلات بكائن المستخدم ومزامنتها
                                                   setStateModal(() {
                                                     card['isEditing'] = false;
+                                                    widget.user.myAssets =
+                                                        List<
+                                                              Map<
+                                                                String,
+                                                                dynamic
+                                                              >
+                                                            >.from(
+                                                              widget
+                                                                  .user
+                                                                  .myAssets,
+                                                            )
+                                                            .cast<
+                                                              MarketingCard
+                                                            >();
                                                   });
 
-                                                  // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
                                                   await StorageService.updateUserPartial(
                                                     widget.user,
                                                   );
