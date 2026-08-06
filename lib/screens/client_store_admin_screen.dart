@@ -82,7 +82,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final Map<String, TextEditingController> _cardTitleControllers = {};
   final Map<String, TextEditingController> _cardDescControllers = {};
   final Map<String, TextEditingController> _cardPriceControllers = {};
-  final Map<String, TextEditingController> _cardCustomControllers = {};
+  final Map<String, TextEditingController> _cardWhatsappControllers = {};
+  final Map<String, TextEditingController> _cardDetailsLinkControllers = {};
 
   bool _isAuthorized = false;
   bool _isPublishing = false;
@@ -112,24 +113,44 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     _linkController.text =
         "https://mox-system.web.app/?mox=${widget.user.moxId}";
 
-    // تهيئة حالات التفعيل والمتحكمات الداخلية بناءً على القائمة المولدة محلياً 100%
+    // تهيئة حالات التفعيل والمتحكمات الداخلية للبطاقات الـ 5
     for (var card in _resolvedCards) {
       String title = card['title'].toString();
-      bool isAlreadyActive = widget.user.myAssets.any(
-        (asset) => asset.title == title,
-      );
+
+      // البحث عما إذا كانت البطاقة مخزنة مسبقاً لاسترجاع بياناتها المخصصة إن وجدت
+      MarketingCard? existingAsset;
+      try {
+        existingAsset = widget.user.myAssets.firstWhere(
+          (asset) => asset.title == title,
+        );
+      } catch (_) {
+        existingAsset = null;
+      }
+
+      bool isAlreadyActive = existingAsset != null;
       _cardActivationStatus[title] = isAlreadyActive;
       _cardCategories[title] = card['category'] ?? 'بطاقة';
 
-      _cardTitleControllers[title] = TextEditingController(text: title);
+      _cardTitleControllers[title] = TextEditingController(
+        text: existingAsset?.title ?? title,
+      );
       _cardDescControllers[title] = TextEditingController(
-        text: card['description'] ?? '',
+        text: existingAsset?.description ?? card['description'] ?? '',
       );
       _cardPriceControllers[title] = TextEditingController(
-        text: (card['price'] ?? 0.0).toString(),
+        text: (existingAsset?.price ?? card['price'] ?? 0.0).toString(),
       );
-      _cardCustomControllers[title] = TextEditingController(
-        text: card['customField'] ?? '',
+
+      // زر الواتساب الخاص بالبطاقة (إذا لم يكن مسجلاً نضع رقم الهاتف العام للمتجر)
+      _cardWhatsappControllers[title] = TextEditingController(
+        text: existingAsset?.whatsapp.isNotEmpty == true
+            ? existingAsset!.whatsapp
+            : widget.user.phone,
+      );
+
+      // رابط المزيد من التفاصيل (بوست فيسبوك أو فيديو أو رابط طويل)
+      _cardDetailsLinkControllers[title] = TextEditingController(
+        text: existingAsset?.facebookUrl ?? '',
       );
     }
 
@@ -283,7 +304,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     for (var c in _cardPriceControllers.values) {
       c.dispose();
     }
-    for (var c in _cardCustomControllers.values) {
+    for (var c in _cardWhatsappControllers.values) {
+      c.dispose();
+    }
+    for (var c in _cardDetailsLinkControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -557,6 +581,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         if (isChecked &&
             (_activationButtonState == 1 ||
                 widget.user.role == 'reviewed_active')) {
+          String cardWhatsapp =
+              _cardWhatsappControllers[title]?.text.trim() ??
+              _phoneController.text.trim();
+          String cardDetailsLink =
+              _cardDetailsLinkControllers[title]?.text.trim() ?? '';
+
           try {
             var cardModel = MarketingCard.fromJson(cardData);
             updatedAssets.add(
@@ -570,7 +600,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       _cardPriceControllers[title]?.text.trim() ?? '0',
                     ) ??
                     0.0,
-                whatsapp: _phoneController.text.trim(),
+                whatsapp: cardWhatsapp,
+                facebookUrl:
+                    cardDetailsLink, // تخزين رابط المزيد من التفاصيل (فيسبوك/فيديو) هنا
                 isApproved: true,
               ),
             );
@@ -584,8 +616,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       _cardPriceControllers[title]?.text.trim() ?? '0',
                     ) ??
                     0.0,
-                whatsapp: _phoneController.text.trim(),
-                facebookUrl: '',
+                whatsapp: cardWhatsapp,
+                facebookUrl: cardDetailsLink,
                 isApproved: true,
               ),
             );
@@ -1038,40 +1070,75 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 10),
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF1B6B80),
-                                      minimumSize: const Size(100, 42),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "⚡ تم حفظ تعديل البطاقة: ${_cardTitleControllers[titleKey]?.text}",
-                                          ),
-                                          backgroundColor: Colors.teal,
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(
-                                      Icons.bolt,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    label: const Text(
-                                      "تحديث",
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller:
+                                          _cardWhatsappControllers[titleKey],
+                                      keyboardType: TextInputType.phone,
+                                      decoration: const InputDecoration(
+                                        labelText:
+                                            "رقم الواتساب (مثال: 249115855164)",
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
                                       ),
                                     ),
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                "تنبيه: يجب كتابة رقم الواتساب بالصيغة الدولية بدون علامة + (مثال: 249115855164)",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller:
+                                    _cardDetailsLinkControllers[titleKey],
+                                decoration: const InputDecoration(
+                                  labelText:
+                                      "رابط المزيد من التفاصيل (بوست فيسبوك أو فيديو طويل)",
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.link, size: 18),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF1B6B80),
+                                    minimumSize: const Size(120, 38),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          "⚡ تم حفظ تعديل البطاقة: ${_cardTitleControllers[titleKey]?.text}",
+                                        ),
+                                        backgroundColor: Colors.teal,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.bolt,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    "تحديث البطاقة",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
