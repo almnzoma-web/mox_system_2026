@@ -73,7 +73,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'moxId': user.moxId,
         'role': user.role,
         'customWhatsApp': user.customWhatsApp ?? '',
-        'guardianMoxId': user.guardianMoxId ?? '',
+        'guardianMoxId':
+            user.guardianMoxId ?? '', // 🔒 تثبيت الحقل السيادي وعدم ضياعه
         'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
         'points': user.points.toString(),
         'storePublishDate': user.storePublishDate ?? '',
@@ -106,6 +107,73 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ),
       );
     }
+  }
+
+  // نافذة تعديل بيانات العميل وإضافة/تحديث الـ guardianMoxId يدوياً ليحفظ في الذاكرة والشيت
+  void _showEditClientDialog(UserModel user) {
+    final TextEditingController guardianMoxController = TextEditingController(
+      text: user.guardianMoxId ?? '',
+    );
+    final TextEditingController moxIdController = TextEditingController(
+      text: user.moxId,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("تعديل المعرف السيادي: ${user.name}"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: guardianMoxController,
+                  decoration: const InputDecoration(
+                    labelText: "معرف MOX المضاف يدوياً (guardianMoxId)",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: moxIdController,
+                  decoration: const InputDecoration(
+                    labelText: "معرف MOX الأساسي (moxId)",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("إلغاء"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: moxBlue),
+              onPressed: () async {
+                setState(() {
+                  user.guardianMoxId = guardianMoxController.text.trim();
+                  user.moxId = moxIdController.text.trim();
+                });
+
+                // حفظ محلياً في الذاكرة
+                await StorageService.updateUserPartial(user);
+
+                // ترحيل فوري لـ Google Sheets لتأمين البيانات
+                Navigator.pop(context);
+                await _syncClientToCloud(user);
+              },
+              child: const Text(
+                "حفظ وترحيل",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -146,7 +214,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     ),
                     DataColumn(
                       label: Text(
-                        "الهوية (MOX)",
+                        "الهوية الأساسية (MOX)",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        "الهوية المضافة (Guardian)",
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -175,23 +249,67 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         DataCell(Text(user.name)),
                         DataCell(Text(user.phone)),
                         DataCell(Text(user.moxId)),
+                        DataCell(
+                          InkWell(
+                            onTap: () => _showEditClientDialog(user),
+                            child: Text(
+                              user.guardianMoxId?.isNotEmpty == true
+                                  ? user.guardianMoxId!
+                                  : "اضغط للإضافة ⚙️",
+                              style: TextStyle(
+                                color: user.guardianMoxId?.isNotEmpty == true
+                                    ? Colors.indigo
+                                    : Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
                         DataCell(Text(user.balance.toString())),
                         DataCell(Text(user.accountType)),
                         DataCell(
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: moxBlue,
-                            ),
-                            onPressed: () => _syncClientToCloud(user),
-                            icon: const Icon(
-                              Icons.cloud_upload,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            label: const Text(
-                              "رحّل للشيت",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                          Row(
+                            children: [
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  minimumSize: const Size(80, 32),
+                                ),
+                                onPressed: () => _showEditClientDialog(user),
+                                icon: const Icon(
+                                  Icons.edit,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                label: const Text(
+                                  "تعديل",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: moxBlue,
+                                  minimumSize: const Size(90, 32),
+                                ),
+                                onPressed: () => _syncClientToCloud(user),
+                                icon: const Icon(
+                                  Icons.cloud_upload,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                label: const Text(
+                                  "رحّل للشيت",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

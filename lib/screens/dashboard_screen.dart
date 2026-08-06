@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+// ignore: unused_import
 import 'package:mox_digital_app/models/marketing_card.dart';
 import 'package:mox_digital_app/services/storage_service.dart';
 import 'package:mox_digital_app/admin_panel/app_warehouse_tab.dart';
@@ -23,6 +24,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
+// ignore: unused_element
 class _DashboardScreenState extends State<DashboardScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
 
@@ -35,21 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String customerFacebook = "";
   bool isCardPublished = false;
 
-  // 📇 هيكل البيانات للبطاقات الـ 5 الخاصة بالعميل
-  final List<Map<String, dynamic>> _clientCards = List.generate(5, (index) {
-    int cardNum = index + 1;
-    return {
-      "id": cardNum,
-      "title": cardNum == 1
-          ? "البطاقة التأسيسية الأولى"
-          : "البطاقة التأسيسية رقم $cardNum",
-      "description":
-          "وصف الخدمة أو المنتج الرقمي الخاص بطاقتك رقم $cardNum هنا...",
-      "price": "0.00",
-      "isRequested": false, // هل طلب العميل اعتمادها من المدير؟
-      "isPublished": false, // هل وافق عليها المدير وظهرت في الأصول؟
-    };
-  });
+  // تم حذف متغير _clientCards القديم تماماً هنا، والاعتماد كلياً على widget.user.myAssets المربوطة بالخزينة السيادية
 
   // قوائم العمليات والطلبات للعميل
   final List<Map<String, dynamic>> clientOperations = [];
@@ -1151,7 +1139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النهائية المقفولة وبها ترس التعديل وزر الحفظ والتمرير السليم للصفحة A)
+  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة الكاملة والمحدثة مع المحافظة على كافة أسطر الملف الأصلية)
   void _showClientAssetsScreen(BuildContext context) {
     // تحديد الـ moxId الآمن للرابط بالمسطرة الهندسية
     final String activeMoxForUrl =
@@ -1260,7 +1248,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           builder: (_) =>
                                               ExternalStoreFrontScreen(
                                                 user: widget.user,
-                                                clientCards: _clientCards,
+                                                clientCards:
+                                                    widget.user.myAssets,
                                                 directMoxId: activeMoxForUrl,
                                               ),
                                         ),
@@ -1456,7 +1445,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 10),
 
                         // توليد البطاقات الـ 5 مع ترس التعديل وزر الحفظ التلقائي في الخزينة
-                        ..._clientCards.map((card) {
+                        ...widget.user.myAssets.map((card) {
                           final titleCtrl = TextEditingController(
                             text: card['title'],
                           );
@@ -1791,16 +1780,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: ربط التعديلات بكائن المستخدم ومزامنتها
                                                   setStateModal(() {
                                                     card['isEditing'] = false;
-                                                    widget.user.myAssets =
-                                                        List<
-                                                              Map<
-                                                                String,
-                                                                dynamic
-                                                              >
-                                                            >.from(_clientCards)
-                                                            .cast<
-                                                              MarketingCard
-                                                            >();
                                                   });
 
                                                   // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
@@ -1846,7 +1825,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                         const SizedBox(height: 15),
 
-                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ _clientCards الحقيقية بالملي
+                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ clientCards الحقيقية بالملي
                         OutlinedButton.icon(
                           onPressed: () {
                             Navigator.pop(context);
@@ -1855,7 +1834,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               MaterialPageRoute(
                                 builder: (_) => ClientStoreAdminScreen(
                                   user: widget.user,
-                                  clientCards: _clientCards,
+                                  clientCards: widget.user.myAssets
+                                      .map((e) => e as Map<String, dynamic>)
+                                      .toList(),
                                 ),
                               ),
                             );
@@ -2065,7 +2046,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // الإعدادات (تعديل الاسم الحقيقي، الهاتف، العنوان، وكلمة السر)
   void _showSettingsDialog(BuildContext context) {
-    // تعريف الـ Controllers محلياً داخل الدالة لضمان عدم تداخل البيانات ونظافة الذاكرة
     final TextEditingController settingsNameController = TextEditingController(
       text: widget.user.name,
     );
@@ -2121,7 +2101,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
               const SizedBox(height: 15),
-              // حقل الاسم الحقيقي للعميل (لعلاج مشكلة ظهور الاسم السيادي بدلاً عنه)
               TextField(
                 controller: settingsNameController,
                 decoration: const InputDecoration(
@@ -2215,10 +2194,9 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
     super.initState();
     _currentUser = widget.currentUser;
     _updateAlerts();
-    _refreshUserData(); // جلب أحدث بيانات فور العودة أو فتح الكارد
+    _refreshUserData();
   }
 
-  // 🔄 دالة لتحديث قائمة التنبيهات بناءً على بيانات المستخدم الحالية
   void _updateAlerts() {
     _alerts = [
       "🚨 تنبيه MOX: لديك ${_currentUser.points} نقطة مكتسبة في شبكة الإحالة السيادية.",
@@ -2230,19 +2208,17 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
     ];
   }
 
-  // 🔄 دالة ذكية لجلب أحدث بيانات المستخدم وتحديث الواجهة والرابط فوراً من الخزينة السيادية
   Future<void> _refreshUserData() async {
     await StorageService.ensureLoaded();
     final freshUser = await StorageService.getUserByMoxId(_currentUser.moxId);
     if (freshUser != null && mounted) {
       setState(() {
         _currentUser = freshUser;
-        _updateAlerts(); // تحديث التنبيهات بالبيانات الجديدة
+        _updateAlerts();
       });
     }
   }
 
-  // 📁 دالة أصول العميل الرقمية المعرفة محلياً بالمسطرة
   void _showClientAssetsScreen(BuildContext context) {
     final String activeMoxForUrl =
         (_currentUser.moxId != "لم يحدد" &&
@@ -2318,7 +2294,6 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // بطاقة التنبيهات الأصلية بالمسطرة
         TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: 1.0),
           duration: const Duration(milliseconds: 800),
@@ -2367,7 +2342,7 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
                     setState(() {
                       _currentIndex = (_currentIndex + 1) % _alerts.length;
                     });
-                    _refreshUserData(); // تحديث يدوي للرابط عند الضغط على زر التحديث
+                    _refreshUserData();
                   },
                 ),
               ],
@@ -2375,8 +2350,6 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
           ),
         ),
         const SizedBox(height: 10),
-
-        // 🔗 مربع وزر نسخ رابط أصول العميل الرقمية الحقيقي على المنصة بالمسطرة
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(

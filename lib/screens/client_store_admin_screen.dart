@@ -287,13 +287,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     if (_activationButtonState == 0) {
       setState(() {
         _activationButtonState = 1; // التحول من طلب تنشيط إلى نشط
-        // تفعيل كافة مربعات التنشيط تلقائياً عند النقر ليكون صاح
         for (var key in _cardActivationStatus.keys) {
           _cardActivationStatus[key] = true;
         }
       });
 
-      // حفظ تاريخ بدء الـ 365 يوماً محلياً فوراً
       UserModel tempUser = widget.user.copyWith(
         storePublishDate: DateTime.now().toIso8601String(),
         role: 'reviewed_active',
@@ -342,7 +340,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         String title = cardData['title'].toString();
         bool isChecked = _cardActivationStatus[title] ?? false;
 
-        // النشر فقط للبطاقات التي تم تفعيل مربع النشط الخاص بها بعلامة صح
         if (isChecked &&
             (_activationButtonState == 1 ||
                 widget.user.role == 'reviewed_active')) {
@@ -447,33 +444,32 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     bool isStoreActive =
         (_activationButtonState == 1 || widget.user.role == 'reviewed_active');
 
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(
-            backgroundColor: const Color(0xFF28A9CC),
-            title: const Text(
-              "لوحة النشر السيادية المحدثة",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            actions: [
-              // 🌟 زر معاينة المتجر في الشريط العلوي كصفحة منبثقة
-              IconButton(
-                icon: const Icon(Icons.remove_red_eye, color: Colors.white),
-                tooltip: "معاينة المتجر المنبثقة",
-                onPressed: _openStorePreview,
-              ),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF28A9CC),
+        title: const Text(
+          "لوحة النشر السيادية المحدثة",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
-          body: Padding(
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.remove_red_eye, color: Colors.white),
+            tooltip: "معاينة المتجر المنبثقة",
+            onPressed: _openStorePreview,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Padding(
             padding: const EdgeInsets.all(20),
             child: Form(
               key: _formKey,
@@ -539,7 +535,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // 🌟 قسم رابط المتجر ومعاينة الرابط ونسخه بالمسطرة
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -609,7 +604,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // 🌟 زر إضافي صريح لفتح المعاينة المنبثقة داخل الحقل
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1B6B80),
@@ -718,7 +712,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     Checkbox(
                                       value: isChecked,
                                       activeColor: const Color(0xFF28A9CC),
-                                      // تفعيل مربعات الصح عندما يكون المتجر نشطاً
                                       onChanged: isStoreActive
                                           ? (bool? val) {
                                               setState(() {
@@ -750,8 +743,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
+                            // ✅ تم تعديل العملة هنا إلى الجنيه السوداني (ج.س) بالمسطرة
                             Text(
-                              "السعر: \$${price.toString()}",
+                              "السعر: ${price.toString()} ج.س",
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -881,48 +875,47 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
             ),
           ),
-        ),
-
-        if (_isPublishing)
-          Container(
-            color: Colors.black.withValues(alpha: 0.6),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 30,
-                  vertical: 24,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    CircularProgressIndicator(color: Color(0xFF28A9CC)),
-                    SizedBox(height: 18),
-                    Text(
-                      "جاري حفظ وتثبيت النسخة المعتمدة لمتجرك...",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1B6B80),
-                        decoration: TextDecoration.none,
+          if (_isPublishing)
+            Container(
+              color: Colors.black.withValues(alpha: 0.6),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 24,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      CircularProgressIndicator(color: Color(0xFF28A9CC)),
+                      SizedBox(height: 18),
+                      Text(
+                        "جاري حفظ وتثبيت النسخة المعتمدة لمتجرك...",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1B6B80),
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

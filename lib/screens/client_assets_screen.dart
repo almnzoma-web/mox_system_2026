@@ -18,9 +18,22 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
   bool isActivatingStore = false;
 
   Map<String, dynamic> _parseAsset(dynamic rawAsset) {
+    if (rawAsset == null) {
+      return {
+        'title': 'بطاقة رقمية',
+        'description': '',
+        'price': 0.0,
+        'whatsapp': widget.user.phone,
+        'facebook': '',
+        'isApproved': false,
+      };
+    }
     if (rawAsset is Map<String, dynamic>) return rawAsset;
     if (rawAsset is Map) return Map<String, dynamic>.from(rawAsset);
     try {
+      if (rawAsset.runtimeType.toString().contains('MarketingCard')) {
+        return (rawAsset as dynamic).toJson();
+      }
       final dyn = rawAsset as dynamic;
       return {
         'title': dyn.title?.toString() ?? 'بطاقة رقمية',
@@ -65,6 +78,7 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
           backgroundColor: Colors.green,
         ),
       );
+      setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
