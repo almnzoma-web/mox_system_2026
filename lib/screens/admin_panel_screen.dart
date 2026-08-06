@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
+import 'admin_store_requests_screen.dart'; // 📌 ربط شاشة إدارة طلبات المتاجر
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -73,8 +74,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'moxId': user.moxId,
         'role': user.role,
         'customWhatsApp': user.customWhatsApp ?? '',
-        'guardianMoxId':
-            user.guardianMoxId ?? '', // 🔒 تثبيت الحقل السيادي وعدم ضياعه
+        'guardianMoxId': user.guardianMoxId ?? '',
         'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
         'points': user.points.toString(),
         'storePublishDate': user.storePublishDate ?? '',
@@ -109,7 +109,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  // نافذة تعديل بيانات العميل وإضافة/تحديث الـ guardianMoxId يدوياً ليحفظ في الذاكرة والشيت
   void _showEditClientDialog(UserModel user) {
     final TextEditingController guardianMoxController = TextEditingController(
       text: user.guardianMoxId ?? '',
@@ -122,6 +121,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text("تعديل المعرف السيادي: ${user.name}"),
           content: SingleChildScrollView(
             child: Column(
@@ -158,10 +160,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   user.moxId = moxIdController.text.trim();
                 });
 
-                // حفظ محلياً في الذاكرة
                 await StorageService.updateUserPartial(user);
-
-                // ترحيل فوري لـ Google Sheets لتأمين البيانات
                 Navigator.pop(context);
                 await _syncClientToCloud(user);
               },
@@ -182,19 +181,50 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       appBar: AppBar(
         title: const Text(
           "لوحة تحكم المدير - السجل السيادي",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
         backgroundColor: moxBlue,
         centerTitle: true,
         actions: [
+          // 📌 زر الانتقال السريع لشاشة طلبات المتاجر المعلقة
+          IconButton(
+            icon: const Icon(
+              Icons.store_mall_directory_rounded,
+              color: Colors.white,
+            ),
+            tooltip: "طلبات المتاجر المعلقة",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminStoreRequestsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: "تحديث البيانات",
             onPressed: _fetchFromCloud,
           ),
         ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: moxBlue))
+          : _clients.isEmpty
+          ? const Center(
+              child: Text(
+                "لا توجد سجلات عملاء مسجلة حالياً 📭",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            )
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SingleChildScrollView(
@@ -246,9 +276,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   rows: _clients.map((user) {
                     return DataRow(
                       cells: [
-                        DataCell(Text(user.name)),
-                        DataCell(Text(user.phone)),
-                        DataCell(Text(user.moxId)),
+                        DataCell(
+                          Text(user.name.isNotEmpty ? user.name : "بدون اسم"),
+                        ),
+                        DataCell(
+                          Text(
+                            user.phone.isNotEmpty ? user.phone : "غير متوفر",
+                          ),
+                        ),
+                        DataCell(
+                          Text(user.moxId.isNotEmpty ? user.moxId : "---"),
+                        ),
                         DataCell(
                           InkWell(
                             onTap: () => _showEditClientDialog(user),
@@ -266,7 +304,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           ),
                         ),
                         DataCell(Text(user.balance.toString())),
-                        DataCell(Text(user.accountType)),
+                        DataCell(
+                          Text(
+                            user.accountType.isNotEmpty
+                                ? user.accountType
+                                : "عادي",
+                          ),
+                        ),
                         DataCell(
                           Row(
                             children: [

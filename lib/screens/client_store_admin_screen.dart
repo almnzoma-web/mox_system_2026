@@ -744,7 +744,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            // ✅ تم تعديل العملة هنا إلى الجنيه السوداني (ج.س) بالمسطرة
+                            // ✅ العملة بالجنيه السوداني (ج.س) بالمسطرة
                             Text(
                               "السعر: ${price.toString()} ج.س",
                               style: const TextStyle(
@@ -919,4 +919,20 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ),
     );
   }
+}
+
+class ProductModel {
+  final String id;
+  final String title;
+  final String category;
+  final double price;
+  final String iconData;
+
+  ProductModel({
+    required this.id,
+    required this.title,
+    required this.category,
+    required this.price,
+    required this.iconData,
+  });
 }

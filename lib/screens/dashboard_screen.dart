@@ -28,17 +28,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
 
-  // متغيرات البطاقة الأولى (التأسيسية) للعميل قابلة للتعديل عند فتح الترس
-  bool isEditingCard = false;
-  String cardTitle = "البطاقة التأسيسية الأولى";
-  String cardDescription = "وصف الخدمة أو المنتج الرقمي الخاص بك هنا...";
-  String cardPrice = "0.00";
-  String customerWhatsapp = "";
-  String customerFacebook = "";
-  bool isCardPublished = false;
-
-  // تم حذف متغير _clientCards القديم تماماً هنا، والاعتماد كلياً على widget.user.myAssets المربوطة بالخزينة السيادية
-
   // قوائم العمليات والطلبات للعميل
   final List<Map<String, dynamic>> clientOperations = [];
 
@@ -1139,9 +1128,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة الكاملة والمحدثة مع المحافظة على كافة أسطر الملف الأصلية)
+  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النظيفة والموجهة رأساً للصفحة A)
   void _showClientAssetsScreen(BuildContext context) {
-    // جلب قائمة البطاقات الخاصة بالمستخدم مع دعم التحويل الآمن سواء كانت Map أو ProductModel لضمان ظهور البطاقات فوراً
+    // جلب قائمة البطاقات الآمنة لتمريرها بسلاسة للصفحة (A) دون عرضها هنا
     // ignore: no_leading_underscores_for_local_identifiers, unnecessary_null_comparison
     final List<Map<String, dynamic>> _clientCards = widget.user.myAssets != null
         // ignore: unnecessary_non_null_assertion
@@ -1171,608 +1160,146 @@ class _DashboardScreenState extends State<DashboardScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext ctxModal) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setStateModal) {
-            // ignore: unnecessary_nullable_for_final_variable_declarations
-            final String? mox = widget.user.moxId;
-            final String? gMox = widget.user.guardianMoxId;
-
-            final bool hasValidMoxAccess =
-                (mox != null &&
-                    mox.trim().isNotEmpty &&
-                    mox != "لم يحدد" &&
-                    mox.toLowerCase() != 'null') ||
-                (gMox != null &&
-                    gMox.trim().isNotEmpty &&
-                    gMox != "لم يحدد" &&
-                    gMox.toLowerCase() != 'null' &&
-                    !gMox.startsWith("MOX249-00010001"));
-
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85,
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 15,
+                offset: Offset(0, -5),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // رأس النافذة الجمالي
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  const Row(
                     children: [
-                      const Text(
-                        "📁 أصول العميل الرقمية والبطاقات الـ 5",
+                      Icon(
+                        Icons.verified_rounded,
+                        color: Color(0xFF28A9CC),
+                        size: 22,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        "📁 بوابة أصول العميل الرقمية",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF28A9CC),
+                          color: Color(0xFF1B6B80),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                  const Divider(),
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        // تم تنظيف الجزئية وحذف صندوق رابط المتجر ومعاينة الصفحة B بنجاح
-                        const SizedBox(height: 15),
-                        // بطاقة بيانات العميل المعتمدة
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ExpansionTile(
-                            leading: const Icon(
-                              Icons.person,
-                              color: Colors.indigo,
-                            ),
-                            title: const Text(
-                              "👤 بيانات العميل المعتمدة",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.indigo,
-                                fontSize: 14,
-                              ),
-                            ),
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(15),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "الاسم الحقيقي: ${widget.user.name}",
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text("الهاتف: ${widget.user.phone}"),
-                                    const SizedBox(height: 4),
-                                    Text("العنوان: ${widget.user.address}"),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-
-                        if (!hasValidMoxAccess)
-                          Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: Colors.red[50],
-                              border: Border.all(color: Colors.redAccent),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  "⚠️ لم تتم ترقية حساب العميل",
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  "شارك رابط الترقية الخاص بك لتوثيق هويتك:",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.black87,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 8),
-                                SelectableText(
-                                  "https://mox-2026.vercel.app/#/invite/${widget.user.phone}",
-                                  style: const TextStyle(
-                                    color: Colors.blue,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Colors.teal, Colors.green],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  "🌟 بطاقة الهوية السيادية",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  "رقم MOX: ${widget.user.moxId != "لم يحدد" ? widget.user.moxId : widget.user.guardianMoxId}",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "متجر + ${widget.user.name}",
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                        const SizedBox(height: 20),
-                        const Text(
-                          "🛒 إدارة بطاقات المتجر الـ 5 للعميل",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Colors.indigo,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // توليد البطاقات الـ 5 مع ترس التعديل وزر الحفظ التلقائي في الخزينة
-                        ..._clientCards.map((card) {
-                          final titleCtrl = TextEditingController(
-                            text: card['title'],
-                          );
-                          final descCtrl = TextEditingController(
-                            text: card['description'],
-                          );
-                          final priceCtrl = TextEditingController(
-                            text: card['price'].toString(),
-                          );
-                          final whatsappCtrl = TextEditingController(
-                            text: card['whatsapp'] ?? "249${widget.user.phone}",
-                          );
-                          final facebookCtrl = TextEditingController(
-                            text: card['facebook'] ?? "",
-                          );
-
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 2,
-                            child: Padding(
-                              padding: const EdgeInsets.all(15),
-                              child: !(card['isEditing'] ?? false)
-                                  ? Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                card['title'],
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                  color: Colors.indigo,
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              "${card['price']} ج.س",
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
-                                                color: Colors.green,
-                                              ),
-                                            ),
-                                            // ترس التعديل
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.settings,
-                                                color: Colors.indigo,
-                                                size: 20,
-                                              ),
-                                              tooltip: "تعديل محتوى البطاقة",
-                                              onPressed: () {
-                                                if (!hasValidMoxAccess) {
-                                                  showDialog(
-                                                    context: context,
-                                                    builder: (ctx) => AlertDialog(
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              16,
-                                                            ),
-                                                      ),
-                                                      title: const Row(
-                                                        children: [
-                                                          Icon(
-                                                            Icons
-                                                                .warning_amber_rounded,
-                                                            color:
-                                                                Colors.orange,
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Text(
-                                                            "تنبيه أمني",
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color:
-                                                                  Colors.indigo,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      content: const Text(
-                                                        "عفواً أنت لا تمتلك رقم MOX أو تدخل من نافذة رقم MOX المخصصة.",
-                                                        style: TextStyle(
-                                                          fontSize: 14,
-                                                          height: 1.6,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color: Colors.black87,
-                                                        ),
-                                                      ),
-                                                      actions: [
-                                                        ElevatedButton(
-                                                          style:
-                                                              ElevatedButton.styleFrom(
-                                                                backgroundColor:
-                                                                    const Color(
-                                                                      0xFF28A9CC,
-                                                                    ),
-                                                              ),
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                ctx,
-                                                              ),
-                                                          child: const Text(
-                                                            "حسناً",
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                } else {
-                                                  setStateModal(() {
-                                                    card['isEditing'] = true;
-                                                  });
-                                                }
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          card['description'],
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.black87,
-                                            height: 1.4,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.green,
-                                                  minimumSize: const Size(
-                                                    0,
-                                                    36,
-                                                  ),
-                                                ),
-                                                onPressed: () async {
-                                                  final phoneNum =
-                                                      card['whatsapp'] ??
-                                                      "249${widget.user.phone}";
-                                                  final url = Uri.parse(
-                                                    "https://wa.me/$phoneNum",
-                                                  );
-                                                  if (await canLaunchUrl(url)) {
-                                                    await launchUrl(
-                                                      url,
-                                                      mode: LaunchMode
-                                                          .externalApplication,
-                                                    );
-                                                  }
-                                                },
-                                                icon: const Icon(
-                                                  Icons.shopping_bag_outlined,
-                                                  color: Colors.white,
-                                                  size: 14,
-                                                ),
-                                                label: const Text(
-                                                  "طلب منتج/خدمة",
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.blue,
-                                                  minimumSize: const Size(
-                                                    0,
-                                                    36,
-                                                  ),
-                                                ),
-                                                onPressed: () async {
-                                                  final detailsUrl =
-                                                      card['facebook'] ?? "";
-                                                  if (detailsUrl.isNotEmpty) {
-                                                    final url = Uri.parse(
-                                                      detailsUrl,
-                                                    );
-                                                    if (await canLaunchUrl(
-                                                      url,
-                                                    )) {
-                                                      await launchUrl(
-                                                        url,
-                                                        mode: LaunchMode
-                                                            .externalApplication,
-                                                      );
-                                                    }
-                                                  }
-                                                },
-                                                icon: const Icon(
-                                                  Icons.link,
-                                                  color: Colors.white,
-                                                  size: 14,
-                                                ),
-                                                label: const Text(
-                                                  "المزيد من التفاصيل",
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    )
-                                  : Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Text(
-                                              "⚙️ وضع تعديل البطاقة وتغذية البيانات",
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.red,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.close,
-                                                size: 18,
-                                              ),
-                                              onPressed: () {
-                                                setStateModal(() {
-                                                  card['isEditing'] = false;
-                                                });
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        TextField(
-                                          controller: titleCtrl,
-                                          onChanged: (val) =>
-                                              card['title'] = val,
-                                          decoration: const InputDecoration(
-                                            labelText: "عنوان البطاقة",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        TextField(
-                                          controller: descCtrl,
-                                          onChanged: (val) =>
-                                              card['description'] = val,
-                                          maxLines: 2,
-                                          decoration: const InputDecoration(
-                                            labelText: "وصف البطاقة",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        TextField(
-                                          controller: priceCtrl,
-                                          onChanged: (val) => card['price'] =
-                                              double.tryParse(val) ?? 0.0,
-                                          keyboardType: TextInputType.number,
-                                          decoration: const InputDecoration(
-                                            labelText: "السعر",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        TextField(
-                                          controller: whatsappCtrl,
-                                          onChanged: (val) =>
-                                              card['whatsapp'] = val,
-                                          decoration: const InputDecoration(
-                                            labelText: "رقم الواتساب للطلب",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        TextField(
-                                          controller: facebookCtrl,
-                                          onChanged: (val) =>
-                                              card['facebook'] = val,
-                                          decoration: const InputDecoration(
-                                            labelText:
-                                                "رابط المزيد من التفاصيل (فيسبوك أو رابط خارجي)",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 15),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                      Colors.indigo,
-                                                  minimumSize: const Size(
-                                                    0,
-                                                    36,
-                                                  ),
-                                                ),
-                                                onPressed: () async {
-                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: ربط التعديلات بكائن المستخدم ومزامنتها
-                                                  setStateModal(() {
-                                                    card['isEditing'] = false;
-                                                    widget
-                                                        .user
-                                                        .myAssets = _clientCards
-                                                        .cast<MarketingCard>();
-                                                  });
-
-                                                  // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
-                                                  await StorageService.updateUserPartial(
-                                                    widget.user,
-                                                  );
-
-                                                  ScaffoldMessenger.of(
-                                                    // ignore: use_build_context_synchronously
-                                                    context,
-                                                  ).showSnackBar(
-                                                    const SnackBar(
-                                                      content: Text(
-                                                        "✅ تم حفظ وإرسال بيانات البطاقة وتحديث الخزينة السيادية بنجاح",
-                                                      ),
-                                                      backgroundColor:
-                                                          Colors.teal,
-                                                    ),
-                                                  );
-                                                },
-                                                icon: const Icon(
-                                                  Icons.save,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                                label: const Text(
-                                                  "حفظ البطاقة وتجهيزها للصفحة (A)",
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                          );
-                        }),
-
-                        const SizedBox(height: 15),
-
-                        // زر فتح لوحة إعداد ونشر المتجر (الصفحة A) مع تمرير الـ _clientCards المحولة بدقة
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ClientStoreAdminScreen(
-                                  user: widget.user,
-                                  clientCards: _clientCards,
-                                  directMoxId: '',
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(
-                            Icons.send,
-                            color: Color(0xFF28A9CC),
-                          ),
-                          label: const Text(
-                            "فتح لوحة إعداد ونشر المتجر (الصفحة A)",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1B6B80),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                      ],
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
-            );
-          },
+              const Divider(height: 25, thickness: 1.2),
+
+              // بطاقة ترحيبية جمالية توضيحية
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF28A9CC), Color(0xFF1B6B80)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF28A9CC).withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.storefront_rounded,
+                      color: Colors.white,
+                      size: 36,
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "مرحباً بك، ${widget.user.name}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            "إدارة بطاقاتك وعرض متجرك أصبح أكثر سهولة واحترافية عبر اللوحة السيادية.",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 25),
+
+              // الزر الفاخر الانتقالي المباشر للصفحة (A) بصيغة نظيفة وخالية من الأخطاء
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF28A9CC),
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ClientStoreAdminScreen(
+                          user: widget.user,
+                          clientCards: _clientCards,
+                          directMoxId: '',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.rocket_launch_rounded, size: 20),
+                  label: const Text(
+                    "فتح لوحة إعداد ونشر المتجر (الصفحة A)",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+            ],
+          ),
         );
       },
     );
