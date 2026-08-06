@@ -903,173 +903,179 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // 🎴 عرض البطاقات الـ 5 بالتصميم الأصلي
-                  ...widget.clientCards.map((cardData) {
-                    String titleKey = cardData['title'].toString();
-                    bool isChecked = _cardActivationStatus[titleKey] ?? false;
-                    String currentCategory =
-                        _cardCategories[titleKey] ?? 'بطاقة';
+                  // 🎴 عرض البطاقات الـ 5 داخل Column لضمان عدم حدوث انهيار في العرض
+                  Column(
+                    children: widget.clientCards.map((cardData) {
+                      String titleKey = cardData['title'].toString();
+                      bool isChecked = _cardActivationStatus[titleKey] ?? false;
+                      String currentCategory =
+                          _cardCategories[titleKey] ?? 'بطاقة';
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 10),
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: isChecked
-                              ? const Color(0xFF28A9CC)
-                              : Colors.grey.shade300,
-                          width: isChecked ? 2 : 1,
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 10),
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: isChecked
+                                ? const Color(0xFF28A9CC)
+                                : Colors.grey.shade300,
+                            width: isChecked ? 2 : 1,
+                          ),
                         ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF28A9CC,
-                                    ).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: DropdownButton<String>(
-                                    value: currentCategory,
-                                    underline: const SizedBox(),
-                                    isDense: true,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1B6B80),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
                                     ),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'بطاقة',
-                                        child: Text('بطاقة'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'قسم',
-                                        child: Text('قسم'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'رف',
-                                        child: Text('رف'),
-                                      ),
-                                    ],
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        setState(() {
-                                          _cardCategories[titleKey] = val;
-                                        });
-                                      }
-                                    },
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    const Text(
-                                      "تنشيط البطاقة",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Checkbox(
-                                      value: isChecked,
-                                      activeColor: const Color(0xFF28A9CC),
-                                      onChanged: isStoreActive
-                                          ? (bool? val) {
-                                              setState(() {
-                                                _cardActivationStatus[titleKey] =
-                                                    val ?? false;
-                                              });
-                                            }
-                                          : null,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const Divider(height: 20),
-                            TextFormField(
-                              controller: _cardTitleControllers[titleKey],
-                              decoration: const InputDecoration(
-                                labelText: "عنوان البطاقة / العرض",
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextFormField(
-                              controller: _cardDescControllers[titleKey],
-                              maxLines: 2,
-                              decoration: const InputDecoration(
-                                labelText: "وصف البطاقة التفصيلي",
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _cardPriceControllers[titleKey],
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: "السعر (ج.س)",
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1B6B80),
-                                    minimumSize: const Size(100, 42),
-                                    shape: RoundedRectangleBorder(
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF28A9CC,
+                                      ).withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                  ),
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "⚡ تم حفظ تعديل البطاقة: ${_cardTitleControllers[titleKey]?.text}",
-                                        ),
-                                        backgroundColor: Colors.teal,
+                                    child: DropdownButton<String>(
+                                      value: currentCategory,
+                                      underline: const SizedBox(),
+                                      isDense: true,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1B6B80),
                                       ),
-                                    );
-                                  },
-                                  icon: const Icon(
-                                    Icons.bolt,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  label: const Text(
-                                    "تحديث",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
+                                      items: const [
+                                        DropdownMenuItem(
+                                          value: 'بطاقة',
+                                          child: Text('بطاقة'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'قسم',
+                                          child: Text('قسم'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'رف',
+                                          child: Text('رف'),
+                                        ),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() {
+                                            _cardCategories[titleKey] = val;
+                                          });
+                                        }
+                                      },
                                     ),
                                   ),
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        "تنشيط البطاقة",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Checkbox(
+                                        value: isChecked,
+                                        activeColor: const Color(0xFF28A9CC),
+                                        onChanged: isStoreActive
+                                            ? (bool? val) {
+                                                setState(() {
+                                                  _cardActivationStatus[titleKey] =
+                                                      val ?? false;
+                                                });
+                                              }
+                                            : null,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 20),
+                              TextFormField(
+                                controller: _cardTitleControllers[titleKey],
+                                decoration: const InputDecoration(
+                                  labelText: "عنوان البطاقة / العرض",
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _cardDescControllers[titleKey],
+                                maxLines: 2,
+                                decoration: const InputDecoration(
+                                  labelText: "وصف البطاقة التفصيلي",
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller:
+                                          _cardPriceControllers[titleKey],
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        labelText: "السعر (ج.س)",
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF1B6B80),
+                                      minimumSize: const Size(100, 42),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "⚡ تم حفظ تعديل البطاقة: ${_cardTitleControllers[titleKey]?.text}",
+                                          ),
+                                          backgroundColor: Colors.teal,
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.bolt,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      "تحديث",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    }).toList(),
+                  ),
 
                   const SizedBox(height: 20),
 
