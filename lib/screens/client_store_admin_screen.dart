@@ -13,12 +13,11 @@ import '../widgets/store_preview_widget.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
-  final List<Map<String, dynamic>> clientCards;
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
-    required this.clientCards,
     required String directMoxId,
+    required List<Map<String, dynamic>> clientCards,
   });
 
   @override
@@ -26,7 +25,7 @@ class ClientStoreAdminScreen extends StatefulWidget {
 }
 
 class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
-  // 🔑 رقم التنشيط السيادي (مكون من 21 خانة - يمكنك تعديله في أي وقت بالمسطرة)
+  // 🔑 رقم التنشيط السيادي (مكون من 21 خانة)
   static const String _sovereignActivationKey = "MOX-2026-KEY-9876543210AB";
 
   final _formKey = GlobalKey<FormState>();
@@ -38,10 +37,48 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _linkController = TextEditingController();
 
+  // 🏛️ التوليد الداخلي السيادي البحت للبطاقات الـ 5 بالمسطرة دون أي ارتباط بشاشات خارجية
+  late final List<Map<String, dynamic>> _resolvedCards = [
+    {
+      "title": "البطاقة السيادية الأولى للمتجر",
+      "description":
+          "الوصف الهندسي للبطاقة الأولى ويغطي كافة تفاصيل العرض الأساسي بالمسطرة.",
+      "price": 1000.0,
+      "category": "بطاقة",
+    },
+    {
+      "title": "البطاقة السيادية الثانية للمتجر",
+      "description":
+          "الوصف الهندسي للبطاقة الثانية ويغطي كافة تفاصيل العرض الفرعي بالمسطرة.",
+      "price": 2000.0,
+      "category": "بطاقة",
+    },
+    {
+      "title": "القسم السيادي الثالث للمتجر",
+      "description":
+          "الوصف الهندسي للقسم الثالث ويغطي تصنيفات المنتجات والخدمات الكبرى.",
+      "price": 3000.0,
+      "category": "قسم",
+    },
+    {
+      "title": "الرف السيادي الرابع للمتجر",
+      "description":
+          "الوصف الهندسي للرف الرابع ويغطي عرض المنتجات المميزة والخاصة.",
+      "price": 4000.0,
+      "category": "رف",
+    },
+    {
+      "title": "البطاقة السيادية الخامسة للمتجر",
+      "description":
+          "الوصف الهندسي للبطاقة الخامسة وتختتم حزمة الأصول التسويقية والخدمية.",
+      "price": 5000.0,
+      "category": "بطاقة",
+    },
+  ];
+
   final Map<String, bool> _cardActivationStatus = {};
   final Map<String, String> _cardCategories = {};
 
-  // 🎴 وحدات التحكم الخاصة بالـ 5 بطاقات الأصلية
   final Map<String, TextEditingController> _cardTitleControllers = {};
   final Map<String, TextEditingController> _cardDescControllers = {};
   final Map<String, TextEditingController> _cardPriceControllers = {};
@@ -49,9 +86,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   bool _isAuthorized = false;
   bool _isPublishing = false;
-  int _activationButtonState = 0; // 0 = طلب تنشيط، 1 = نشط (بدء حساب ٣٦٥ يوم)
-  bool _isSubscriptionExpired =
-      false; // هل انتهت الـ 365 يوماً وتتطلب كود 21 خانة؟
+  int _activationButtonState = 0;
+  bool _isSubscriptionExpired = false;
 
   @override
   void initState() {
@@ -73,12 +109,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       } catch (_) {}
     }
 
-    // توليد رابط المعاينة الخاص بالمتجر بناءً على رقم موكس
     _linkController.text =
         "https://mox-system.web.app/?mox=${widget.user.moxId}";
 
-    // تهيئة الـ 5 بطاقات وتصميماتها الأصلية
-    for (var card in widget.clientCards) {
+    // تهيئة حالات التفعيل والمتحكمات الداخلية بناءً على القائمة المولدة محلياً 100%
+    for (var card in _resolvedCards) {
       String title = card['title'].toString();
       bool isAlreadyActive = widget.user.myAssets.any(
         (asset) => asset.title == title,
@@ -98,33 +133,28 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
 
-    // 🔍 فحص حالة الـ 365 يوماً بدقة (مع التأكد أنها لا تظهر للمتجر الجديد لأول مرة)
     if (widget.user.storePublishDate != null &&
         widget.user.storePublishDate!.isNotEmpty) {
       if (_checkIf365DaysExpired(widget.user.storePublishDate)) {
-        _isSubscriptionExpired = true; // انتهت السنة، يجب إدخال كود الـ 21 خانة
+        _isSubscriptionExpired = true;
         _activationButtonState = 0;
       } else {
         _isSubscriptionExpired = false;
         _activationButtonState = 1;
       }
     } else {
-      // متجر جديد لأول مرة - لا توجد صلاحية منتهية
       _isSubscriptionExpired = false;
       _activationButtonState = 0;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSecurityLoginDialog();
-
-      // إذا انتهت الـ 365 يوماً، أظهر نافذة إدخال كود التنشيط فوراً بالمسطرة
       if (_isSubscriptionExpired) {
         _showActivationKeyDialog();
       }
     });
   }
 
-  // ⏳ دالة فحص ما إذا انقضت 365 يوماً بالمسطرة
   bool _checkIf365DaysExpired(String? publishDateStr) {
     if (publishDateStr == null || publishDateStr.isEmpty) return false;
     try {
@@ -136,13 +166,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
-  // 🔐 نافذة إدخال رقم التنشيط (21 خانة) بعد انتهاء الـ 365 يوماً
   void _showActivationKeyDialog() {
     final TextEditingController keyController = TextEditingController();
 
     showDialog(
       context: context,
-      barrierDismissible: false, // إجباري لا يمكن إغلاقها بدون الكود
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
@@ -164,7 +193,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "المتجر مغلق حالياً. يا ملك، أدرج رقم التنشيط المكون من ٢١ خانة لإعادة تفعيل المتجر لـ ٣٦٥ يوماً جديدة بالمسطرة:",
+              "المتجر مغلق حالياً. أدرج رقم التنشيط المكون من ٢١ خانة لإعادة تفعيل المتجر لـ ٣٦٥ يوماً جديدة بالمسطرة:",
               style: TextStyle(
                 fontSize: 12,
                 height: 1.4,
@@ -193,9 +222,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               String enteredKey = keyController.text.trim();
 
               if (enteredKey == _sovereignActivationKey) {
-                // الكود صحيح! تجديد لمدة 365 يوماً جديدة وتنشيط المتجر
                 Navigator.pop(ctx);
-
                 setState(() {
                   _isSubscriptionExpired = false;
                   _activationButtonState = 1;
@@ -214,7 +241,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      "✅ تم قبول رقم التنشيط بنجاح! عاد المتجر للحياة لـ 365 يوماً جديدة.",
+                      "✅ تم قبول رقم التنشيط بنجاح! عاد المتجر للحياة لـ 365 يوماً.",
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -459,7 +486,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 زر التنشيط العام (أول مرة للمتجر الجديد)
   void _handleActivationButtonPress() async {
     if (_activationButtonState == 0) {
       setState(() {
@@ -479,7 +505,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "✅ تم بدء حساب الـ 365 يوماً بنجاح وتم تنشيط البطاقات الـ 5 بالمسطرة",
+            "✅ تم بدء حساب الـ 365 يوماً وتنشيط البطاقات الـ 5 بالمسطرة",
           ),
           backgroundColor: Colors.green,
         ),
@@ -487,7 +513,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
-  // 🌟 فتح نافذة المعاينة المنبثقة (مع التحقق إذا كان المتجر مغلقاً بسبب انتهاء الـ 365 يوماً)
   void _openStorePreview() {
     if (_isSubscriptionExpired) {
       _showActivationKeyDialog();
@@ -505,7 +530,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       context: context,
       builder: (context) => StorePreviewWidget(
         user: liveUser,
-        allCards: widget.clientCards,
+        allCards: _resolvedCards,
         activeStatus: _cardActivationStatus,
       ),
     );
@@ -525,7 +550,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     if (_formKey.currentState!.validate()) {
       List<MarketingCard> updatedAssets = [];
 
-      for (var cardData in widget.clientCards) {
+      for (var cardData in _resolvedCards) {
         String title = cardData['title'].toString();
         bool isChecked = _cardActivationStatus[title] ?? false;
 
@@ -572,7 +597,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "⚠️ تنبيه: يجب أن يكون المتجر نشطاً وتفعيل بطاقة واحدة على الأقل بعلامة صح.",
+              "⚠️ تنبيه: يجب تفعيل بطاقة واحدة على الأقل بعلامة صح.",
             ),
             backgroundColor: Colors.redAccent,
           ),
@@ -612,9 +637,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح وتثبيت عداد الـ 365 يوماً",
-          ),
+          content: Text("🚀 تم تحديث ونشر المتجر بنجاح بالمسطرة"),
           backgroundColor: Colors.green,
         ),
       );
@@ -643,7 +666,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
 
-    // 🛑 إذا انتهت الـ 365 يوماً، اعرض شاشة إغلاق المتجر ورسالة العودة قريباً في رابط العميل بالمسطرة
     if (_isSubscriptionExpired) {
       return Scaffold(
         appBar: AppBar(
@@ -677,7 +699,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ),
                 const SizedBox(height: 15),
                 const Text(
-                  "لقد تجاوز المتجر المدة المسموحة (٣٦٥ يوماً). يرجى إدخال رقم التنشيط المكون من ٢١ خانة لإعادة تشغيله.",
+                  "يرجى إدخال رقم التنشيط المكون من ٢١ خانة لإعادة تشغيله بالمسطرة.",
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
@@ -715,7 +737,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF28A9CC),
         title: const Text(
-          "إدارة المتجر السيادي والبطاقات الـ 5",
+          "إدارة المتجر السيادي والبطاقات الـ 5 الداخلية",
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -743,7 +765,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               child: ListView(
                 children: [
                   const Text(
-                    "🛒 إعدادات المتجر السيادي وإدارة البطاقات الـ 5 كاملة بالأصول",
+                    "🛒 إعدادات المتجر السيادي وإدارة البطاقات الـ 5 المبتكرة محلياً بالكامل",
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -802,7 +824,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // 🔗 قسم رابط المتجر
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -871,30 +892,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1B6B80),
-                            minimumSize: const Size(double.infinity, 38),
-                          ),
-                          onPressed: _openStorePreview,
-                          icon: const Icon(
-                            Icons.remove_red_eye,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          label: const Text(
-                            "معاينة المتجر المنبثقة الحية",
-                            style: TextStyle(color: Colors.white, fontSize: 12),
-                          ),
-                        ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 20),
                   const Text(
-                    "٦- إدارة البطاقات الـ 5 الأصلية بالكامل (تصميم، حقول، أزرار ومربعات تفعيل):",
+                    "٦- إدارة البطاقات الـ 5 المولدة داخلياً بالمسطرة:",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.indigo,
@@ -903,9 +907,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // 🎴 عرض البطاقات الـ 5 داخل Column لضمان عدم حدوث انهيار في العرض
                   Column(
-                    children: widget.clientCards.map((cardData) {
+                    children: _resolvedCards.map((cardData) {
                       String titleKey = cardData['title'].toString();
                       bool isChecked = _cardActivationStatus[titleKey] ?? false;
                       String currentCategory =
@@ -1079,7 +1082,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ✍️ بوابة التوقيع الرقمي السيادي
                   Card(
                     elevation: 3,
                     shape: RoundedRectangleBorder(
@@ -1143,7 +1145,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const SizedBox(height: 25),
 
-                  // 🔘 زر طلب التنشيط العام
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isStoreActive
@@ -1169,7 +1170,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const SizedBox(height: 15),
 
-                  // 🚀 زر النشر والتحديث النهائي
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF28A9CC),
@@ -1209,13 +1209,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1240,20 +1233,4 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ),
     );
   }
-}
-
-class ProductModel {
-  final String id;
-  final String title;
-  final String category;
-  final double price;
-  final String iconData;
-
-  ProductModel({
-    required this.id,
-    required this.title,
-    required this.category,
-    required this.price,
-    required this.iconData,
-  });
 }
