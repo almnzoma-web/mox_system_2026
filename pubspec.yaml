@@ -35,7 +35,7 @@ flutter:
   # تفعيل الأصول السيادية بالمسطرة
   assets:
     - assets/logo.png
-    - assets/mox_app_icon.png
+    - assets/mox_app_icon.ico
 
   # تفعيل الخطوط من مجلد Cairo الخاص بك
   fonts:
@@ -47,9 +47,9 @@ flutter:
 
 # إعدادات الأيقونة الرسمية للتطبيق بالمسطرة
 flutter_launcher_icons:
-  image_path: "assets/mox_app_icon.png"
+  image_path: "assets/mox_app_icon.ico"
   android: true
   ios: true
   web:
     generate: true
-    image_path: "assets/mox_app_icon.png"
+    image_path: "assets/mox_app_icon.ico"

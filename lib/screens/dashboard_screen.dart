@@ -1801,19 +1801,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                   ),
                                                 ),
                                                 onPressed: () async {
-                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: ربط التعديلات بكائن المستخدم ومزامنتها
+                                                  // 🛡️ [تحديث فوري وحفظ بالخزينة السيادية]: التحويل الآمن للخرائط إلى كائنات MarketingCard لتفادي أخطاء الـ Casting
                                                   setStateModal(() {
                                                     card['isEditing'] = false;
                                                     widget
                                                         .user
                                                         .myAssets = _clientCards
-                                                        .cast<MarketingCard>();
+                                                        .map(
+                                                          (mapData) =>
+                                                              MarketingCard.fromJson(
+                                                                mapData,
+                                                              ),
+                                                        )
+                                                        .toList();
                                                   });
 
                                                   // حفظ وتحديث فوري عبر StorageService لضمان انتقالها الفوري لرابط العميل وصفحة A
                                                   await StorageService.updateUserPartial(
                                                     widget.user,
                                                   );
+                                                  await StorageService.saveUsersList();
 
                                                   ScaffoldMessenger.of(
                                                     // ignore: use_build_context_synchronously

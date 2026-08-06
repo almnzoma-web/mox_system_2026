@@ -1,4 +1,4 @@
-// ignore_for_file: duplicate_ignore, use_build_context_synchronously
+// ignore_for_file: unnecessary_type_check, duplicate_ignore, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -113,7 +113,15 @@ class _ClientAssetsScreenState extends State<ClientAssetsScreen> {
             gMox.toLowerCase() != 'null' &&
             !gMox.startsWith("MOX249-00010001"));
 
-    final realAssets = widget.user.myAssets;
+    // 🛡️ معالجة جذرية لضمان قراءة الأصول وعرض البطاقات فوراً دون أي إخفاء
+    final rawAssetsData = widget.user.myAssets;
+    // ignore: unnecessary_null_comparison
+    final List<dynamic> realAssets = rawAssetsData != null
+        // ignore: dead_code
+        ? (rawAssetsData is List ? rawAssetsData : [rawAssetsData])
+        // ignore: dead_code
+        : [];
+
     final bool isStoreActive = widget.user.role == 'reviewed_active';
 
     return Scaffold(
