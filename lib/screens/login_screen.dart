@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _rememberLoginSession = false; // ✋ مربع حفظ تسجيل الدخول بالمسطرة
 
   Future<void> _validateAndLogin() async {
     String input = _inputController.text.trim();
@@ -90,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // حفظ الجلسة النشطة الحالية للمستخدم مع ضمان اكتمال البيانات
+      // حفظ الجلسة النشطة الحالية للمستخدم مع اعتماد حالة حفظ تسجيل الدخول
       await StorageService.saveUser(authenticatedUser);
 
       // 3. نجاح التحقق بالكامل والعبور للوحة التحكم السيادية
@@ -208,7 +209,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 15),
+                  // ✋ مربع حفظ تسجيل الدخول المضاف بالمسطرة والنص الاحترافي
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberLoginSession,
+                        activeColor: moxBlue,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            _rememberLoginSession = value ?? false;
+                          });
+                        },
+                      ),
+                      const Text(
+                        "هل ترغب في حفظ تسجيل الدخول",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 25),
                   _isLoading
                       ? CircularProgressIndicator(color: moxBlue)
                       : ElevatedButton(

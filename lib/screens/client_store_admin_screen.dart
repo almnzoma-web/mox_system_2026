@@ -37,7 +37,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _linkController = TextEditingController();
 
-  // 🏛️ الـ 8 أيقونات المعتمدة المتاحة للاختيار (اسم الأيقونة + كائن الأيقونة البرمجي)
+  // 🏛️ الـ 8 أيقونات المعتمدة المتاحة للاختيار
   static const List<Map<String, dynamic>> _availableIcons = [
     {"name": "حقيبة تسوق", "icon": Icons.shopping_bag},
     {"name": "متجر/مبنى", "icon": Icons.store},
@@ -49,7 +49,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     {"name": "خدمة عملاء", "icon": Icons.headset_mic},
   ];
 
-  // 🏛️ التوليد الداخلي السيادي البحت للبطاقات الـ 5 بالمسطرة دون أي ارتباط بشاشات خارجية
+  // 🏛️ البطاقات الـ 5 السيادية المولدة بالمسطرة
   late final List<Map<String, dynamic>> _resolvedCards = [
     {
       "title": "البطاقة السيادية الأولى للمتجر",
@@ -90,8 +90,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   final Map<String, bool> _cardActivationStatus = {};
   final Map<String, String> _cardCategories = {};
-  final Map<String, IconData> _cardSelectedIcons =
-      {}; // لتخزين الأيقونة المختارة لكل بطاقة
+  final Map<String, IconData> _cardSelectedIcons = {};
 
   final Map<String, TextEditingController> _cardTitleControllers = {};
   final Map<String, TextEditingController> _cardDescControllers = {};
@@ -124,6 +123,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       } catch (_) {}
     }
 
+    // 1- تحديث رابط العميل بدقة بناءً على الموثق الصحيح وعدم وجود روابط تالفة أو محذوفة
     final String activeMoxForUrl =
         (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
         ? widget.user.moxId
@@ -132,7 +132,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     _linkController.text =
         "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
 
-    // تهيئة حالات التفعيل والمتحكمات الداخلية للبطاقات الـ 5
     for (var card in _resolvedCards) {
       String title = card['title'].toString();
 
@@ -148,7 +147,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       bool isAlreadyActive = existingAsset != null;
       _cardActivationStatus[title] = isAlreadyActive;
       _cardCategories[title] = card['category'] ?? 'بطاقة';
-      _cardSelectedIcons[title] = Icons.shopping_bag; // الأيقونة الافتراضية
+      _cardSelectedIcons[title] = Icons.shopping_bag;
 
       _cardTitleControllers[title] = TextEditingController(
         text: existingAsset?.title ?? title,
@@ -303,7 +302,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // نافذة منبثقة لاختيار الأيقونة الـ 8 المتاحة
   void _showIconSelectorDialog(String titleKey) {
     showDialog(
       context: context,
@@ -636,10 +634,37 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
+  // 2- زر المعاينة يقرأ أحدث التحديثات والمتحكمات الحالية بشكل فوري ومباشر
   void _openStorePreview() {
     if (_isSubscriptionExpired) {
       _showActivationKeyDialog();
       return;
+    }
+
+    // تجميع الأصول الحالية المعطاة من حقول الإدخال لتظهر في المعاينة الفورية
+    List<MarketingCard> previewAssets = [];
+    for (var cardData in _resolvedCards) {
+      String titleKey = cardData['title'].toString();
+      bool isChecked = _cardActivationStatus[titleKey] ?? false;
+      if (isChecked) {
+        previewAssets.add(
+          MarketingCard(
+            title: _cardTitleControllers[titleKey]?.text.trim() ?? titleKey,
+            description: _cardDescControllers[titleKey]?.text.trim() ?? '',
+            price:
+                double.tryParse(
+                  _cardPriceControllers[titleKey]?.text.trim() ?? '0',
+                ) ??
+                0.0,
+            whatsapp:
+                _cardWhatsappControllers[titleKey]?.text.trim() ??
+                _phoneController.text.trim(),
+            facebookUrl:
+                _cardDetailsLinkControllers[titleKey]?.text.trim() ?? '',
+            isApproved: true,
+          ),
+        );
+      }
     }
 
     UserModel liveUser = widget.user.copyWith(
@@ -647,6 +672,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       address: _businessCategoryController.text.trim(),
       phone: _phoneController.text.trim(),
       storeDescription: _descriptionController.text.trim(),
+      myAssets: previewAssets.isNotEmpty ? previewAssets : widget.user.myAssets,
     );
 
     showDialog(
@@ -659,6 +685,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
+  // 3- مراجعة زر النشر ليعمل بدقة تامة، ويحفظ الأصول والبيانات في النظام ويبقى بالصفحة
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -773,8 +800,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           backgroundColor: Colors.green,
         ),
       );
-
-      // البقاء في الصفحة الحالية وعدم الخروج منها نهائياً بعد إتمام النشر
     }
   }
 
@@ -1139,11 +1164,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               ),
                               const Divider(height: 20),
 
-                              // مربع معاينة الأيقونة الكبير المناسب + حقول الإدخال
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // مربع المعاينة البارز للأيقونة
                                   InkWell(
                                     onTap: () =>
                                         _showIconSelectorDialog(titleKey),
