@@ -252,7 +252,8 @@ class StorageService {
         'role': user.role,
         'customWhatsApp': user.customWhatsApp ?? '',
         'guardianMoxId': user.guardianMoxId ?? '',
-        'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
+        'guardianMoxIdCustomer':
+            user.guardianMoxIdCustomer ?? '', // تم التصحيح هنا
         'points': user.points.toString(),
         'myAssets': encodedAssets,
       };
@@ -329,7 +330,7 @@ class StorageService {
       foundUser = null;
     }
 
-    // 2. إذا لم يتم العثور عليه محلياً (مثلاً بسبب مسح الذاكرة بعد تحديث التطبيق)، نسحب المباشرة من قوقل (Cloud Fallback)
+    // 2. إذا لم يتم العثور عليه محلياً، نسحب المباشرة من قوقل (Cloud Fallback)
     if (foundUser == null) {
       try {
         debugPrint(
@@ -351,14 +352,12 @@ class StorageService {
 
             UserModel cloudUser = UserModel.fromJson(mapItem);
 
-            // مطابقة المدخلات مع العميل القادم من السحابة
             bool matches = isMoxId
                 ? cloudUser.moxId == input
                 : cloudUser.phone == input;
 
             if (matches && cloudUser.password == password) {
               foundUser = cloudUser;
-              // حقنه فوراً في الذاكرة المحلية وقائمة المسجلين لتثبيته للأبد
               if (!registeredUsers.any((u) => u.moxId == foundUser!.moxId)) {
                 registeredUsers.add(foundUser);
               } else {
@@ -385,7 +384,8 @@ class StorageService {
     return foundUser;
   }
 
-  UserModel? authenticate(String input, String password, bool isMoxId) {
+  // دالة ساكنة (static) لمنع أخطاء الاستدعاء
+  static UserModel? authenticate(String input, String password, bool isMoxId) {
     try {
       return registeredUsers.firstWhere(
         (u) =>

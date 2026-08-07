@@ -60,6 +60,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
+      // معالجة آمنة للأصول لضمان التوافق مع toJson
+      String encodedAssets = "[]";
+      try {
+        encodedAssets = json.encode(
+          user.myAssets.map((a) {
+            try {
+              return (a as dynamic).toJson();
+            } catch (_) {
+              return a;
+            }
+          }).toList(),
+        );
+      } catch (_) {}
+
       final queryParameters = {
         'action': 'save',
         'phone': user.phone,
@@ -79,7 +93,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'points': user.points.toString(),
         'storePublishDate': user.storePublishDate ?? '',
         'activationDate': user.activationDate ?? '',
-        'myAssets': json.encode(user.myAssets.map((a) => a.toJson()).toList()),
+        'myAssets': encodedAssets,
       };
 
       final uri = Uri.parse(

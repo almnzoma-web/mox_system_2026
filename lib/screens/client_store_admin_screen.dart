@@ -634,20 +634,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
-  // 2- زر المعاينة يقرأ أحدث التحديثات والمتحكمات الحالية بشكل فوري ومباشر
-  void _openStorePreview() {
-    if (_isSubscriptionExpired) {
-      _showActivationKeyDialog();
-      return;
-    }
-
-    // تجميع الأصول الحالية المعطاة من حقول الإدخال لتظهر في المعاينة الفورية
-    List<MarketingCard> previewAssets = [];
+  // 🛡️ دالة استخلاص أحدث بيانات الأصول والمتحكمات من الشاشة مباشرة (لتحديث الجزء العلوي والبطاقات بدقة)
+  List<MarketingCard> _getCurrentAssetsFromUI() {
+    List<MarketingCard> currentAssets = [];
     for (var cardData in _resolvedCards) {
       String titleKey = cardData['title'].toString();
       bool isChecked = _cardActivationStatus[titleKey] ?? false;
       if (isChecked) {
-        previewAssets.add(
+        currentAssets.add(
           MarketingCard(
             title: _cardTitleControllers[titleKey]?.text.trim() ?? titleKey,
             description: _cardDescControllers[titleKey]?.text.trim() ?? '',
@@ -666,13 +660,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         );
       }
     }
+    return currentAssets;
+  }
+
+  // 1- زر المعاينة المحدث بالمسطرة ليقرا فوراً بيانات القسم العلوي والبطاقات الحالية
+  void _openStorePreview() {
+    if (_isSubscriptionExpired) {
+      _showActivationKeyDialog();
+      return;
+    }
 
     UserModel liveUser = widget.user.copyWith(
       name: _storeNameController.text.trim(),
       address: _businessCategoryController.text.trim(),
       phone: _phoneController.text.trim(),
       storeDescription: _descriptionController.text.trim(),
-      myAssets: previewAssets.isNotEmpty ? previewAssets : widget.user.myAssets,
+      myAssets: _getCurrentAssetsFromUI(),
     );
 
     showDialog(
@@ -685,7 +688,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 3- مراجعة زر النشر ليعمل بدقة تامة، ويحفظ الأصول والبيانات في النظام ويبقى بالصفحة
+  // 3- زر النشر المحدث بالمسطرة ليحفظ كافة التحديثات في الجزء العلوي والبطاقات معاً
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -698,57 +701,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
 
     if (_formKey.currentState!.validate()) {
-      List<MarketingCard> updatedAssets = [];
-
-      for (var cardData in _resolvedCards) {
-        String title = cardData['title'].toString();
-        bool isChecked = _cardActivationStatus[title] ?? false;
-
-        if (isChecked &&
-            (_activationButtonState == 1 ||
-                widget.user.role == 'reviewed_active')) {
-          String cardWhatsapp =
-              _cardWhatsappControllers[title]?.text.trim() ??
-              _phoneController.text.trim();
-          String cardDetailsLink =
-              _cardDetailsLinkControllers[title]?.text.trim() ?? '';
-
-          try {
-            var cardModel = MarketingCard.fromJson(cardData);
-            updatedAssets.add(
-              cardModel.copyWith(
-                title: _cardTitleControllers[title]?.text.trim() ?? title,
-                description:
-                    _cardDescControllers[title]?.text.trim() ??
-                    _descriptionController.text.trim(),
-                price:
-                    double.tryParse(
-                      _cardPriceControllers[title]?.text.trim() ?? '0',
-                    ) ??
-                    0.0,
-                whatsapp: cardWhatsapp,
-                facebookUrl: cardDetailsLink,
-                isApproved: true,
-              ),
-            );
-          } catch (_) {
-            updatedAssets.add(
-              MarketingCard(
-                title: title,
-                description: _cardDescControllers[title]?.text.trim() ?? '',
-                price:
-                    double.tryParse(
-                      _cardPriceControllers[title]?.text.trim() ?? '0',
-                    ) ??
-                    0.0,
-                whatsapp: cardWhatsapp,
-                facebookUrl: cardDetailsLink,
-                isApproved: true,
-              ),
-            );
-          }
-        }
-      }
+      List<MarketingCard> updatedAssets = _getCurrentAssetsFromUI();
 
       if (updatedAssets.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -775,10 +728,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
+      // التحديث الشامل للبيانات السيادية العلوية والبطاقات
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
+        storeDescription: _descriptionController.text.trim(),
         myAssets: updatedAssets,
         storePublishDate: finalPublishTimestamp,
         role: 'reviewed_active',
@@ -790,12 +745,20 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       setState(() {
         _isPublishing = false;
+        // 2- تحديث رابط العميل تشخيصياً وبرمجياً ليتأكد من جلب المعرف الفعال دائماً
+        final String activeMoxForUrl =
+            (widget.user.moxId != "لم يحدد" &&
+                widget.user.moxId.trim().isNotEmpty)
+            ? widget.user.moxId
+            : (widget.user.guardianMoxId ?? "MOX249-00010001");
+        _linkController.text =
+            "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "🚀 تم تحديث ونشر المتجر بنجاح بالمسطرة وحفظ كافة الأصول في جوجل",
+            "🚀 تم تحديث ونشر المتجر بالبطاقات والبيانات العلوية بنجاح بالمسطرة!",
           ),
           backgroundColor: Colors.green,
         ),

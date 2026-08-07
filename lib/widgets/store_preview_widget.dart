@@ -36,7 +36,6 @@ class StorePreviewWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final int remainingDays = _getRemainingDays();
 
-    // تصفية البطاقات المفعلة فقط بعلامة صح لعرضها في المعاينة المنبثقة
     final filteredCards = allCards.where((card) {
       String title = card['title'].toString();
       return activeStatus[title] == true;
@@ -51,7 +50,6 @@ class StorePreviewWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // رأس النافذة المنبثقة مع زر الإغلاق
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -79,7 +77,6 @@ class StorePreviewWidget extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
-                  // شريط العداد التنازلي للـ 365 يوم
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -119,8 +116,6 @@ class StorePreviewWidget extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // كارت بيانات المتجر الرئيسية
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -172,7 +167,6 @@ class StorePreviewWidget extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   const Text(
                     "🛒 البطاقات والأصول المفعلة للنشر:",
                     style: TextStyle(
@@ -182,7 +176,6 @@ class StorePreviewWidget extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-
                   filteredCards.isEmpty
                       ? const Padding(
                           padding: EdgeInsets.all(24.0),
