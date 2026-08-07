@@ -124,8 +124,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       } catch (_) {}
     }
 
+    final String activeMoxForUrl =
+        (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
+        ? widget.user.moxId
+        : (widget.user.guardianMoxId ?? "MOX249-00010001");
+
     _linkController.text =
-        "https://mox-system.web.app/?mox=${widget.user.moxId}";
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
 
     // تهيئة حالات التفعيل والمتحكمات الداخلية للبطاقات الـ 5
     for (var card in _resolvedCards) {
@@ -762,12 +767,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("🚀 تم تحديث ونشر المتجر بنجاح بالمسطرة"),
+          content: Text(
+            "🚀 تم تحديث ونشر المتجر بنجاح بالمسطرة وحفظ كافة الأصول في جوجل",
+          ),
           backgroundColor: Colors.green,
         ),
       );
 
-      Navigator.pop(context, updatedUser);
+      // البقاء في الصفحة الحالية وعدم الخروج منها نهائياً بعد إتمام النشر
     }
   }
 
