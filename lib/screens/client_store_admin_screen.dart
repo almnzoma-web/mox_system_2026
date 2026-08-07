@@ -55,7 +55,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     {"name": "خدمة عملاء", "icon": Icons.headset_mic},
   ];
 
-  // 🏛️ البطاقات الـ 5 السيادية المولدة بالمسطرة (تعتمد على clientCards المرسلة أو الافتراضية)
+  // 🏛️ البطاقات الـ 5 السيادية المولدة بالمسطرة (تعتمد على clientCards المرسلة بدقة أو الافتراضية)
   late final List<Map<String, dynamic>> _resolvedCards =
       widget.clientCards.isNotEmpty
       ? widget.clientCards
@@ -136,7 +136,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       } catch (_) {}
     }
 
-    // 🔗 بناء الرابط الموحد المعتمد بالمعرف الفعال (مع استخدام directMoxId بالمسطرة)
+    // 🔗 بناء الرابط الموحد المعتمد بالمعرف الفعال ودعم التحديث الفوري
     _updateStoreLink();
 
     for (var card in _resolvedCards) {
@@ -207,12 +207,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   void _updateStoreLink() {
-    // الاعتماد على directMoxId المعرّف في الـ constructor بالمسطرة
-    final String activeMoxForUrl = widget.directMoxId.trim().isNotEmpty
-        ? widget.directMoxId
-        : ((_currentUser.moxId != "لم يحدد" &&
-                  _currentUser.moxId.trim().isNotEmpty)
-              ? _currentUser.moxId
+    // 🎯 الحسم التام لرابط العميل: الاعتماد على معرف موكس النشط من الكائن الحالي أو المعرف المباشر بدقة مطلقة
+    final String activeMoxForUrl =
+        (_currentUser.moxId != "لم يحدد" &&
+            _currentUser.moxId.trim().isNotEmpty)
+        ? _currentUser.moxId
+        : (widget.directMoxId.trim().isNotEmpty
+              ? widget.directMoxId
               : (_currentUser.guardianMoxId ?? "MOX249-00010001"));
 
     _linkController.text =
@@ -926,7 +927,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _storeNameController,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) {
+                      setState(() {
+                        _currentUser = _currentUser.copyWith(name: val.trim());
+                        _updateStoreLink();
+                      });
+                    },
                     decoration: const InputDecoration(
                       labelText: "١- اسم الدكان/المتجر (إلزامي)",
                       border: OutlineInputBorder(),
@@ -939,7 +945,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   const SizedBox(height: 15),
                   TextFormField(
                     controller: _businessCategoryController,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) {
+                      setState(() {
+                        _currentUser = _currentUser.copyWith(
+                          address: val.trim(),
+                        );
+                        _updateStoreLink();
+                      });
+                    },
                     decoration: const InputDecoration(
                       labelText: "٢- المجال التجاري (إلزامي)",
                       border: OutlineInputBorder(),
@@ -953,7 +966,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) {
+                      setState(() {
+                        _currentUser = _currentUser.copyWith(phone: val.trim());
+                        _updateStoreLink();
+                      });
+                    },
                     decoration: const InputDecoration(
                       labelText: "٤- هاتف اتصال (إلزامي)",
                       border: OutlineInputBorder(),
@@ -968,7 +986,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     controller: _descriptionController,
                     maxLength: 256,
                     maxLines: 3,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) {
+                      setState(() {
+                        _currentUser = _currentUser.copyWith(
+                          storeDescription: val.trim(),
+                        );
+                        _updateStoreLink();
+                      });
+                    },
                     decoration: const InputDecoration(
                       labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
                       border: OutlineInputBorder(),
@@ -1130,6 +1155,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                         if (val != null) {
                                           setState(() {
                                             _cardCategories[titleKey] = val;
+                                            _updateStoreLink();
                                           });
                                         }
                                       },
@@ -1152,6 +1178,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                                 setState(() {
                                                   _cardActivationStatus[titleKey] =
                                                       val ?? false;
+                                                  _updateStoreLink();
                                                 });
                                               }
                                             : null,
@@ -1211,7 +1238,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                         TextFormField(
                                           controller:
                                               _cardTitleControllers[titleKey],
-                                          onChanged: (val) => setState(() {}),
+                                          onChanged: (val) {
+                                            setState(() {
+                                              _updateStoreLink();
+                                            });
+                                          },
                                           decoration: const InputDecoration(
                                             labelText: "عنوان البطاقة / العرض",
                                             border: OutlineInputBorder(),
@@ -1223,7 +1254,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                           controller:
                                               _cardDescControllers[titleKey],
                                           maxLines: 2,
-                                          onChanged: (val) => setState(() {}),
+                                          onChanged: (val) {
+                                            setState(() {
+                                              _updateStoreLink();
+                                            });
+                                          },
                                           decoration: const InputDecoration(
                                             labelText: "وصف البطاقة التفصيلي",
                                             border: OutlineInputBorder(),
@@ -1244,7 +1279,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                       controller:
                                           _cardPriceControllers[titleKey],
                                       keyboardType: TextInputType.number,
-                                      onChanged: (val) => setState(() {}),
+                                      onChanged: (val) {
+                                        setState(() {
+                                          _updateStoreLink();
+                                        });
+                                      },
                                       decoration: const InputDecoration(
                                         labelText: "السعر (ج.س)",
                                         border: OutlineInputBorder(),
@@ -1258,7 +1297,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                       controller:
                                           _cardWhatsappControllers[titleKey],
                                       keyboardType: TextInputType.phone,
-                                      onChanged: (val) => setState(() {}),
+                                      onChanged: (val) {
+                                        setState(() {
+                                          _updateStoreLink();
+                                        });
+                                      },
                                       decoration: const InputDecoration(
                                         labelText:
                                             "رقم الواتساب (مثال: 249115855164)",
@@ -1281,7 +1324,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               TextFormField(
                                 controller:
                                     _cardDetailsLinkControllers[titleKey],
-                                onChanged: (val) => setState(() {}),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _updateStoreLink();
+                                  });
+                                },
                                 decoration: const InputDecoration(
                                   labelText:
                                       "رابط المزيد من التفاصيل (بوست فيسبوك أو فيديو طويل)",
@@ -1302,7 +1349,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     ),
                                   ),
                                   onPressed: () {
-                                    setState(() {});
+                                    setState(() {
+                                      _updateStoreLink();
+                                    });
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
