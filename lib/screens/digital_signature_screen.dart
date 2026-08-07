@@ -13,7 +13,11 @@ import '../../services/storage_service.dart';
 class DigitalSignatureScreen extends StatefulWidget {
   final UserModel currentUser;
 
-  const DigitalSignatureScreen({super.key, required this.currentUser});
+  const DigitalSignatureScreen({
+    super.key,
+    required this.currentUser,
+    required UserModel user,
+  });
 
   @override
   State<DigitalSignatureScreen> createState() => _DigitalSignatureScreenState();

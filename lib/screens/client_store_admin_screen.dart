@@ -13,11 +13,14 @@ import '../widgets/store_preview_widget.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
+  final bool isPublic; // 🏛️ فصل بيئة المعاينة عن البيئة الحقيقية بالمسطرة
+
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
     required String directMoxId,
     required List<Map<String, dynamic>> clientCards,
+    this.isPublic = false, // القيمة الافتراضية للإدارة والتشغيل الداخلي
   });
 
   @override
@@ -139,7 +142,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               asset.description.contains(title.substring(0, 10)),
         );
       } catch (_) {
-        // البحث البديل بالترتيب إذا لم يتطابق العنوان الحرفي
         try {
           int idx = _resolvedCards.indexOf(card);
           if (widget.user.myAssets.length > idx) {
@@ -152,7 +154,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       bool isAlreadyActive = existingAsset != null;
       _cardActivationStatus[title] = isAlreadyActive;
-      _cardCategories[title] = card['category'] ?? 'بطاقة';
+      _cardCategories[title] =
+          existingAsset?.category ?? card['category'] ?? 'بطاقة';
       _cardSelectedIcons[title] = Icons.shopping_bag;
 
       _cardTitleControllers[title] = TextEditingController(
@@ -188,10 +191,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       _activationButtonState = 0;
     }
 
+    // 🏛️ تطبيق منطق الفحص المعتمد بناءً على حالة الـ isPublic بالمسطرة
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showSecurityLoginDialog();
-      if (_isSubscriptionExpired) {
-        _showActivationKeyDialog();
+      if (widget.isPublic) {
+        setState(() {
+          _isAuthorized = true;
+        });
+      } else {
+        _showSecurityLoginDialog();
+        if (_isSubscriptionExpired) {
+          _showActivationKeyDialog();
+        }
       }
     });
   }
@@ -623,34 +633,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  void _handleActivationButtonPress() async {
-    if (_activationButtonState == 0) {
-      setState(() {
-        _activationButtonState = 1;
-        for (var key in _cardActivationStatus.keys) {
-          _cardActivationStatus[key] = true;
-        }
-      });
-
-      UserModel tempUser = widget.user.copyWith(
-        storePublishDate: DateTime.now().toIso8601String(),
-        role: 'reviewed_active',
-      );
-      await StorageService.updateUserPartial(tempUser);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "✅ تم بدء حساب الـ 365 يوماً وتنشيط البطاقات الـ 5 بالمسطرة",
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  // 🛡️ استخلاص الأصول والمتحكمات من الشاشة مباشرة (تزامن كامل بين الحقول والبطاقات والمعاينة)
+  // 🛡️ استخلاص الأصول والمتحكمات من الشاشة مباشرة
   List<MarketingCard> _getCurrentAssetsFromUI() {
     List<MarketingCard> currentAssets = [];
     for (var cardData in _resolvedCards) {
@@ -671,6 +654,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 _phoneController.text.trim(),
             facebookUrl:
                 _cardDetailsLinkControllers[titleKey]?.text.trim() ?? '',
+            category: _cardCategories[titleKey] ?? 'بطاقة',
             isApproved: true,
           ),
         );
@@ -679,7 +663,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     return currentAssets;
   }
 
-  // 🎯 بناء نموذج موحد متكامل للـ UserModel يدمج الجزء العلوي والبطاقات في آن واحد
+  // 🎯 بناء نموذج موحد متكامل للـ UserModel
   UserModel _buildLiveUserModel() {
     return widget.user.copyWith(
       name: _storeNameController.text.trim(),
@@ -690,7 +674,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🔍 زر المعاينة المرتبط فوراً ببيانات الشاشة والبطاقات النشطة
+  // 🔍 زر المعاينة المنبثقة (يعرض كـ Dialog)
   void _openStorePreview() {
     if (_isSubscriptionExpired) {
       _showActivationKeyDialog();
@@ -709,7 +693,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🚀 زر النشر المعتمد والمحدث بالمسطرة لحفظ الجزء العلوي والبطاقات وتحديث الرابط
+  // 🚀 زر النشر المعتمد
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -749,7 +733,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      // التحديث الشامل للبيانات السيادية العلوية والبطاقات
       UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -766,7 +749,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       setState(() {
         _isPublishing = false;
-        _updateStoreLink(); // تحديث الرابط تشخيصياً وبرمجياً
+        _updateStoreLink();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -782,6 +765,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🏛️ تطبيق الفصل الهندسي الصارم بالمسطرة بين البيئة العامة (Scaffold) والبيئة الداخلية/المعارض المنبثقة
+    if (widget.isPublic) {
+      return StorePreviewWidget(
+        user: _buildLiveUserModel(),
+        allCards: _resolvedCards,
+        activeStatus: _cardActivationStatus,
+      );
+    }
+
     if (!_isAuthorized) {
       return Scaffold(
         appBar: AppBar(
@@ -883,6 +875,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          // 🔏 زر الانتقال للتوقيع الرقمي السيادي بالمسطرة
+          IconButton(
+            icon: const Icon(Icons.fingerprint, color: Colors.white),
+            tooltip: "التوقيع الرقمي السيادي",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DigitalSignatureScreen(
+                    user: widget.user,
+                    currentUser: widget.user,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.remove_red_eye, color: Colors.white),
             tooltip: "معاينة المتجر المنبثقة",
@@ -909,7 +917,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _storeNameController,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) {
+                      setState(() {});
+                      _updateStoreLink();
+                    },
                     decoration: const InputDecoration(
                       labelText: "١- اسم الدكان/المتجر (إلزامي)",
                       border: OutlineInputBorder(),
@@ -936,7 +947,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) {
+                      setState(() {});
+                      _updateStoreLink();
+                    },
                     decoration: const InputDecoration(
                       labelText: "٤- هاتف اتصال (إلزامي)",
                       border: OutlineInputBorder(),
@@ -1273,42 +1287,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                   prefixIcon: Icon(Icons.link, size: 18),
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1B6B80),
-                                    minimumSize: const Size(120, 38),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {});
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "⚡ تم حفظ وتحديث البطاقة في الذاكرة الحية: ${_cardTitleControllers[titleKey]?.text}",
-                                        ),
-                                        backgroundColor: Colors.teal,
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(
-                                    Icons.bolt,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  label: const Text(
-                                    "تحديث البطاقة",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -1316,96 +1294,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     }).toList(),
                   ),
 
-                  const SizedBox(height: 20),
-
-                  Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => DigitalSignatureScreen(
-                              currentUser: widget.user,
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.gesture_rounded,
-                              color: Color(0xFF1B6B80),
-                              size: 28,
-                            ),
-                            SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "بوابة التوقيع الرقمي السيادي",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: Color(0xFF1B6B80),
-                                    ),
-                                  ),
-                                  SizedBox(height: 3),
-                                  Text(
-                                    "اعتمد عقودك ومستنداتك بتوقيع رقمي موثق بالمسطرة",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16,
-                              color: Color(0xFF1B6B80),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isStoreActive
-                          ? Colors.green
-                          : const Color(0xFF1B6B80),
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: _handleActivationButtonPress,
-                    child: Text(
-                      _activationButtonState == 0
-                          ? "طلب تنشيط (بدء حساب ٣٦٥ يوماً)"
-                          : "نشط (معتمد ومفعل للـ ٣٦٥ يوماً ✅)",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 15),
-
+                  const SizedBox(height: 30),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF28A9CC),
@@ -1415,56 +1304,31 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ),
                     ),
                     onPressed: _isPublishing ? null : _publishStore,
-                    icon: const Icon(
-                      Icons.verified_rounded,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      "نشر وتحديث المتجر بالبطاقات المفعلة فقط",
-                      style: TextStyle(
+                    icon: _isPublishing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.cloud_upload, color: Colors.white),
+                    label: Text(
+                      _isPublishing
+                          ? "جاري النشر والتحديث..."
+                          : "نشر وحفظ التعديلات السيادية",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-          if (_isPublishing)
-            Container(
-              color: Colors.black.withValues(alpha: 0.6),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 30,
-                    vertical: 24,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      CircularProgressIndicator(color: Color(0xFF28A9CC)),
-                      SizedBox(height: 18),
-                      Text(
-                        "جاري حفظ وتثبيت النسخة المعتمدة لمتجرك...",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1B6B80),
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
