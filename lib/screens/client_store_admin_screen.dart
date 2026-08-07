@@ -13,11 +13,14 @@ import '../widgets/store_preview_widget.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
+  final String directMoxId;
+  final List<Map<String, dynamic>> clientCards;
+
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
-    required String directMoxId,
-    required List<Map<String, dynamic>> clientCards,
+    required this.directMoxId,
+    required this.clientCards,
   });
 
   @override
@@ -28,6 +31,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🔑 رقم التنشيط السيادي (مكون من 21 خانة)
   static const String _sovereignActivationKey = "MOX-2026-KEY-9876543210AB";
 
+  // 🔄 نسخة محلية من المستخدم ليتم تحديثها فورياً داخل الشاشة بالمسطرة
+  late UserModel _currentUser;
+
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _storeNameController = TextEditingController();
@@ -37,7 +43,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _linkController = TextEditingController();
 
-  // 🏛️ الـ 8 أيقونات المعتمدة المتاحة للاختيار
+  // 🏛️ الـ 8 أيقونات المعتمدة المتاحة للاختيار بالمسطرة
   static const List<Map<String, dynamic>> _availableIcons = [
     {"name": "حقيبة تسوق", "icon": Icons.shopping_bag},
     {"name": "متجر/مبنى", "icon": Icons.store},
@@ -49,44 +55,47 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     {"name": "خدمة عملاء", "icon": Icons.headset_mic},
   ];
 
-  // 🏛️ البطاقات الـ 5 السيادية المولدة بالمسطرة
-  late final List<Map<String, dynamic>> _resolvedCards = [
-    {
-      "title": "البطاقة السيادية الأولى للمتجر",
-      "description":
-          "الوصف الهندسي للبطاقة الأولى ويغطي كافة تفاصيل العرض الأساسي بالمسطرة.",
-      "price": 1000.0,
-      "category": "بطاقة",
-    },
-    {
-      "title": "البطاقة السيادية الثانية للمتجر",
-      "description":
-          "الوصف الهندسي للبطاقة الثانية ويغطي كافة تفاصيل العرض الفرعي بالمسطرة.",
-      "price": 2000.0,
-      "category": "بطاقة",
-    },
-    {
-      "title": "القسم السيادي الثالث للمتجر",
-      "description":
-          "الوصف الهندسي للقسم الثالث ويغطي تصنيفات المنتجات والخدمات الكبرى.",
-      "price": 3000.0,
-      "category": "قسم",
-    },
-    {
-      "title": "الرف السيادي الرابع للمتجر",
-      "description":
-          "الوصف الهندسي للرف الرابع ويغطي عرض المنتجات المميزة والخاصة.",
-      "price": 4000.0,
-      "category": "رف",
-    },
-    {
-      "title": "البطاقة السيادية الخامسة للمتجر",
-      "description":
-          "الوصف الهندسي للبطاقة الخامسة وتختتم حزمة الأصول التسويقية والخدمية.",
-      "price": 5000.0,
-      "category": "بطاقة",
-    },
-  ];
+  // 🏛️ البطاقات الـ 5 السيادية المولدة بالمسطرة (تعتمد على clientCards المرسلة أو الافتراضية)
+  late final List<Map<String, dynamic>> _resolvedCards =
+      widget.clientCards.isNotEmpty
+      ? widget.clientCards
+      : [
+          {
+            "title": "البطاقة السيادية الأولى للمتجر",
+            "description":
+                "الوصف الهندسي للبطاقة الأولى ويغطي كافة تفاصيل العرض الأساسي بالمسطرة.",
+            "price": 1000.0,
+            "category": "بطاقة",
+          },
+          {
+            "title": "البطاقة السيادية الثانية للمتجر",
+            "description":
+                "الوصف الهندسي للبطاقة الثانية ويغطي كافة تفاصيل العرض الفرعي بالمسطرة.",
+            "price": 2000.0,
+            "category": "بطاقة",
+          },
+          {
+            "title": "القسم السيادي الثالث للمتجر",
+            "description":
+                "الوصف الهندسي للقسم الثالث ويغطي تصنيفات المنتجات والخدمات الكبرى.",
+            "price": 3000.0,
+            "category": "قسم",
+          },
+          {
+            "title": "الرف السيادي الرابع للمتجر",
+            "description":
+                "الوصف الهندسي للرف الرابع ويغطي عرض المنتجات المميزة والخاصة.",
+            "price": 4000.0,
+            "category": "رف",
+          },
+          {
+            "title": "البطاقة السيادية الخامسة للمتجر",
+            "description":
+                "الوصف الهندسي للبطاقة الخامسة وتختتم حزمة الأصول التسويقية والخدمية.",
+            "price": 5000.0,
+            "category": "بطاقة",
+          },
+        ];
 
   final Map<String, bool> _cardActivationStatus = {};
   final Map<String, String> _cardCategories = {};
@@ -106,42 +115,49 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   @override
   void initState() {
     super.initState();
-    _phoneController.text = widget.user.phone;
+    // استخدام widget.user الممرر بدقة بالمسطرة
+    _currentUser = widget.user;
+    _phoneController.text = _currentUser.phone;
 
-    if (widget.user.name.isNotEmpty) {
-      _storeNameController.text = widget.user.name;
+    if (_currentUser.name.isNotEmpty) {
+      _storeNameController.text = _currentUser.name;
     }
 
-    if (widget.user.address.isNotEmpty) {
-      _businessCategoryController.text = widget.user.address;
+    if (_currentUser.address.isNotEmpty) {
+      _businessCategoryController.text = _currentUser.address;
     }
 
-    if (widget.user.myAssets.isNotEmpty) {
+    if (_currentUser.storeDescription.isNotEmpty) {
+      _descriptionController.text = _currentUser.storeDescription;
+    } else if (_currentUser.myAssets.isNotEmpty) {
       try {
-        final firstAsset = widget.user.myAssets.first;
+        final firstAsset = _currentUser.myAssets.first;
         _descriptionController.text = firstAsset.description;
       } catch (_) {}
     }
 
-    // 1- تحديث رابط العميل بدقة بناءً على الموثق الصحيح وعدم وجود روابط تالفة أو محذوفة
-    final String activeMoxForUrl =
-        (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
-        ? widget.user.moxId
-        : (widget.user.guardianMoxId ?? "MOX249-00010001");
-
-    _linkController.text =
-        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
+    // 🔗 بناء الرابط الموحد المعتمد بالمعرف الفعال (مع استخدام directMoxId بالمسطرة)
+    _updateStoreLink();
 
     for (var card in _resolvedCards) {
       String title = card['title'].toString();
 
       MarketingCard? existingAsset;
       try {
-        existingAsset = widget.user.myAssets.firstWhere(
-          (asset) => asset.title == title,
+        existingAsset = _currentUser.myAssets.firstWhere(
+          (asset) =>
+              asset.title == title ||
+              asset.description.contains(title.substring(0, 10)),
         );
       } catch (_) {
-        existingAsset = null;
+        try {
+          int idx = _resolvedCards.indexOf(card);
+          if (_currentUser.myAssets.length > idx) {
+            existingAsset = _currentUser.myAssets[idx];
+          }
+        } catch (_) {
+          existingAsset = null;
+        }
       }
 
       bool isAlreadyActive = existingAsset != null;
@@ -161,16 +177,16 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       _cardWhatsappControllers[title] = TextEditingController(
         text: existingAsset?.whatsapp.isNotEmpty == true
             ? existingAsset!.whatsapp
-            : widget.user.phone,
+            : _currentUser.phone,
       );
       _cardDetailsLinkControllers[title] = TextEditingController(
         text: existingAsset?.facebookUrl ?? '',
       );
     }
 
-    if (widget.user.storePublishDate != null &&
-        widget.user.storePublishDate!.isNotEmpty) {
-      if (_checkIf365DaysExpired(widget.user.storePublishDate)) {
+    if (_currentUser.storePublishDate != null &&
+        _currentUser.storePublishDate!.isNotEmpty) {
+      if (_checkIf365DaysExpired(_currentUser.storePublishDate)) {
         _isSubscriptionExpired = true;
         _activationButtonState = 0;
       } else {
@@ -188,6 +204,19 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         _showActivationKeyDialog();
       }
     });
+  }
+
+  void _updateStoreLink() {
+    // الاعتماد على directMoxId المعرّف في الـ constructor بالمسطرة
+    final String activeMoxForUrl = widget.directMoxId.trim().isNotEmpty
+        ? widget.directMoxId
+        : ((_currentUser.moxId != "لم يحدد" &&
+                  _currentUser.moxId.trim().isNotEmpty)
+              ? _currentUser.moxId
+              : (_currentUser.guardianMoxId ?? "MOX249-00010001"));
+
+    _linkController.text =
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
   }
 
   bool _checkIf365DaysExpired(String? publishDateStr) {
@@ -264,13 +293,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   for (var key in _cardActivationStatus.keys) {
                     _cardActivationStatus[key] = true;
                   }
+                  _currentUser = _currentUser.copyWith(
+                    storePublishDate: DateTime.now().toIso8601String(),
+                    role: 'reviewed_active',
+                  );
+                  _updateStoreLink();
                 });
 
-                UserModel renewedUser = widget.user.copyWith(
-                  storePublishDate: DateTime.now().toIso8601String(),
-                  role: 'reviewed_active',
-                );
-                await StorageService.updateUserPartial(renewedUser);
+                await StorageService.updateUserPartial(_currentUser);
 
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -481,11 +511,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
               try {
                 bool matchesUserMox =
-                    (widget.user.moxId.trim().toUpperCase() ==
+                    (_currentUser.moxId.trim().toUpperCase() ==
                         enteredMox.toUpperCase()) ||
-                    (widget.user.guardianMoxId != null &&
-                        widget.user.guardianMoxId!.trim().toUpperCase() ==
-                            enteredMox.toUpperCase());
+                    (_currentUser.guardianMoxId != null &&
+                        _currentUser.guardianMoxId!.trim().toUpperCase() ==
+                            enteredMox.toUpperCase()) ||
+                    (widget.directMoxId.trim().toUpperCase() ==
+                        enteredMox.toUpperCase());
 
                 if (enteredMox.isNotEmpty && matchesUserMox) {
                   isMoxMatchedInProfile = true;
@@ -505,7 +537,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 }
 
                 if (isMoxMatchedInProfile) {
-                  if (widget.user.password == enteredPassword &&
+                  if (_currentUser.password == enteredPassword &&
                       enteredPassword.isNotEmpty) {
                     isPasswordMatched = true;
                   } else {
@@ -614,13 +646,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         for (var key in _cardActivationStatus.keys) {
           _cardActivationStatus[key] = true;
         }
+        _currentUser = _currentUser.copyWith(
+          storePublishDate: DateTime.now().toIso8601String(),
+          role: 'reviewed_active',
+        );
+        _updateStoreLink();
       });
 
-      UserModel tempUser = widget.user.copyWith(
-        storePublishDate: DateTime.now().toIso8601String(),
-        role: 'reviewed_active',
-      );
-      await StorageService.updateUserPartial(tempUser);
+      await StorageService.updateUserPartial(_currentUser);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -634,7 +667,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
-  // 🛡️ دالة استخلاص أحدث بيانات الأصول والمتحكمات من الشاشة مباشرة (لتحديث الجزء العلوي والبطاقات بدقة)
+  // 🛡️ استخلاص الأصول والمتحكمات من الشاشة مباشرة بالمسطرة
   List<MarketingCard> _getCurrentAssetsFromUI() {
     List<MarketingCard> currentAssets = [];
     for (var cardData in _resolvedCards) {
@@ -663,20 +696,25 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     return currentAssets;
   }
 
-  // 1- زر المعاينة المحدث بالمسطرة ليقرا فوراً بيانات القسم العلوي والبطاقات الحالية
-  void _openStorePreview() {
-    if (_isSubscriptionExpired) {
-      _showActivationKeyDialog();
-      return;
-    }
-
-    UserModel liveUser = widget.user.copyWith(
+  // 🎯 بناء نموذج موحد متكامل للـ UserModel يدمج الجزء العلوي والبطاقات في آن واحد
+  UserModel _buildLiveUserModel() {
+    return _currentUser.copyWith(
       name: _storeNameController.text.trim(),
       address: _businessCategoryController.text.trim(),
       phone: _phoneController.text.trim(),
       storeDescription: _descriptionController.text.trim(),
       myAssets: _getCurrentAssetsFromUI(),
     );
+  }
+
+  // 🔍 زر المعاينة المرتبط فوراً ببيانات الشاشة والبطاقات النشطة
+  void _openStorePreview() {
+    if (_isSubscriptionExpired) {
+      _showActivationKeyDialog();
+      return;
+    }
+
+    UserModel liveUser = _buildLiveUserModel();
 
     showDialog(
       context: context,
@@ -688,7 +726,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 3- زر النشر المحدث بالمسطرة ليحفظ كافة التحديثات في الجزء العلوي والبطاقات معاً
+  // 🚀 زر النشر المعتمد والمحدث بالمسطرة لحفظ الجزء العلوي والبطاقات وتحديث الرابط
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -722,14 +760,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       await Future.delayed(const Duration(seconds: 2));
 
       String finalPublishTimestamp =
-          (widget.user.storePublishDate != null &&
-              widget.user.storePublishDate!.isNotEmpty &&
-              !_checkIf365DaysExpired(widget.user.storePublishDate))
-          ? widget.user.storePublishDate!
+          (_currentUser.storePublishDate != null &&
+              _currentUser.storePublishDate!.isNotEmpty &&
+              !_checkIf365DaysExpired(_currentUser.storePublishDate))
+          ? _currentUser.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      // التحديث الشامل للبيانات السيادية العلوية والبطاقات
-      UserModel updatedUser = widget.user.copyWith(
+      // التحديث الشامل للبيانات السيادية العلوية والبطاقات وتحديث الكائن المحلي للمستخدم بالكامل
+      _currentUser = _currentUser.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
@@ -739,20 +777,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         role: 'reviewed_active',
       );
 
-      await StorageService.updateUserPartial(updatedUser);
+      await StorageService.updateUserPartial(_currentUser);
 
       if (!mounted) return;
 
       setState(() {
         _isPublishing = false;
-        // 2- تحديث رابط العميل تشخيصياً وبرمجياً ليتأكد من جلب المعرف الفعال دائماً
-        final String activeMoxForUrl =
-            (widget.user.moxId != "لم يحدد" &&
-                widget.user.moxId.trim().isNotEmpty)
-            ? widget.user.moxId
-            : (widget.user.guardianMoxId ?? "MOX249-00010001");
-        _linkController.text =
-            "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
+        _updateStoreLink();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -851,7 +882,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
 
     bool isStoreActive =
-        (_activationButtonState == 1 || widget.user.role == 'reviewed_active');
+        (_activationButtonState == 1 || _currentUser.role == 'reviewed_active');
 
     return Scaffold(
       appBar: AppBar(
@@ -895,6 +926,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _storeNameController,
+                    onChanged: (val) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: "١- اسم الدكان/المتجر (إلزامي)",
                       border: OutlineInputBorder(),
@@ -907,6 +939,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   const SizedBox(height: 15),
                   TextFormField(
                     controller: _businessCategoryController,
+                    onChanged: (val) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: "٢- المجال التجاري (إلزامي)",
                       border: OutlineInputBorder(),
@@ -920,6 +953,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
+                    onChanged: (val) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: "٤- هاتف اتصال (إلزامي)",
                       border: OutlineInputBorder(),
@@ -934,6 +968,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     controller: _descriptionController,
                     maxLength: 256,
                     maxLines: 3,
+                    onChanged: (val) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
                       border: OutlineInputBorder(),
@@ -1176,6 +1211,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                         TextFormField(
                                           controller:
                                               _cardTitleControllers[titleKey],
+                                          onChanged: (val) => setState(() {}),
                                           decoration: const InputDecoration(
                                             labelText: "عنوان البطاقة / العرض",
                                             border: OutlineInputBorder(),
@@ -1187,6 +1223,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                           controller:
                                               _cardDescControllers[titleKey],
                                           maxLines: 2,
+                                          onChanged: (val) => setState(() {}),
                                           decoration: const InputDecoration(
                                             labelText: "وصف البطاقة التفصيلي",
                                             border: OutlineInputBorder(),
@@ -1207,6 +1244,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                       controller:
                                           _cardPriceControllers[titleKey],
                                       keyboardType: TextInputType.number,
+                                      onChanged: (val) => setState(() {}),
                                       decoration: const InputDecoration(
                                         labelText: "السعر (ج.س)",
                                         border: OutlineInputBorder(),
@@ -1220,6 +1258,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                       controller:
                                           _cardWhatsappControllers[titleKey],
                                       keyboardType: TextInputType.phone,
+                                      onChanged: (val) => setState(() {}),
                                       decoration: const InputDecoration(
                                         labelText:
                                             "رقم الواتساب (مثال: 249115855164)",
@@ -1242,6 +1281,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               TextFormField(
                                 controller:
                                     _cardDetailsLinkControllers[titleKey],
+                                onChanged: (val) => setState(() {}),
                                 decoration: const InputDecoration(
                                   labelText:
                                       "رابط المزيد من التفاصيل (بوست فيسبوك أو فيديو طويل)",
@@ -1262,10 +1302,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     ),
                                   ),
                                   onPressed: () {
+                                    setState(() {});
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          "⚡ تم حفظ تعديل البطاقة: ${_cardTitleControllers[titleKey]?.text}",
+                                          "⚡ تم حفظ وتحديث البطاقة في الذاكرة الحية: ${_cardTitleControllers[titleKey]?.text}",
                                         ),
                                         backgroundColor: Colors.teal,
                                       ),
@@ -1306,7 +1347,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (context) => DigitalSignatureScreen(
-                              currentUser: widget.user,
+                              currentUser: _currentUser,
                             ),
                           ),
                         );
