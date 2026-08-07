@@ -37,6 +37,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _linkController = TextEditingController();
 
+  // 🏛️ الـ 8 أيقونات المعتمدة المتاحة للاختيار (اسم الأيقونة + كائن الأيقونة البرمجي)
+  static const List<Map<String, dynamic>> _availableIcons = [
+    {"name": "حقيبة تسوق", "icon": Icons.shopping_bag},
+    {"name": "متجر/مبنى", "icon": Icons.store},
+    {"name": "سيارة توصيل", "icon": Icons.local_shipping},
+    {"name": "هدية مميزة", "icon": Icons.card_giftcard},
+    {"name": "نجمة ذهبية", "icon": Icons.star},
+    {"name": "بطاقة ائتمان", "icon": Icons.credit_card},
+    {"name": "عرض خاص", "icon": Icons.local_offer},
+    {"name": "خدمة عملاء", "icon": Icons.headset_mic},
+  ];
+
   // 🏛️ التوليد الداخلي السيادي البحت للبطاقات الـ 5 بالمسطرة دون أي ارتباط بشاشات خارجية
   late final List<Map<String, dynamic>> _resolvedCards = [
     {
@@ -78,6 +90,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   final Map<String, bool> _cardActivationStatus = {};
   final Map<String, String> _cardCategories = {};
+  final Map<String, IconData> _cardSelectedIcons =
+      {}; // لتخزين الأيقونة المختارة لكل بطاقة
 
   final Map<String, TextEditingController> _cardTitleControllers = {};
   final Map<String, TextEditingController> _cardDescControllers = {};
@@ -117,7 +131,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     for (var card in _resolvedCards) {
       String title = card['title'].toString();
 
-      // البحث عما إذا كانت البطاقة مخزنة مسبقاً لاسترجاع بياناتها المخصصة إن وجدت
       MarketingCard? existingAsset;
       try {
         existingAsset = widget.user.myAssets.firstWhere(
@@ -130,6 +143,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       bool isAlreadyActive = existingAsset != null;
       _cardActivationStatus[title] = isAlreadyActive;
       _cardCategories[title] = card['category'] ?? 'بطاقة';
+      _cardSelectedIcons[title] = Icons.shopping_bag; // الأيقونة الافتراضية
 
       _cardTitleControllers[title] = TextEditingController(
         text: existingAsset?.title ?? title,
@@ -140,15 +154,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       _cardPriceControllers[title] = TextEditingController(
         text: (existingAsset?.price ?? card['price'] ?? 0.0).toString(),
       );
-
-      // زر الواتساب الخاص بالبطاقة (إذا لم يكن مسجلاً نضع رقم الهاتف العام للمتجر)
       _cardWhatsappControllers[title] = TextEditingController(
         text: existingAsset?.whatsapp.isNotEmpty == true
             ? existingAsset!.whatsapp
             : widget.user.phone,
       );
-
-      // رابط المزيد من التفاصيل (بوست فيسبوك أو فيديو أو رابط طويل)
       _cardDetailsLinkControllers[title] = TextEditingController(
         text: existingAsset?.facebookUrl ?? '',
       );
@@ -282,6 +292,90 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               "تفعيل المتجر",
               style: TextStyle(color: Colors.white),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // نافذة منبثقة لاختيار الأيقونة الـ 8 المتاحة
+  void _showIconSelectorDialog(String titleKey) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          "اختر أيقونة البطاقة السيادية",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1B6B80),
+          ),
+        ),
+        content: SizedBox(
+          width: 300,
+          child: GridView.builder(
+            shrinkWrap: true,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+            ),
+            itemCount: _availableIcons.length,
+            itemBuilder: (context, index) {
+              final item = _availableIcons[index];
+              final IconData iconData = item['icon'];
+              final String iconName = item['name'];
+
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _cardSelectedIcons[titleKey] = iconData;
+                  });
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("✅ تم اختيار أيقونة ($iconName) للبطاقة"),
+                      backgroundColor: Colors.teal,
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF28A9CC),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(iconData, color: const Color(0xFF1B6B80), size: 28),
+                      const SizedBox(height: 4),
+                      Text(
+                        iconName,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
           ),
         ],
       ),
@@ -601,8 +695,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     ) ??
                     0.0,
                 whatsapp: cardWhatsapp,
-                facebookUrl:
-                    cardDetailsLink, // تخزين رابط المزيد من التفاصيل (فيسبوك/فيديو) هنا
+                facebookUrl: cardDetailsLink,
                 isApproved: true,
               ),
             );
@@ -945,6 +1038,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       bool isChecked = _cardActivationStatus[titleKey] ?? false;
                       String currentCategory =
                           _cardCategories[titleKey] ?? 'بطاقة';
+                      IconData currentSelectedIcon =
+                          _cardSelectedIcons[titleKey] ?? Icons.shopping_bag;
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 10),
@@ -1036,24 +1131,81 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                 ],
                               ),
                               const Divider(height: 20),
-                              TextFormField(
-                                controller: _cardTitleControllers[titleKey],
-                                decoration: const InputDecoration(
-                                  labelText: "عنوان البطاقة / العرض",
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                ),
+
+                              // مربع معاينة الأيقونة الكبير المناسب + حقول الإدخال
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // مربع المعاينة البارز للأيقونة
+                                  InkWell(
+                                    onTap: () =>
+                                        _showIconSelectorDialog(titleKey),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      width: 70,
+                                      height: 70,
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFF28A9CC,
+                                        ).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFF28A9CC),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            currentSelectedIcon,
+                                            color: const Color(0xFF1B6B80),
+                                            size: 32,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          const Text(
+                                            "تغيير",
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF1B6B80),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        TextFormField(
+                                          controller:
+                                              _cardTitleControllers[titleKey],
+                                          decoration: const InputDecoration(
+                                            labelText: "عنوان البطاقة / العرض",
+                                            border: OutlineInputBorder(),
+                                            isDense: true,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        TextFormField(
+                                          controller:
+                                              _cardDescControllers[titleKey],
+                                          maxLines: 2,
+                                          decoration: const InputDecoration(
+                                            labelText: "وصف البطاقة التفصيلي",
+                                            border: OutlineInputBorder(),
+                                            isDense: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller: _cardDescControllers[titleKey],
-                                maxLines: 2,
-                                decoration: const InputDecoration(
-                                  labelText: "وصف البطاقة التفصيلي",
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                ),
-                              ),
+
                               const SizedBox(height: 10),
                               Row(
                                 children: [
