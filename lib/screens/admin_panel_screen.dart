@@ -19,8 +19,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   List<UserModel> _clients = [];
   bool _isLoading = true;
 
+  // استخدام الرابط المعتمد في StorageService بالمسطرة
   static const String _scriptUrl =
-      "https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAuOs9nNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec";
+      'https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAu9snNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec';
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         });
       }
     } catch (_) {
+      // الاعتماد على المخزن الهجين عند انقطاع الاتصال
       await StorageService.loadUsers();
       if (!mounted) return;
       setState(() {
@@ -60,58 +62,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // معالجة آمنة للأصول لضمان التوافق مع toJson
-      String encodedAssets = "[]";
-      try {
-        encodedAssets = json.encode(
-          user.myAssets.map((a) {
-            try {
-              return (a as dynamic).toJson();
-            } catch (_) {
-              return a;
-            }
-          }).toList(),
-        );
-      } catch (_) {}
-
-      final queryParameters = {
-        'action': 'save',
-        'phone': user.phone,
-        'password': user.password,
-        'name': user.name,
-        'address': user.address,
-        'storeDescription': user.storeDescription,
-        'balance': user.balance.toString(),
-        'commission': user.commission.toString(),
-        'gender': user.gender,
-        'accountType': user.accountType,
-        'moxId': user.moxId,
-        'role': user.role,
-        'customWhatsApp': user.customWhatsApp ?? '',
-        'guardianMoxId': user.guardianMoxId ?? '',
-        'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
-        'points': user.points.toString(),
-        'storePublishDate': user.storePublishDate ?? '',
-        'activationDate': user.activationDate ?? '',
-        'myAssets': encodedAssets,
-      };
-
-      final uri = Uri.parse(
-        _scriptUrl,
-      ).replace(queryParameters: queryParameters);
-
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      // استخدام آلية التحديث الجزئي والحفظ المتوافقة مع StorageService بالمسطرة
+      await StorageService.updateUserPartial(user);
 
       if (!mounted) return;
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("تم ترحيل العميل ${user.name} للشيت بنجاح بالمسطرة!"),
-            backgroundColor: Colors.green,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "تم ترحيل وتحديث بيانات العميل ${user.name} بنجاح بالمسطرة!",
           ),
-        );
-        _fetchFromCloud();
-      }
+          backgroundColor: Colors.green,
+        ),
+      );
+      _fetchFromCloud();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -174,7 +137,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   user.moxId = moxIdController.text.trim();
                 });
 
-                await StorageService.updateUserPartial(user);
                 Navigator.pop(context);
                 await _syncClientToCloud(user);
               },
