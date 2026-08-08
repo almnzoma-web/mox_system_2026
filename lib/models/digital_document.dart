@@ -1,8 +1,16 @@
 import 'dart:convert';
 
 /// ============================================================
-/// MOX DIGITAL DOCUMENT
-/// نموذج المستند الرقمي المعتمد في منظومة MOX
+/// MOX Digital Document
+/// نموذج المستند الرقمي المعتمد
+///
+/// هذا النموذج مستقل عن MarketingCard.
+/// وهو الأساس الذي سنبني عليه:
+/// - التوقيع الرقمي
+/// - بصمة المستند
+/// - التحقق من التوقيع
+/// - الأرشيف
+/// - QR للتحقق لاحقاً
 /// ============================================================
 
 class DigitalDocument {
@@ -12,357 +20,198 @@ class DigitalDocument {
 
   final String id;
 
+  /// عنوان المستند
   String title;
+
+  /// وصف المستند
   String description;
 
-  // ============================================================
-  // مالك المستند
-  // ============================================================
-
-  String ownerMoxId;
-  String ownerPhone;
-  String ownerName;
-
-  // ============================================================
-  // الملف الأصلي
-  // ============================================================
-
+  /// اسم الملف الأصلي إن وجد
   String fileName;
+
+  /// امتداد الملف
   String fileExtension;
 
-  /// نوع الملف:
-  /// pdf / png / jpg / jpeg / doc / docx / txt / independent
-  String fileType;
-
-  /// محتوى الملف Base64 عند الحاجة للتخزين المحلي/السحابي.
-  String? fileBase64;
-
-  /// حجم الملف بالبايت.
-  int fileSize;
-
   // ============================================================
-  // التوقيع الرقمي
+  // بيانات المالك
   // ============================================================
 
-  bool isSigned;
+  /// اسم صاحب المستند
+  String ownerName;
 
-  /// التوقيع المرسوم نفسه بصيغة Base64 PNG.
-  String? signatureBase64;
+  /// معرف MOX لصاحب المستند
+  String ownerMoxId;
 
-  /// بصمة المستند.
-  String documentHash;
-
-  /// بصمة التوقيع.
-  String signatureHash;
-
-  /// نسخة البصمة النهائية للمستند الموقع.
-  String digitalFingerprint;
+  /// رقم الهاتف المرتبط بالحساب
+  String ownerPhone;
 
   // ============================================================
   // بيانات التوقيع
   // ============================================================
 
-  String signedAt;
+  /// التوقيع اليدوي المرسوم وتحويله إلى Base64
+  String signatureImageBase64;
 
-  String signedBy;
+  /// البصمة الرقمية للمستند
+  ///
+  /// سيتم توليدها لاحقاً بواسطة SHA-256.
+  String documentHash;
 
-  /// إحداثيات موضع التوقيع داخل واجهة المعاينة.
-  double signatureX;
-  double signatureY;
+  /// التوقيع التشفيري الحقيقي
+  ///
+  /// سيتم توليده لاحقاً بواسطة DigitalSignatureService.
+  String digitalSignature;
+
+  /// المفتاح العام المستخدم للتحقق
+  String publicKey;
 
   // ============================================================
-  // حالة المستند
+  // التواريخ
   // ============================================================
 
+  /// تاريخ إنشاء المستند
+  DateTime createdAt;
+
+  /// تاريخ التوقيع
+  DateTime? signedAt;
+
+  // ============================================================
+  // الحالة
+  // ============================================================
+
+  /// هل تم التوقيع؟
+  bool isSigned;
+
+  /// هل تم اعتماد المستند؟
+  bool isApproved;
+
+  /// هل تم التحقق من صحة التوقيع؟
+  bool isVerified;
+
+  /// حالة المستند
+  ///
   /// draft
   /// signed
   /// verified
   /// revoked
   String status;
 
-  bool isVerified;
+  // ============================================================
+  // معلومات المصدر
+  // ============================================================
+
+  /// هل المستند مستقل أم تم رفع ملف؟
+  bool isIndependentDocument;
+
+  /// نوع المصدر:
+  ///
+  /// independent
+  /// uploaded
+  String sourceType;
 
   // ============================================================
   // بيانات إضافية
   // ============================================================
 
-  String createdAt;
-  String updatedAt;
+  /// إصدار نظام التوقيع
+  String signatureVersion;
 
-  String issuer;
-
-  String version;
+  /// بيانات إضافية مستقبلية
+  Map<String, dynamic> metadata;
 
   // ============================================================
   // CONSTRUCTOR
   // ============================================================
 
   DigitalDocument({
-    required this.id,
+    String? id,
     required this.title,
-    required this.description,
-    required this.ownerMoxId,
-    required this.ownerPhone,
-    required this.ownerName,
+    this.description = '',
     this.fileName = '',
     this.fileExtension = '',
-    this.fileType = 'independent',
-    this.fileBase64,
-    this.fileSize = 0,
-    this.isSigned = false,
-    this.signatureBase64,
+    this.ownerName = '',
+    this.ownerMoxId = '',
+    this.ownerPhone = '',
+    this.signatureImageBase64 = '',
     this.documentHash = '',
-    this.signatureHash = '',
-    this.digitalFingerprint = '',
-    this.signedAt = '',
-    this.signedBy = '',
-    this.signatureX = 0,
-    this.signatureY = 0,
-    this.status = 'draft',
+    this.digitalSignature = '',
+    this.publicKey = '',
+    DateTime? createdAt,
+    this.signedAt,
+    this.isSigned = false,
+    this.isApproved = false,
     this.isVerified = false,
-    this.createdAt = '',
-    this.updatedAt = '',
-    this.issuer = 'MOX Digital',
-    this.version = '1.0',
-  });
+    this.status = 'draft',
+    this.isIndependentDocument = true,
+    this.sourceType = 'independent',
+    this.signatureVersion = 'MOX-DS-1.0',
+    Map<String, dynamic>? metadata,
+  }) : id = id ?? _generateId(),
+       createdAt = createdAt ?? DateTime.now(),
+       metadata = metadata ?? {};
 
   // ============================================================
-  // FACTORY ID
+  // ID GENERATOR
   // ============================================================
 
-  static String generateId() {
+  static String _generateId() {
     final now = DateTime.now();
 
     return 'MOX-DOC-'
-        '${now.year}'
-        '${now.month.toString().padLeft(2, '0')}'
-        '${now.day.toString().padLeft(2, '0')}-'
         '${now.microsecondsSinceEpoch}';
   }
 
   // ============================================================
-  // FACTORY CREATE
-  // ============================================================
-
-  factory DigitalDocument.create({
-    required String title,
-    required String description,
-    required String ownerMoxId,
-    required String ownerPhone,
-    required String ownerName,
-    String fileName = '',
-    String fileExtension = '',
-    String fileType = 'independent',
-    String? fileBase64,
-    int fileSize = 0,
-  }) {
-    final now = DateTime.now().toIso8601String();
-
-    return DigitalDocument(
-      id: generateId(),
-      title: title,
-      description: description,
-      ownerMoxId: ownerMoxId,
-      ownerPhone: ownerPhone,
-      ownerName: ownerName,
-      fileName: fileName,
-      fileExtension: fileExtension,
-      fileType: fileType,
-      fileBase64: fileBase64,
-      fileSize: fileSize,
-      createdAt: now,
-      updatedAt: now,
-      issuer: 'MOX Digital',
-      version: '1.0',
-    );
-  }
-
-  // ============================================================
-  // HELPERS
-  // ============================================================
-
-  bool get hasFile {
-    return fileBase64 != null && fileBase64!.trim().isNotEmpty;
-  }
-
-  bool get hasSignature {
-    return signatureBase64 != null && signatureBase64!.trim().isNotEmpty;
-  }
-
-  bool get isIndependentDocument {
-    return fileType == 'independent';
-  }
-
-  bool get isPdf {
-    return fileExtension.toLowerCase() == 'pdf';
-  }
-
-  bool get isImage {
-    final ext = fileExtension.toLowerCase();
-
-    return ext == 'png' || ext == 'jpg' || ext == 'jpeg';
-  }
-
-  bool get isText {
-    return fileExtension.toLowerCase() == 'txt';
-  }
-
-  bool get isFinalized {
-    return status == 'signed' || status == 'verified';
-  }
-
-  // ============================================================
-  // SIGN
-  // ============================================================
-
-  void markAsSigned({
-    required String signatureBase64,
-    required String documentHash,
-    required String signatureHash,
-    required String digitalFingerprint,
-    required String signedBy,
-    double signatureX = 0,
-    double signatureY = 0,
-  }) {
-    this.signatureBase64 = signatureBase64;
-
-    this.documentHash = documentHash;
-
-    this.signatureHash = signatureHash;
-
-    this.digitalFingerprint = digitalFingerprint;
-
-    this.signedBy = signedBy;
-
-    this.signatureX = signatureX;
-
-    this.signatureY = signatureY;
-
-    isSigned = true;
-
-    isVerified = true;
-
-    status = 'verified';
-
-    final now = DateTime.now().toIso8601String();
-
-    signedAt = now;
-    updatedAt = now;
-  }
-
-  // ============================================================
-  // REVOKE
-  // ============================================================
-
-  void revoke() {
-    status = 'revoked';
-    isVerified = false;
-    updatedAt = DateTime.now().toIso8601String();
-  }
-
-  // ============================================================
-  // TO JSON
-  // ============================================================
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-
-      'title': title,
-      'description': description,
-
-      'ownerMoxId': ownerMoxId,
-      'ownerPhone': ownerPhone,
-      'ownerName': ownerName,
-
-      'fileName': fileName,
-      'fileExtension': fileExtension,
-      'fileType': fileType,
-      'fileBase64': fileBase64,
-      'fileSize': fileSize,
-
-      'isSigned': isSigned,
-
-      'signatureBase64': signatureBase64,
-
-      'documentHash': documentHash,
-      'signatureHash': signatureHash,
-      'digitalFingerprint': digitalFingerprint,
-
-      'signedAt': signedAt,
-      'signedBy': signedBy,
-
-      'signatureX': signatureX,
-      'signatureY': signatureY,
-
-      'status': status,
-      'isVerified': isVerified,
-
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
-
-      'issuer': issuer,
-      'version': version,
-    };
-  }
-
-  // ============================================================
-  // FROM JSON
+  // FACTORY FROM JSON
   // ============================================================
 
   factory DigitalDocument.fromJson(Map<String, dynamic> json) {
     return DigitalDocument(
-      id: json['id']?.toString() ?? generateId(),
+      id: json['id']?.toString(),
 
       title: json['title']?.toString() ?? '',
 
       description: json['description']?.toString() ?? '',
 
-      ownerMoxId: json['ownerMoxId']?.toString() ?? '',
-
-      ownerPhone: json['ownerPhone']?.toString() ?? '',
-
-      ownerName: json['ownerName']?.toString() ?? '',
-
       fileName: json['fileName']?.toString() ?? '',
 
       fileExtension: json['fileExtension']?.toString() ?? '',
 
-      fileType: json['fileType']?.toString() ?? 'independent',
+      ownerName: json['ownerName']?.toString() ?? '',
 
-      fileBase64: json['fileBase64']?.toString(),
+      ownerMoxId: json['ownerMoxId']?.toString() ?? '',
 
-      fileSize: _parseInt(json['fileSize']),
+      ownerPhone: json['ownerPhone']?.toString() ?? '',
 
-      isSigned: _parseBool(json['isSigned']),
-
-      signatureBase64: json['signatureBase64']?.toString(),
+      signatureImageBase64: json['signatureImageBase64']?.toString() ?? '',
 
       documentHash: json['documentHash']?.toString() ?? '',
 
-      signatureHash: json['signatureHash']?.toString() ?? '',
+      digitalSignature: json['digitalSignature']?.toString() ?? '',
 
-      digitalFingerprint: json['digitalFingerprint']?.toString() ?? '',
+      publicKey: json['publicKey']?.toString() ?? '',
 
-      signedAt: json['signedAt']?.toString() ?? '',
+      createdAt: _parseDateTime(json['createdAt']),
 
-      signedBy: json['signedBy']?.toString() ?? '',
+      signedAt: _parseNullableDateTime(json['signedAt']),
 
-      signatureX: _parseDouble(json['signatureX']),
+      isSigned: _parseBool(json['isSigned']),
 
-      signatureY: _parseDouble(json['signatureY']),
-
-      status: json['status']?.toString() ?? 'draft',
+      isApproved: _parseBool(json['isApproved']),
 
       isVerified: _parseBool(json['isVerified']),
 
-      createdAt: json['createdAt']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'draft',
 
-      updatedAt: json['updatedAt']?.toString() ?? '',
+      isIndependentDocument: json['isIndependentDocument'] == null
+          ? true
+          : _parseBool(json['isIndependentDocument']),
 
-      issuer: json['issuer']?.toString() ?? 'MOX Digital',
+      sourceType: json['sourceType']?.toString() ?? 'independent',
 
-      version: json['version']?.toString() ?? '1.0',
+      signatureVersion: json['signatureVersion']?.toString() ?? 'MOX-DS-1.0',
+
+      metadata: _parseMetadata(json['metadata']),
     );
   }
 
@@ -375,6 +224,66 @@ class DigitalDocument {
   }
 
   // ============================================================
+  // TO JSON
+  // ============================================================
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+
+      'title': title,
+
+      'description': description,
+
+      'fileName': fileName,
+
+      'fileExtension': fileExtension,
+
+      'ownerName': ownerName,
+
+      'ownerMoxId': ownerMoxId,
+
+      'ownerPhone': ownerPhone,
+
+      'signatureImageBase64': signatureImageBase64,
+
+      'documentHash': documentHash,
+
+      'digitalSignature': digitalSignature,
+
+      'publicKey': publicKey,
+
+      'createdAt': createdAt.toIso8601String(),
+
+      'signedAt': signedAt?.toIso8601String(),
+
+      'isSigned': isSigned,
+
+      'isApproved': isApproved,
+
+      'isVerified': isVerified,
+
+      'status': status,
+
+      'isIndependentDocument': isIndependentDocument,
+
+      'sourceType': sourceType,
+
+      'signatureVersion': signatureVersion,
+
+      'metadata': metadata,
+    };
+  }
+
+  // ============================================================
+  // TO MAP
+  // ============================================================
+
+  Map<String, dynamic> toMap() {
+    return toJson();
+  }
+
+  // ============================================================
   // JSON STRING
   // ============================================================
 
@@ -382,10 +291,18 @@ class DigitalDocument {
     return jsonEncode(toJson());
   }
 
-  factory DigitalDocument.fromJsonString(String value) {
-    return DigitalDocument.fromJson(
-      Map<String, dynamic>.from(jsonDecode(value)),
-    );
+  // ============================================================
+  // FROM JSON STRING
+  // ============================================================
+
+  factory DigitalDocument.fromJsonString(String source) {
+    final dynamic decoded = jsonDecode(source);
+
+    if (decoded is! Map) {
+      throw const FormatException('بيانات المستند الرقمي غير صالحة');
+    }
+
+    return DigitalDocument.fromJson(Map<String, dynamic>.from(decoded));
   }
 
   // ============================================================
@@ -393,196 +310,190 @@ class DigitalDocument {
   // ============================================================
 
   DigitalDocument copyWith({
+    String? id,
     String? title,
     String? description,
-    String? ownerMoxId,
-    String? ownerPhone,
-    String? ownerName,
     String? fileName,
     String? fileExtension,
-    String? fileType,
-    String? fileBase64,
-    int? fileSize,
-    bool? isSigned,
-    String? signatureBase64,
+    String? ownerName,
+    String? ownerMoxId,
+    String? ownerPhone,
+    String? signatureImageBase64,
     String? documentHash,
-    String? signatureHash,
-    String? digitalFingerprint,
-    String? signedAt,
-    String? signedBy,
-    double? signatureX,
-    double? signatureY,
-    String? status,
+    String? digitalSignature,
+    String? publicKey,
+    DateTime? createdAt,
+    DateTime? signedAt,
+    bool? isSigned,
+    bool? isApproved,
     bool? isVerified,
-    String? createdAt,
-    String? updatedAt,
-    String? issuer,
-    String? version,
+    String? status,
+    bool? isIndependentDocument,
+    String? sourceType,
+    String? signatureVersion,
+    Map<String, dynamic>? metadata,
   }) {
     return DigitalDocument(
-      id: id,
+      id: id ?? this.id,
 
       title: title ?? this.title,
+
       description: description ?? this.description,
-
-      ownerMoxId: ownerMoxId ?? this.ownerMoxId,
-
-      ownerPhone: ownerPhone ?? this.ownerPhone,
-
-      ownerName: ownerName ?? this.ownerName,
 
       fileName: fileName ?? this.fileName,
 
       fileExtension: fileExtension ?? this.fileExtension,
 
-      fileType: fileType ?? this.fileType,
+      ownerName: ownerName ?? this.ownerName,
 
-      fileBase64: fileBase64 ?? this.fileBase64,
+      ownerMoxId: ownerMoxId ?? this.ownerMoxId,
 
-      fileSize: fileSize ?? this.fileSize,
+      ownerPhone: ownerPhone ?? this.ownerPhone,
 
-      isSigned: isSigned ?? this.isSigned,
-
-      signatureBase64: signatureBase64 ?? this.signatureBase64,
+      signatureImageBase64: signatureImageBase64 ?? this.signatureImageBase64,
 
       documentHash: documentHash ?? this.documentHash,
 
-      signatureHash: signatureHash ?? this.signatureHash,
+      digitalSignature: digitalSignature ?? this.digitalSignature,
 
-      digitalFingerprint: digitalFingerprint ?? this.digitalFingerprint,
-
-      signedAt: signedAt ?? this.signedAt,
-
-      signedBy: signedBy ?? this.signedBy,
-
-      signatureX: signatureX ?? this.signatureX,
-
-      signatureY: signatureY ?? this.signatureY,
-
-      status: status ?? this.status,
-
-      isVerified: isVerified ?? this.isVerified,
+      publicKey: publicKey ?? this.publicKey,
 
       createdAt: createdAt ?? this.createdAt,
 
-      updatedAt: updatedAt ?? this.updatedAt,
+      signedAt: signedAt ?? this.signedAt,
 
-      issuer: issuer ?? this.issuer,
+      isSigned: isSigned ?? this.isSigned,
 
-      version: version ?? this.version,
+      isApproved: isApproved ?? this.isApproved,
+
+      isVerified: isVerified ?? this.isVerified,
+
+      status: status ?? this.status,
+
+      isIndependentDocument:
+          isIndependentDocument ?? this.isIndependentDocument,
+
+      sourceType: sourceType ?? this.sourceType,
+
+      signatureVersion: signatureVersion ?? this.signatureVersion,
+
+      metadata: metadata ?? Map<String, dynamic>.from(this.metadata),
     );
   }
 
   // ============================================================
-  // OPERATORS
+  // STATUS HELPERS
   // ============================================================
 
-  dynamic operator [](String key) {
-    return toJson()[key];
+  bool get hasSignature {
+    return digitalSignature.isNotEmpty;
   }
 
-  void operator []=(String key, dynamic value) {
-    switch (key) {
-      case 'title':
-        title = value?.toString() ?? '';
-        break;
+  bool get hasDocumentHash {
+    return documentHash.isNotEmpty;
+  }
 
-      case 'description':
-        description = value?.toString() ?? '';
-        break;
+  bool get hasPublicKey {
+    return publicKey.isNotEmpty;
+  }
 
-      case 'ownerMoxId':
-        ownerMoxId = value?.toString() ?? '';
-        break;
+  bool get canBeVerified {
+    return isSigned &&
+        digitalSignature.isNotEmpty &&
+        documentHash.isNotEmpty &&
+        publicKey.isNotEmpty;
+  }
 
-      case 'ownerPhone':
-        ownerPhone = value?.toString() ?? '';
-        break;
+  // ============================================================
+  // STATUS LABEL
+  // ============================================================
 
-      case 'ownerName':
-        ownerName = value?.toString() ?? '';
-        break;
+  String get statusLabel {
+    switch (status) {
+      case 'draft':
+        return 'مسودة';
 
-      case 'fileName':
-        fileName = value?.toString() ?? '';
-        break;
+      case 'signed':
+        return 'موقع';
 
-      case 'fileExtension':
-        fileExtension = value?.toString() ?? '';
-        break;
+      case 'verified':
+        return 'موثق ومتحقق';
 
-      case 'fileType':
-        fileType = value?.toString() ?? 'independent';
-        break;
+      case 'revoked':
+        return 'ملغى';
 
-      case 'fileBase64':
-        fileBase64 = value?.toString();
-        break;
-
-      case 'fileSize':
-        fileSize = _parseInt(value);
-        break;
-
-      case 'isSigned':
-        isSigned = _parseBool(value);
-        break;
-
-      case 'signatureBase64':
-        signatureBase64 = value?.toString();
-        break;
-
-      case 'documentHash':
-        documentHash = value?.toString() ?? '';
-        break;
-
-      case 'signatureHash':
-        signatureHash = value?.toString() ?? '';
-        break;
-
-      case 'digitalFingerprint':
-        digitalFingerprint = value?.toString() ?? '';
-        break;
-
-      case 'signedAt':
-        signedAt = value?.toString() ?? '';
-        break;
-
-      case 'signedBy':
-        signedBy = value?.toString() ?? '';
-        break;
-
-      case 'signatureX':
-        signatureX = _parseDouble(value);
-        break;
-
-      case 'signatureY':
-        signatureY = _parseDouble(value);
-        break;
-
-      case 'status':
-        status = value?.toString() ?? 'draft';
-        break;
-
-      case 'isVerified':
-        isVerified = _parseBool(value);
-        break;
-
-      case 'createdAt':
-        createdAt = value?.toString() ?? '';
-        break;
-
-      case 'updatedAt':
-        updatedAt = value?.toString() ?? '';
-        break;
-
-      case 'issuer':
-        issuer = value?.toString() ?? 'MOX Digital';
-        break;
-
-      case 'version':
-        version = value?.toString() ?? '1.0';
-        break;
+      default:
+        return 'غير معروف';
     }
+  }
+
+  // ============================================================
+  // MARK AS SIGNED
+  // ============================================================
+
+  void markAsSigned({
+    required String hash,
+    required String signature,
+    required String publicKey,
+    String? signatureImage,
+  }) {
+    documentHash = hash;
+
+    digitalSignature = signature;
+
+    this.publicKey = publicKey;
+
+    if (signatureImage != null) {
+      signatureImageBase64 = signatureImage;
+    }
+
+    signedAt = DateTime.now();
+
+    isSigned = true;
+
+    isApproved = true;
+
+    isVerified = false;
+
+    status = 'signed';
+  }
+
+  // ============================================================
+  // MARK VERIFIED
+  // ============================================================
+
+  void markAsVerified() {
+    if (!canBeVerified) {
+      return;
+    }
+
+    isVerified = true;
+
+    status = 'verified';
+  }
+
+  // ============================================================
+  // REVOKE
+  // ============================================================
+
+  void revoke() {
+    isVerified = false;
+
+    isApproved = false;
+
+    status = 'revoked';
+  }
+
+  // ============================================================
+  // METADATA
+  // ============================================================
+
+  void setMetadata(String key, dynamic value) {
+    metadata[key] = value;
+  }
+
+  dynamic getMetadata(String key) {
+    return metadata[key];
   }
 
   // ============================================================
@@ -594,30 +505,76 @@ class DigitalDocument {
       return value;
     }
 
-    return value?.toString().toLowerCase() == 'true';
+    if (value is num) {
+      return value != 0;
+    }
+
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+
+      return normalized == 'true' || normalized == '1' || normalized == 'yes';
+    }
+
+    return false;
   }
 
-  static int _parseInt(dynamic value) {
-    if (value is int) {
+  static DateTime _parseDateTime(dynamic value) {
+    if (value is DateTime) {
       return value;
     }
 
-    if (value is num) {
-      return value.toInt();
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+
+      if (parsed != null) {
+        return parsed;
+      }
     }
 
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return DateTime.now();
   }
 
-  static double _parseDouble(dynamic value) {
-    if (value is double) {
+  static DateTime? _parseNullableDateTime(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is DateTime) {
       return value;
     }
 
-    if (value is num) {
-      return value.toDouble();
+    if (value is String) {
+      return DateTime.tryParse(value);
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+    return null;
+  }
+
+  static Map<String, dynamic> _parseMetadata(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return {};
+  }
+
+  // ============================================================
+  // DEBUG / DISPLAY
+  // ============================================================
+
+  @override
+  String toString() {
+    return 'DigitalDocument('
+        'id: $id, '
+        'title: $title, '
+        'ownerMoxId: $ownerMoxId, '
+        'status: $status, '
+        'isSigned: $isSigned, '
+        'isVerified: $isVerified'
+        ')';
   }
 }

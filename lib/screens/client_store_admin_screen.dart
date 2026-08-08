@@ -970,6 +970,16 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       await StorageService.updateUserPartial(updatedUser);
 
+      // ============================================================
+      // 🔄 إعادة قراءة النسخة المعتمدة
+      // ============================================================
+
+      final UserModel? confirmedUser = await StorageService.getUserByMoxId(
+        updatedUser.moxId,
+      );
+
+      _liveUser = confirmedUser ?? updatedUser;
+
       if (!mounted) return;
 
       setState(() {
@@ -984,6 +994,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         const SnackBar(
           content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
         ),
       );
     } catch (e) {

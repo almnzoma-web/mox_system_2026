@@ -204,15 +204,19 @@ class StorageService {
         }
       }
 
+      // ========================================================
+      // دمج بيانات السحابة
+      // ========================================================
+
       for (final cloudUser in cloudUsers) {
         final index = registeredUsers.indexWhere(
-          (u) => u.phone == cloudUser.phone || u.moxId == cloudUser.moxId,
+          (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
         );
 
-        if (index != -1) {
-          registeredUsers[index] = cloudUser;
-        } else {
+        if (index == -1) {
           registeredUsers.add(cloudUser);
+        } else {
+          registeredUsers[index] = cloudUser;
         }
       }
 
@@ -346,7 +350,7 @@ class StorageService {
     final index = registeredUsers.indexWhere(
       (u) =>
           u.phone == newUser.phone ||
-          (newUser.moxId != 'ID-000001' && u.moxId == newUser.moxId),
+          (newUser.moxId != 'ID-005001' && u.moxId == newUser.moxId),
     );
 
     if (index != -1) {
@@ -359,7 +363,7 @@ class StorageService {
 
     await saveUsersList();
 
-    // الإدارة يمكن تحديث بياناتها،
+    // الإدارة يمكن تحديث بياناتها，
     // لكن كلمة سرها لا تغادر Google Sheet.
     await _saveToCloud(newUser);
   }
@@ -372,9 +376,22 @@ class StorageService {
     await ensureLoaded();
 
     if (user.moxId.trim().isEmpty || user.moxId == 'null') {
-      debugPrint('❌ تحديث مرفوض: MoxId فارغ.');
-      return;
+      throw Exception('لا يمكن تحديث المستخدم بدون MoxId.');
     }
+
+    // ============================================================
+    // 1) إرسال النسخة الجديدة إلى السحابة أولاً
+    // ============================================================
+
+    final bool cloudSaved = await _saveToCloud(user);
+
+    if (!cloudSaved) {
+      throw Exception('تعذر حفظ بيانات المتجر في Google Sheet.');
+    }
+
+    // ============================================================
+    // 2) بعد نجاح السحابة فقط نحدث النسخة المحلية
+    // ============================================================
 
     final index = registeredUsers.indexWhere(
       (u) => u.moxId == user.moxId || u.phone == user.phone,
@@ -386,14 +403,13 @@ class StorageService {
       registeredUsers.add(user);
     }
 
-    // 🔐 الإدارة محليًا لا تحمل كلمة سر.
     _ensureAdmin();
 
     await saveUsersList();
 
-    // ========================================================
-    // تحديث الجلسة الحالية
-    // ========================================================
+    // ============================================================
+    // 3) تحديث الجلسة الحالية
+    // ============================================================
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -410,28 +426,54 @@ class StorageService {
     } catch (e) {
       debugPrint('❌ [Session Cache] $e');
     }
-
-    await _saveToCloud(user);
   }
 
   // ============================================================
   // SAVE TO CLOUD
   // ============================================================
 
-  static Future<void> _saveToCloud(UserModel user) async {
+  static Future<bool> _saveToCloud(UserModel user) async {
     try {
       final uri = Uri.parse(
         _scriptUrl,
       ).replace(queryParameters: _userCloudParameters(user));
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final response = await http.get(uri).timeout(const Duration(seconds: 15));
 
-      debugPrint('☁️ [Cloud Save] ${response.statusCode}');
+      debugPrint('☁️ [Cloud Save] HTTP ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        debugPrint('❌ [Cloud Save] HTTP Error: ${response.body}');
+        return false;
+      }
+
+      // ==========================================================
+      // محاولة قراءة نتيجة Apps Script
+      // ==========================================================
+
+      try {
+        final dynamic decoded = json.decode(response.body);
+
+        if (decoded is Map) {
+          final status = decoded['status']?.toString().toLowerCase();
+
+          if (status == 'error' || status == 'failed' || status == 'failure') {
+            debugPrint('❌ [Cloud Save] Apps Script رفض الحفظ: $decoded');
+            return false;
+          }
+        }
+      } catch (_) {
+        // بعض نسخ Apps Script قد تعيد نصًا
+        // بدل JSON، لذلك لا نعتبر ذلك فشلًا تلقائيًا.
+      }
+
+      return true;
     } catch (e) {
-      debugPrint('❌ [Cloud Save] $e');
+      debugPrint('❌ [Cloud Save Exception] $e');
+
+      return false;
     }
   }
-
   // ============================================================
   // SAVE ACTIVE USER
   // ============================================================
@@ -701,10 +743,85 @@ class StorageService {
   // ============================================================
 
   static Future<UserModel?> getUserByMoxId(String moxId) async {
+    final cleanMoxId = moxId.trim();
+
+    if (cleanMoxId.isEmpty) {
+      return null;
+    }
+
+    // ============================================================
+    // 1) أولاً نحاول جلب أحدث نسخة من Google Sheet
+    // ============================================================
+
+    try {
+      final response = await http
+          .get(Uri.parse('$_scriptUrl?action=getAll'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is! Map) {
+              continue;
+            }
+
+            try {
+              final mapItem = Map<String, dynamic>.from(item);
+
+              if ((mapItem['moxId'] == null ||
+                      mapItem['moxId'].toString().trim().isEmpty) &&
+                  mapItem['MOXID'] != null) {
+                mapItem['moxId'] = mapItem['MOXID'];
+              }
+
+              final cloudUser = UserModel.fromJson(mapItem);
+
+              final bool matched =
+                  cloudUser.moxId.trim() == cleanMoxId ||
+                  cloudUser.guardianMoxId?.trim() == cleanMoxId ||
+                  cloudUser.guardianMoxIdCustomer?.trim() == cleanMoxId;
+
+              if (!matched) {
+                continue;
+              }
+
+              // ==================================================
+              // تحديث النسخة المحلية من النسخة السحابية
+              // ==================================================
+
+              final index = registeredUsers.indexWhere(
+                (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
+              );
+
+              if (index == -1) {
+                registeredUsers.add(cloudUser);
+              } else {
+                registeredUsers[index] = cloudUser;
+              }
+
+              _ensureAdmin();
+
+              await saveUsersList();
+
+              return cloudUser;
+            } catch (e) {
+              debugPrint('⚠️ [Cloud User Parse] $e');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [Cloud User Fetch] $e');
+    }
+
+    // ============================================================
+    // 2) إذا تعذر الاتصال: نستخدم النسخة المحلية
+    // ============================================================
+
     try {
       await ensureLoaded();
-
-      final cleanMoxId = moxId.trim();
 
       return registeredUsers.firstWhere(
         (u) =>

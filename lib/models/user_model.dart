@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../models/marketing_card.dart';
+import '../models/signed_document.dart';
 
 class UserModel {
   String phone;
@@ -31,6 +32,31 @@ class UserModel {
   int points;
 
   List<MarketingCard> myAssets;
+  List<SignedDocument> signedDocuments;
+
+  // ============================================================
+  // الهوية الرقمية للتوقيع
+  // ============================================================
+
+  /// المفتاح العام للمستخدم.
+  ///
+  /// مهم:
+  /// المفتاح الخاص لا يتم تخزينه هنا.
+  String? digitalPublicKey;
+
+  /// الخوارزمية المستخدمة في التوقيع.
+  /// القيمة الحالية:
+  /// Ed25519
+  String digitalSignatureAlgorithm;
+
+  /// تاريخ إنشاء هوية التوقيع الرقمي.
+  String? digitalSignatureCreatedAt;
+
+  /// رقم إصدار مفتاح التوقيع.
+  ///
+  /// يسمح لنا مستقبلاً بتغيير المفتاح دون كسر
+  /// المستندات القديمة.
+  int digitalSignatureKeyVersion;
 
   UserModel({
     required this.phone,
@@ -61,6 +87,17 @@ class UserModel {
     this.points = 0,
 
     this.myAssets = const [],
+    this.signedDocuments = const [],
+    // ==========================================================
+    // التوقيع الرقمي
+    // ==========================================================
+    this.digitalPublicKey,
+
+    this.digitalSignatureAlgorithm = 'Ed25519',
+
+    this.digitalSignatureCreatedAt,
+
+    this.digitalSignatureKeyVersion = 1,
   });
 
   // ============================================================
@@ -87,6 +124,14 @@ class UserModel {
     String? activationDate,
 
     List<MarketingCard>? myAssets,
+
+    // ==========================================================
+    // التوقيع الرقمي
+    // ==========================================================
+    String? digitalPublicKey,
+    String? digitalSignatureAlgorithm,
+    String? digitalSignatureCreatedAt,
+    int? digitalSignatureKeyVersion,
   }) {
     return UserModel(
       phone: phone ?? this.phone,
@@ -126,6 +171,20 @@ class UserModel {
       points: points ?? this.points,
 
       myAssets: myAssets ?? this.myAssets,
+
+      // ========================================================
+      // التوقيع الرقمي
+      // ========================================================
+      digitalPublicKey: digitalPublicKey ?? this.digitalPublicKey,
+
+      digitalSignatureAlgorithm:
+          digitalSignatureAlgorithm ?? this.digitalSignatureAlgorithm,
+
+      digitalSignatureCreatedAt:
+          digitalSignatureCreatedAt ?? this.digitalSignatureCreatedAt,
+
+      digitalSignatureKeyVersion:
+          digitalSignatureKeyVersion ?? this.digitalSignatureKeyVersion,
     );
   }
 
@@ -172,6 +231,17 @@ class UserModel {
       'storePublishDate': storePublishDate ?? '',
 
       'activationDate': activationDate ?? '',
+
+      // ========================================================
+      // الهوية الرقمية
+      // ========================================================
+      'digitalPublicKey': digitalPublicKey ?? '',
+
+      'digitalSignatureAlgorithm': digitalSignatureAlgorithm,
+
+      'digitalSignatureCreatedAt': digitalSignatureCreatedAt ?? '',
+
+      'digitalSignatureKeyVersion': digitalSignatureKeyVersion,
     };
   }
 
@@ -227,14 +297,45 @@ class UserModel {
         : null;
 
     // ==========================================================
+    // الهوية الرقمية
+    // ==========================================================
+
+    final rawPublicKey = json['digitalPublicKey']?.toString().trim();
+
+    final String? publicKey =
+        rawPublicKey != null &&
+            rawPublicKey.isNotEmpty &&
+            rawPublicKey != 'null'
+        ? rawPublicKey
+        : null;
+
+    final rawSignatureCreatedAt = json['digitalSignatureCreatedAt']
+        ?.toString()
+        .trim();
+
+    final String? signatureCreatedAt =
+        rawSignatureCreatedAt != null &&
+            rawSignatureCreatedAt.isNotEmpty &&
+            rawSignatureCreatedAt != 'null'
+        ? rawSignatureCreatedAt
+        : null;
+
+    final algorithm =
+        json['digitalSignatureAlgorithm']?.toString().trim().isNotEmpty == true
+        ? json['digitalSignatureAlgorithm'].toString()
+        : 'Ed25519';
+
+    final keyVersion =
+        int.tryParse(json['digitalSignatureKeyVersion']?.toString() ?? '1') ??
+        1;
+
+    // ==========================================================
     // USER
     // ==========================================================
 
     return UserModel(
       phone: json['phone']?.toString() ?? '',
 
-      // إذا لم ترسل Google كلمة السر
-      // ستكون فارغة، وهذا مطلوب للإدارة.
       password: json['password']?.toString() ?? '',
 
       name: json['name']?.toString() ?? '',
@@ -269,6 +370,17 @@ class UserModel {
       points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
 
       myAssets: parsedAssets,
+
+      // ========================================================
+      // الهوية الرقمية
+      // ========================================================
+      digitalPublicKey: publicKey,
+
+      digitalSignatureAlgorithm: algorithm,
+
+      digitalSignatureCreatedAt: signatureCreatedAt,
+
+      digitalSignatureKeyVersion: keyVersion,
     );
   }
 }
