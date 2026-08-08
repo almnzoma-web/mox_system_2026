@@ -1536,7 +1536,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Divider(),
               const SizedBox(height: 10),
               const Text(
-                "يمكنك تعديل بياناتك الشخصية وكلمة المرور الخاصة بك:",
+                "يمكنك تعديل بياناتك الشخصية :",
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
               const SizedBox(height: 15),
