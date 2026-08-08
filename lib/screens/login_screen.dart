@@ -120,10 +120,10 @@ class _LoginScreenState extends State<LoginScreen> {
             authenticatedUser.moxId =
                 "MOX249-${digits.substring(digits.length - 8)}";
           } else {
-            authenticatedUser.moxId = "MOX249-00000000";
+            authenticatedUser.moxId = "ID-005000";
           }
         } else {
-          authenticatedUser.moxId = "MOX249-12345678";
+          authenticatedUser.moxId = "ID-005001";
         }
       }
 

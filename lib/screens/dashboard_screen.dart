@@ -1566,16 +1566,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   isDense: true,
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: settingsPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "كلمة السر الجديدة",
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
               const SizedBox(height: 20),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(

@@ -60,7 +60,7 @@ class StorageService {
 
     customWhatsApp: '249115855164',
 
-    guardianMoxId: '',
+    guardianMoxId: 'MOX249-00010001',
 
     guardianMoxIdCustomer: 'MOX249-00010001',
 
