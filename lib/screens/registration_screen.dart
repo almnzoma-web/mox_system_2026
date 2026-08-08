@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
 
@@ -11,45 +12,85 @@ class RegistrationScreen extends StatefulWidget {
 
 class _RegistrationScreenState extends State<RegistrationScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
+
   final TextEditingController _nameController = TextEditingController();
+
   final TextEditingController _phoneController = TextEditingController();
+
   final TextEditingController _passwordController = TextEditingController();
+
   final TextEditingController _addressController = TextEditingController();
+
   final TextEditingController _guardianController = TextEditingController();
 
   String _selectedGender = "ذكر";
+
   String _selectedAccountType = "فردي";
+
   bool _isPasswordVisible = false;
 
-  // 🔢 دالة توليد الترقيم التلقائي بدقة متناهية لمنع التكرار وتصاعد الأرقام ابتداءً من 5001
+  // ============================================================
+  // ADMIN REFERRAL ID
+  // ============================================================
+
+  static const String _defaultGuardianId = "MOX249-00010001";
+
+  // ============================================================
+  // GENERATE MOX ID
+  // ============================================================
+  //
+  // moxId يتم توليده من شاشة التسجيل.
+  //
+  // المدير:
+  // ID-005000
+  //
+  // أول عميل:
+  // ID-005001
+  //
+  // ============================================================
+
   Future<String> _generateSequentialMoxId() async {
-    await StorageService.ensureLoaded();
+    /*
+     * نحاول أولاً تحديث البيانات من السحابة
+     * حتى لا نعتمد على ذاكرة الجهاز القديمة.
+     */
+    try {
+      await StorageService.loadUsers();
+    } catch (_) {}
 
-    int nextNumber = 5001; // يبدأ العملاء من 5001 فصاعداً بعد المدير 5000
+    int nextNumber = 5001;
 
-    if (StorageService.registeredUsers.isNotEmpty) {
-      List<int> existingNumbers = [];
-      for (var user in StorageService.registeredUsers) {
-        if (user.moxId.startsWith("ID-")) {
-          String numericPart = user.moxId.replaceFirst("ID-", "");
-          int? parsedVal = int.tryParse(numericPart);
-          if (parsedVal != null && parsedVal >= 5000) {
-            existingNumbers.add(parsedVal);
-          }
-        }
+    final Set<int> existingNumbers = {};
+
+    for (final user in StorageService.registeredUsers) {
+      final id = user.moxId.trim();
+
+      if (!id.startsWith("ID-")) {
+        continue;
       }
 
-      if (existingNumbers.isNotEmpty) {
-        existingNumbers.sort();
-        nextNumber = existingNumbers.last + 1;
+      final numericPart = id.substring(3);
+
+      final parsed = int.tryParse(numericPart);
+
+      if (parsed != null && parsed >= 5000) {
+        existingNumbers.add(parsed);
       }
     }
 
-    String formattedNum = nextNumber.toString().padLeft(6, '0');
+    if (existingNumbers.isNotEmpty) {
+      nextNumber = existingNumbers.reduce((a, b) => a > b ? a : b) + 1;
+    }
+
+    final formattedNum = nextNumber.toString().padLeft(6, '0');
+
     return "ID-$formattedNum";
   }
 
-  // ⏳ عرض مؤشر الانتظار الفاخر في منتصف الشاشة أثناء الربط السحابي بقوقل
+  // ============================================================
+  // LOADING
+  // ============================================================
+
   void _showLoadingDialog() {
     showDialog(
       context: context,
@@ -65,7 +106,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(color: moxBlue),
+
                 const SizedBox(width: 20),
+
                 const Expanded(
                   child: Text(
                     "جاري اعتمادك في بنك موكس...",
@@ -84,106 +127,260 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
+  // ============================================================
+  // REGISTER
+  // ============================================================
+
   Future<void> _register() async {
-    String phoneInput = _phoneController.text.trim();
+    final phoneInput = _phoneController.text.trim();
 
-    // التحقق بالمسطرة من أن رقم الهاتف يبدأ بـ 249 ويتكون من 12 رقماً
-    bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
+    final password = _passwordController.text.trim();
 
-    if (_nameController.text.trim().isEmpty || !isPhoneValid) {
+    final name = _nameController.text.trim();
+
+    final address = _addressController.text.trim();
+
+    // ==========================================================
+    // PHONE VALIDATION
+    // ==========================================================
+
+    final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
+
+    if (name.isEmpty || !isPhoneValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249 تبدأ بـ وتتكون من 12 رقماً).",
+            "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249xxxxxxxxx).",
           ),
           backgroundColor: Colors.red,
         ),
       );
+
       return;
     }
 
-    // إظهار رسالة الانتظار الفاخرة أثناء المعالجة والتسجيل السحابي
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚠️ يرجى إدخال كلمة السر."),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      return;
+    }
+
+    // ==========================================================
+    // SHOW LOADING
+    // ==========================================================
+
     _showLoadingDialog();
 
-    // توليد الترقيم التلقائي الصحيح والمضمون للعميل
-    String newMoxId = await _generateSequentialMoxId();
+    try {
+      // ========================================================
+      // GENERATE MOX ID
+      // ========================================================
 
-    // معالجة رقم الوصي: إذا ترك فارغاً يعتمد النظام للمدير حصرياً (MOX249-00010001)
-    String inputGuardian = _guardianController.text.trim();
-    String finalCustomerGuardianId = inputGuardian.isEmpty
-        ? "MOX249-00010001"
-        : inputGuardian;
+      final String newMoxId = await _generateSequentialMoxId();
 
-    final newUser = UserModel(
-      phone: phoneInput,
-      password: _passwordController.text.trim(),
-      name: _nameController.text.trim(),
-      moxId: newMoxId, // الهوية الرقمية الفريدة للعميل حصرياً
-      address: _addressController.text.trim(),
-      balance: 0.0,
-      gender: _selectedGender,
-      accountType: _selectedAccountType,
-      role: "user",
-      guardianMoxId:
-          "", // يظل خالياً تماماً ليكون مخصصاً لهوية العميل مستقبلاً لكي يصبح وصياً لغيره
-      guardianMoxIdCustomer:
-          finalCustomerGuardianId, // حقل وصي العميل الجديد (أو رقم المدير افتراضياً)
-      points: 0,
-      myAssets: [],
-    );
+      // ========================================================
+      // GUARDIAN
+      // ========================================================
 
-    // إضافة العميل وترحيله السحابي مع تحديث نقاط الوصي إن وجد
-    await _addUserWithReferral(newUser, finalCustomerGuardianId);
+      final inputGuardian = _guardianController.text.trim();
 
-    // إغلاق مؤشر الانتظار الفاخر
-    if (mounted) {
-      Navigator.pop(context); // إغلاق الـ Loading Dialog
-      _showSovereignCertificate(newUser, newMoxId); // إظهار شهادة الاعتماد
+      final String finalCustomerGuardianId = inputGuardian.isEmpty
+          ? _defaultGuardianId
+          : inputGuardian;
+
+      // ========================================================
+      // CREATE USER
+      // ========================================================
+
+      final newUser = UserModel(
+        phone: phoneInput,
+
+        password: password,
+
+        name: name,
+
+        moxId: newMoxId,
+
+        address: address,
+
+        balance: 0.0,
+
+        commission: 0.0,
+
+        gender: _selectedGender,
+
+        accountType: _selectedAccountType,
+
+        role: "user",
+
+        customWhatsApp: null,
+
+        guardianMoxId: "",
+
+        guardianMoxIdCustomer: finalCustomerGuardianId,
+
+        points: 0,
+
+        myAssets: const [],
+      );
+
+      // ========================================================
+      // SAVE USER + REFERRAL
+      // ========================================================
+
+      final bool success = await _addUserWithReferral(
+        newUser,
+        finalCustomerGuardianId,
+      );
+
+      if (!success) {
+        if (mounted) {
+          Navigator.pop(context);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("❌ تعذر اعتماد الحساب في قاعدة البيانات السحابية."),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+
+        return;
+      }
+
+      // ========================================================
+      // CLOSE LOADING
+      // ========================================================
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pop(context);
+
+      // ========================================================
+      // CERTIFICATE
+      // ========================================================
+
+      _showSovereignCertificate(newUser, newMoxId);
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("❌ حدث خطأ أثناء التسجيل: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _addUserWithReferral(
+  // ============================================================
+  // ADD USER + REFERRAL
+  // ============================================================
+
+  Future<bool> _addUserWithReferral(
     UserModel newUser,
     String guardianId,
   ) async {
     await StorageService.ensureLoaded();
 
-    if (!StorageService.registeredUsers.any((u) => u.moxId == newUser.moxId)) {
-      if (guardianId.isNotEmpty) {
-        int guardianIndex = StorageService.registeredUsers.indexWhere(
-          (u) => u.moxId == guardianId,
-        );
+    // ==========================================================
+    // CHECK DUPLICATE PHONE
+    // ==========================================================
 
-        if (guardianIndex != -1) {
-          var guardian = StorageService.registeredUsers[guardianIndex];
-          StorageService.registeredUsers[guardianIndex] = UserModel(
-            phone: guardian.phone,
-            password: guardian.password,
-            name: guardian.name,
-            address: guardian.address,
-            balance: guardian.balance,
-            commission: guardian.commission,
-            gender: guardian.gender,
-            accountType: guardian.accountType,
-            moxId: guardian.moxId,
-            role: guardian.role,
-            customWhatsApp: guardian.customWhatsApp,
-            guardianMoxId: guardian.guardianMoxId,
-            guardianMoxIdCustomer: guardian.guardianMoxIdCustomer,
-            points:
-                guardian.points + 100, // منح 100 نقطة للوصي الحقيقي أو المدير
-            myAssets: guardian.myAssets,
-          );
-        }
-      }
+    final bool phoneExists = StorageService.registeredUsers.any(
+      (u) => u.phone.trim() == newUser.phone.trim(),
+    );
 
-      // حفظ العميل الجديد في الشيت والسحاب والمحلي فوراً
-      await StorageService.addUser(newUser);
-      debugPrint(
-        "➕ [Storage] تم تسجيل المواطن بنجاح وترحيله إلى قاعدة بيانات قوقل.",
-      );
+    if (phoneExists) {
+      debugPrint("❌ رقم الهاتف موجود مسبقاً.");
+
+      return false;
     }
+
+    // ==========================================================
+    // CHECK DUPLICATE MOX ID
+    // ==========================================================
+
+    final bool moxIdExists = StorageService.registeredUsers.any(
+      (u) => u.moxId.trim() == newUser.moxId.trim(),
+    );
+
+    if (moxIdExists) {
+      debugPrint("❌ MoxId موجود مسبقاً.");
+
+      return false;
+    }
+
+    // ==========================================================
+    // FIND GUARDIAN
+    // ==========================================================
+
+    UserModel? guardian;
+
+    if (guardianId.trim().isNotEmpty) {
+      try {
+        guardian = StorageService.registeredUsers.firstWhere(
+          (u) =>
+              u.moxId.trim() == guardianId.trim() ||
+              (u.guardianMoxId?.trim() == guardianId.trim()) ||
+              (u.guardianMoxIdCustomer?.trim() == guardianId.trim()),
+        );
+      } catch (_) {
+        guardian = null;
+      }
+    }
+
+    // ==========================================================
+    // SAVE NEW USER FIRST
+    // ==========================================================
+
+    try {
+      await StorageService.addUser(newUser);
+    } catch (e) {
+      debugPrint("❌ فشل حفظ العميل: $e");
+
+      return false;
+    }
+
+    // ==========================================================
+    // UPDATE GUARDIAN POINTS
+    // ==========================================================
+
+    if (guardian != null) {
+      final updatedGuardian = guardian.copyWith(points: guardian.points + 100);
+
+      try {
+        /*
+         * هنا كان الخطأ في النسخة السابقة:
+         * كانت النقاط تتغير محلياً فقط.
+         *
+         * الآن نرسل الوصي نفسه إلى Google Sheet.
+         */
+        await StorageService.updateUserPartial(updatedGuardian);
+
+        debugPrint("🎁 تم منح الوصي 100 نقطة.");
+      } catch (e) {
+        debugPrint("⚠️ تم تسجيل العميل لكن فشل تحديث نقاط الوصي: $e");
+      }
+    } else {
+      debugPrint("ℹ️ لم يتم العثور على الوصي: $guardianId");
+    }
+
+    return true;
   }
+
+  // ============================================================
+  // CERTIFICATE
+  // ============================================================
 
   void _showSovereignCertificate(UserModel registeredUser, String moxId) {
     showGeneralDialog(
@@ -212,7 +409,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     color: Color(0xFF28A9CC),
                     size: 70,
                   ),
+
                   const SizedBox(height: 15),
+
                   const Text(
                     "شهادة اعتماد سيادية",
                     style: TextStyle(
@@ -221,17 +420,21 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       color: Color(0xFF28A9CC),
                     ),
                   ),
+
                   const Divider(
                     thickness: 2,
                     color: Colors.black12,
                     height: 25,
                   ),
-                  Text(
+
+                  const Text(
                     "تم اعتمادك في بنك موكس الرقمي بنجاح.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, color: Colors.grey[800]),
+                    style: TextStyle(fontSize: 15, color: Colors.black87),
                   ),
+
                   const SizedBox(height: 15),
+
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -248,16 +451,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 15),
+
                   const Text(
-                    "هذا الكود هو مفتاحك لامتلاك رقم موكس الخاص عند ترقية حسابك في الدولة الرقمية السيادية.",
+                    "هذا الكود هو مفتاح حسابك الرقمي في منظومة MOX.",
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
                   ),
+
                   const SizedBox(height: 25),
+
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: moxBlue,
+                      backgroundColor: Color(0xFF28A9CC),
                       minimumSize: const Size(double.infinity, 48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -265,6 +472,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     onPressed: () {
                       Navigator.pop(context);
+
                       Navigator.pop(context);
                     },
                     child: const Text(
@@ -285,10 +493,34 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+
+    _phoneController.dispose();
+
+    _passwordController.dispose();
+
+    _addressController.dispose();
+
+    _guardianController.dispose();
+
+    super.dispose();
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       appBar: AppBar(
         title: const Text(
           "تسجيل عميل سيادي",
@@ -297,6 +529,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         backgroundColor: moxBlue,
         centerTitle: true,
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(25),
         child: Column(
@@ -306,7 +539,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               size: 80,
               color: Color(0xFF28A9CC),
             ),
+
             const SizedBox(height: 20),
+
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -315,7 +550,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 prefixIcon: Icon(Icons.person),
               ),
             ),
+
             const SizedBox(height: 15),
+
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
@@ -326,7 +563,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 prefixIcon: Icon(Icons.phone_android),
               ),
             ),
+
             const SizedBox(height: 15),
+
             TextField(
               controller: _passwordController,
               obscureText: !_isPasswordVisible,
@@ -340,12 +579,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         ? Icons.visibility
                         : Icons.visibility_off,
                   ),
-                  onPressed: () =>
-                      setState(() => _isPasswordVisible = !_isPasswordVisible),
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    });
+                  },
                 ),
               ),
             ),
+
             const SizedBox(height: 15),
+
             TextField(
               controller: _addressController,
               decoration: const InputDecoration(
@@ -354,9 +598,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 prefixIcon: Icon(Icons.location_on),
               ),
             ),
+
             const SizedBox(height: 20),
 
-            // بطاقة الوصي الاحترافية (اختيارية: تعتمد المدير افتراضياً إذا تركت خالية)
+            // ==================================================
+            // GUARDIAN
+            // ==================================================
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -375,20 +622,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       color: Color(0xFF28A9CC),
                     ),
                   ),
+
                   const SizedBox(height: 6),
+
                   const Text(
-                    "إذا أخبرك عميل عن موكس، الرجاء وضع رقم موكس الخاص به. وإذا تركته فارغاً، فسيعتمد النظام رقم مرشد المدير (MOX249-00010001) تلقائياً كوصي لك.",
+                    "إذا أخبرك عميل عن موكس، ضع رقم MOX الخاص به. وإذا تركته فارغاً، سيُسجل المدير كمرشد افتراضي.",
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.black87,
                       height: 1.4,
                     ),
                   ),
+
                   const SizedBox(height: 12),
+
                   TextField(
                     controller: _guardianController,
                     decoration: const InputDecoration(
-                      labelText: "رقم MOX للوصي (اختياري - افتراضياً المدير)",
+                      labelText: "رقم MOX للوصي",
                       hintText: "MOX249-00010001",
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(
@@ -402,32 +653,54 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
 
             const SizedBox(height: 20),
+
+            // ==================================================
+            // GENDER
+            // ==================================================
             DropdownButtonFormField<String>(
               initialValue: _selectedGender,
               items: [
                 "ذكر",
                 "أنثى",
               ].map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
-              onChanged: (v) => setState(() => _selectedGender = v!),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _selectedGender = v);
+                }
+              },
               decoration: const InputDecoration(
                 labelText: "الجنس",
                 border: OutlineInputBorder(),
               ),
             ),
+
             const SizedBox(height: 15),
+
+            // ==================================================
+            // ACCOUNT TYPE
+            // ==================================================
             DropdownButtonFormField<String>(
               initialValue: _selectedAccountType,
               items: [
                 "فردي",
                 "تجاري",
               ].map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
-              onChanged: (v) => setState(() => _selectedAccountType = v!),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _selectedAccountType = v);
+                }
+              },
               decoration: const InputDecoration(
                 labelText: "نوع الحساب",
                 border: OutlineInputBorder(),
               ),
             ),
+
             const SizedBox(height: 30),
+
+            // ==================================================
+            // REGISTER BUTTON
+            // ==================================================
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: moxBlue,
@@ -443,7 +716,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 ),
               ),
             ),
+
             const SizedBox(height: 40),
+
             Text(
               "جميع الحقوق محفوظة ©️ المنظومة أونلاين موكس ${DateTime.now().year}",
               style: TextStyle(color: Colors.grey[600], fontSize: 12),

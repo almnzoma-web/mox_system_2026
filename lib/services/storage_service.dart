@@ -26,46 +26,23 @@ class StorageService {
   // ============================================================
   // ADMIN
   // ============================================================
-  //
-  // 🔐 مهم جدًا:
-  // لا توجد كلمة سر للإدارة داخل Flutter.
-  //
-  // كلمة سر الإدارة موجودة في Google Sheet فقط.
-  //
-  // ============================================================
 
   static final UserModel adminUser = UserModel(
     phone: '249115855164',
-
-    // ❌ لا تضع كلمة سر الإدارة هنا.
     password: '',
-
     name: 'مدير النظام',
-
     address: 'المركز الرئيسي',
-
     storeDescription: 'المركز الرئيسي لمنصة MOX الرقمية',
-
     balance: 5000.0,
-
     commission: 0.0,
-
     gender: 'ذكر',
-
     accountType: 'إدارة',
-
     moxId: 'ID-005000',
-
     role: 'admin',
-
     customWhatsApp: '249115855164',
-
     guardianMoxId: 'MOX249-00010001',
-
     guardianMoxIdCustomer: 'MOX249-00010001',
-
     points: 0,
-
     myAssets: const [],
   );
 
@@ -75,7 +52,6 @@ class StorageService {
 
   static bool _isAdminIdentity({String? phone, String? moxId}) {
     final cleanPhone = phone?.trim() ?? '';
-
     final cleanMoxId = moxId?.trim() ?? '';
 
     return cleanPhone == adminUser.phone || cleanMoxId == adminUser.moxId;
@@ -142,11 +118,6 @@ class StorageService {
     if (index == -1) {
       registeredUsers.insert(0, adminUser);
     } else {
-      // 🔐 مهم:
-      // لا نستورد كلمة سر الإدارة من Local Storage.
-      //
-      // نضمن أن النسخة المحلية للإدارة
-      // لا تحمل كلمة سر.
       registeredUsers[index] = adminUser;
     }
   }
@@ -193,7 +164,6 @@ class StorageService {
             continue;
           }
 
-          // 🔐 لا نستورد كلمة سر الإدارة.
           if (_isAdminUser(cloudUser)) {
             continue;
           }
@@ -203,10 +173,6 @@ class StorageService {
           debugPrint('⚠️ [Cloud User] تخطي مستخدم غير صالح: $e');
         }
       }
-
-      // ========================================================
-      // دمج بيانات السحابة
-      // ========================================================
 
       for (final cloudUser in cloudUsers) {
         final index = registeredUsers.indexWhere(
@@ -313,21 +279,6 @@ class StorageService {
       'activationDate': user.activationDate ?? '',
     };
 
-    // ==========================================================
-    // 🔐 PASSWORD
-    // ==========================================================
-    //
-    // المستخدم العادي:
-    // نرسل كلمة السر.
-    //
-    // الإدارة:
-    // لا نرسل كلمة السر إطلاقًا.
-    //
-    // Apps Script سيحافظ على كلمة السر
-    // الموجودة أصلًا في Google Sheet.
-    //
-    // ==========================================================
-
     if (!_isAdminUser(user)) {
       params['password'] = user.password;
     }
@@ -348,9 +299,7 @@ class StorageService {
     }
 
     final index = registeredUsers.indexWhere(
-      (u) =>
-          u.phone == newUser.phone ||
-          (newUser.moxId != 'ID-005001' && u.moxId == newUser.moxId),
+      (u) => u.phone == newUser.phone || u.moxId == newUser.moxId,
     );
 
     if (index != -1) {
@@ -363,13 +312,11 @@ class StorageService {
 
     await saveUsersList();
 
-    // الإدارة يمكن تحديث بياناتها，
-    // لكن كلمة سرها لا تغادر Google Sheet.
     await _saveToCloud(newUser);
   }
 
   // ============================================================
-  // UPDATE USER
+  // UPDATE USER PARTIAL
   // ============================================================
 
   static Future<void> updateUserPartial(UserModel user) async {
@@ -379,19 +326,11 @@ class StorageService {
       throw Exception('لا يمكن تحديث المستخدم بدون MoxId.');
     }
 
-    // ============================================================
-    // 1) إرسال النسخة الجديدة إلى السحابة أولاً
-    // ============================================================
-
     final bool cloudSaved = await _saveToCloud(user);
 
     if (!cloudSaved) {
       throw Exception('تعذر حفظ بيانات المتجر في Google Sheet.');
     }
-
-    // ============================================================
-    // 2) بعد نجاح السحابة فقط نحدث النسخة المحلية
-    // ============================================================
 
     final index = registeredUsers.indexWhere(
       (u) => u.moxId == user.moxId || u.phone == user.phone,
@@ -406,10 +345,6 @@ class StorageService {
     _ensureAdmin();
 
     await saveUsersList();
-
-    // ============================================================
-    // 3) تحديث الجلسة الحالية
-    // ============================================================
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -447,10 +382,6 @@ class StorageService {
         return false;
       }
 
-      // ==========================================================
-      // محاولة قراءة نتيجة Apps Script
-      // ==========================================================
-
       try {
         final dynamic decoded = json.decode(response.body);
 
@@ -462,10 +393,7 @@ class StorageService {
             return false;
           }
         }
-      } catch (_) {
-        // بعض نسخ Apps Script قد تعيد نصًا
-        // بدل JSON، لذلك لا نعتبر ذلك فشلًا تلقائيًا.
-      }
+      } catch (_) {}
 
       return true;
     } catch (e) {
@@ -474,6 +402,7 @@ class StorageService {
       return false;
     }
   }
+
   // ============================================================
   // SAVE ACTIVE USER
   // ============================================================
@@ -506,7 +435,6 @@ class StorageService {
 
       final user = UserModel.fromJson(jsonDecode(userJson));
 
-      // 🔐 الإدارة لا تحتفظ بكلمة سر محليًا.
       if (_isAdminUser(user)) {
         return adminUser;
       }
@@ -572,22 +500,13 @@ class StorageService {
       return null;
     }
 
-    // ========================================================
-    // 🔐 ADMIN = CLOUD ONLY
-    // ========================================================
-    //
-    // الإدارة لا يتم التحقق منها محليًا.
-    // كلمة السر لا توجد داخل Flutter.
-    //
-    // ========================================================
-
     final isAdminLogin = _isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
       moxId: isMoxId ? cleanInput : null,
     );
 
     // ========================================================
-    // 1. LOCAL LOGIN
+    // LOCAL LOGIN
     // ========================================================
 
     if (!isAdminLogin) {
@@ -605,7 +524,7 @@ class StorageService {
     }
 
     // ========================================================
-    // 2. CLOUD LOGIN
+    // CLOUD LOGIN
     // ========================================================
 
     try {
@@ -648,11 +567,10 @@ class StorageService {
       final cloudUser = UserModel.fromJson(Map<String, dynamic>.from(rawUser));
 
       // ======================================================
-      // 🔐 ADMIN
+      // ADMIN
       // ======================================================
 
       if (_isAdminUser(cloudUser)) {
-        // لا نخزن كلمة السر التي رجعت من السيرفر.
         final safeAdmin = adminUser.copyWith(
           name: cloudUser.name,
           address: cloudUser.address,
@@ -716,8 +634,6 @@ class StorageService {
 
     final cleanPassword = password.trim();
 
-    // 🔐 الإدارة لا يتم تسجيل دخولها
-    // بالطريقة المتزامنة المحلية.
     if (_isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
       moxId: isMoxId ? cleanInput : null,
@@ -748,10 +664,6 @@ class StorageService {
     if (cleanMoxId.isEmpty) {
       return null;
     }
-
-    // ============================================================
-    // 1) أولاً نحاول جلب أحدث نسخة من Google Sheet
-    // ============================================================
 
     try {
       final response = await http
@@ -787,10 +699,6 @@ class StorageService {
                 continue;
               }
 
-              // ==================================================
-              // تحديث النسخة المحلية من النسخة السحابية
-              // ==================================================
-
               final index = registeredUsers.indexWhere(
                 (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
               );
@@ -815,10 +723,6 @@ class StorageService {
     } catch (e) {
       debugPrint('⚠️ [Cloud User Fetch] $e');
     }
-
-    // ============================================================
-    // 2) إذا تعذر الاتصال: نستخدم النسخة المحلية
-    // ============================================================
 
     try {
       await ensureLoaded();
@@ -850,19 +754,12 @@ class StorageService {
     return [
       {
         'title': 'بطاقة المتجر السيادي الفاخرة',
-
         'description': 'منتج معتمد ومتاح للطلب الفوري عبر السوق المفتوح.',
-
         'category': 'متجر وتجارة',
-
         'iconKey': 'store',
-
         'price': 0.0,
-
         'whatsapp': '249115855164',
-
         'facebookUrl': '',
-
         'isApproved': true,
       },
     ];
