@@ -21,7 +21,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   // استخدام الرابط المعتمد في StorageService بالمسطرة
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAu9snNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec';
+      'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
   @override
   void initState() {
