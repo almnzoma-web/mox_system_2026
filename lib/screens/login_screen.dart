@@ -1,12 +1,14 @@
 // ignore_for_file: unnecessary_null_comparison
 
 import 'package:flutter/material.dart';
+
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
 import 'dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool isMoxIdLogin;
+
   const LoginScreen({super.key, required this.isMoxIdLogin});
 
   @override
@@ -15,16 +17,32 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
+
   final TextEditingController _inputController = TextEditingController();
+
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _rememberLoginSession = false; // ✋ مربع حفظ تسجيل الدخول بالمسطرة
+
+  // ============================================================
+  // حفظ تسجيل الدخول
+  // ============================================================
+
+  bool _rememberLoginSession = false;
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
 
   Future<void> _validateAndLogin() async {
-    String input = _inputController.text.trim();
-    String password = _passwordController.text.trim();
+    final String input = _inputController.text.trim();
+
+    final String password = _passwordController.text.trim();
+
+    // ----------------------------------------------------------
+    // التحقق من البيانات
+    // ----------------------------------------------------------
 
     if (input.isEmpty || password.isEmpty) {
       _showError(
@@ -33,8 +51,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // 1. التحقق من صحة الصيغة بالمسطرة (RegExp)
-    bool isFormatValid = widget.isMoxIdLogin
+    // ----------------------------------------------------------
+    // التحقق من الصيغة
+    // ----------------------------------------------------------
+
+    final bool isFormatValid = widget.isMoxIdLogin
         ? RegExp(r'^MOX249-\d{8}$').hasMatch(input)
         : RegExp(r'^249\d{9}$').hasMatch(input);
 
@@ -52,34 +73,49 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // الاعتماد على دالة التحقق الهجينة التي تتأكد من السجل المحلي والشيت معاً بالمسطرة
+      // ========================================================
+      // المصادقة
+      // ========================================================
+
       UserModel? authenticatedUser = await StorageService.authenticateAsync(
         input,
         password,
         widget.isMoxIdLogin,
       );
 
-      // 2. التحقق من وجود المستخدم وسلامة كلمة السر
+      // --------------------------------------------------------
+      // فشل تسجيل الدخول
+      // --------------------------------------------------------
+
       if (authenticatedUser == null) {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+
         _showError(
           "❌ خطأ أمني: البيانات المدخلة غير مسجلة أو كلمة السر غير صحيحة!",
         );
+
         return;
       }
 
-      // 🛡️ معالجة حاسمة لمنع نزول moxId خالياً:
-      // إذا كان الـ moxId فارغاً في الكائن المسترجع، نقوم بتعبئته تلقائياً بالمعرف المدخل أو توليده بالمسطرة
+      // ========================================================
+      // حماية MoxId
+      // ========================================================
+
       if (authenticatedUser.moxId == null ||
           authenticatedUser.moxId.trim().isEmpty) {
         if (widget.isMoxIdLogin) {
           authenticatedUser.moxId = input;
         } else if (authenticatedUser.phone != null &&
             authenticatedUser.phone.isNotEmpty) {
-          // توليد معرف موكس قياسي استناداً لرقم الهاتف إذا لم يكن متوفراً
-          String digits = authenticatedUser.phone.replaceAll(RegExp(r'\D'), '');
+          final String digits = authenticatedUser.phone.replaceAll(
+            RegExp(r'\D'),
+            '',
+          );
+
           if (digits.length >= 8) {
             authenticatedUser.moxId =
                 "MOX249-${digits.substring(digits.length - 8)}";
@@ -91,29 +127,63 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // حفظ الجلسة النشطة الحالية للمستخدم مع اعتماد حالة حفظ تسجيل الدخول
-      await StorageService.saveUser(authenticatedUser);
+      // ========================================================
+      // حفظ أو عدم حفظ الجلسة
+      // ========================================================
+      //
+      // ✔️ المربع مفعل:
+      //    نحفظ المستخدم في SharedPreferences
+      //
+      // ⬜ المربع غير مفعل:
+      //    نحذف أي جلسة محفوظة سابقاً
+      //
+      // ========================================================
 
-      // 3. نجاح التحقق بالكامل والعبور للوحة التحكم السيادية
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            // ignore: unnecessary_non_null_assertion
-            builder: (context) => DashboardScreen(user: authenticatedUser!),
-          ),
-          (route) => false,
-        );
+      if (_rememberLoginSession) {
+        await StorageService.saveUser(authenticatedUser);
+      } else {
+        await StorageService.logout();
       }
-    } catch (e) {
+
+      // ========================================================
+      // دخول لوحة التحكم
+      // ========================================================
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _isLoading = false;
       });
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardScreen(user: authenticatedUser),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
       _showError("⚠️ حدث خطأ أثناء الاتصال بالخزينة السيادية: $e");
     }
   }
 
+  // ============================================================
+  // ERROR
+  // ============================================================
+
   void _showError(String message) {
+    if (!mounted) {
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -128,29 +198,56 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    _passwordController.dispose();
+
+    super.dispose();
+  }
+
+  // ============================================================
+  // UI
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       body: Column(
         children: [
+          // ======================================================
+          // HEADER
+          // ======================================================
           Container(
             height: MediaQuery.of(context).size.height * 0.35,
+
             decoration: BoxDecoration(
               color: moxBlue,
+
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(50),
                 bottomRight: Radius.circular(50),
               ),
             ),
+
             child: const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+
                 children: [
                   Icon(Icons.shield_moon, size: 80, color: Colors.white),
+
                   SizedBox(height: 10),
+
                   Text(
                     "بوابة الدخول السيادية",
+
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -161,69 +258,105 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+
+          // ======================================================
+          // FORM
+          // ======================================================
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(30),
+
               child: Column(
                 children: [
+                  // ------------------------------------------------
+                  // INPUT
+                  // ------------------------------------------------
                   TextField(
                     controller: _inputController,
+
                     keyboardType: widget.isMoxIdLogin
                         ? TextInputType.text
                         : TextInputType.phone,
+
                     decoration: InputDecoration(
                       labelText: widget.isMoxIdLogin
                           ? "رقم موكس"
                           : "رقم الهاتف",
+
                       prefixIcon: Icon(
                         widget.isMoxIdLogin ? Icons.badge : Icons.phone_android,
                         color: moxBlue,
                       ),
+
                       border: const OutlineInputBorder(),
+
                       focusedBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: moxBlue, width: 2),
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 20),
+
+                  // ------------------------------------------------
+                  // PASSWORD
+                  // ------------------------------------------------
                   TextField(
                     controller: _passwordController,
+
                     obscureText: !_isPasswordVisible,
+
                     decoration: InputDecoration(
                       labelText: "كلمة السر",
+
                       prefixIcon: Icon(Icons.lock, color: moxBlue),
+
                       border: const OutlineInputBorder(),
+
                       focusedBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: moxBlue, width: 2),
                       ),
+
                       suffixIcon: IconButton(
                         icon: Icon(
                           _isPasswordVisible
                               ? Icons.visibility
                               : Icons.visibility_off,
+
                           color: moxBlue,
                         ),
-                        onPressed: () => setState(
-                          () => _isPasswordVisible = !_isPasswordVisible,
-                        ),
+
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 15),
-                  // ✋ مربع حفظ تسجيل الدخول المضاف بالمسطرة والنص الاحترافي
+
+                  // =================================================
+                  // REMEMBER LOGIN
+                  // =================================================
                   Row(
                     children: [
                       Checkbox(
                         value: _rememberLoginSession,
+
                         activeColor: moxBlue,
+
                         onChanged: (bool? value) {
                           setState(() {
                             _rememberLoginSession = value ?? false;
                           });
                         },
                       ),
+
                       const Text(
                         "هل ترغب في حفظ تسجيل الدخول",
+
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -232,20 +365,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 25),
+
+                  // =================================================
+                  // LOGIN BUTTON
+                  // =================================================
                   _isLoading
                       ? CircularProgressIndicator(color: moxBlue)
                       : ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: moxBlue,
+
                             minimumSize: const Size(double.infinity, 50),
+
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
+
                           onPressed: _validateAndLogin,
+
                           child: const Text(
                             "دخول بنك موكس الرقمي",
+
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -253,12 +396,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
+
                   const Spacer(),
-                  // التوقيع السيادي
+
+                  // =================================================
+                  // FOOTER
+                  // =================================================
                   Text(
                     "جميع الحقوق محفوظة ©️ المنظومة أونلاين موكس ${DateTime.now().year}",
+
                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                   ),
+
                   const SizedBox(height: 10),
                 ],
               ),

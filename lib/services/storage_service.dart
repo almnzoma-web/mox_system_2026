@@ -1,17 +1,19 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
-import '../models/marketing_card.dart';
 import '../models/user_model.dart';
+import '../models/marketing_card.dart';
 
 class StorageService {
   static const String userKey = 'current_mox_user';
+
   static const String savedUsersKey = 'saved_users';
 
   static List<UserModel> registeredUsers = [];
+
   static bool _isLoaded = false;
 
   // ============================================================
@@ -19,30 +21,69 @@ class StorageService {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAu9sNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec';
+      'https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAu9snNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec';
 
   // ============================================================
   // ADMIN
   // ============================================================
+  //
+  // 🔐 مهم جدًا:
+  // لا توجد كلمة سر للإدارة داخل Flutter.
+  //
+  // كلمة سر الإدارة موجودة في Google Sheet فقط.
+  //
+  // ============================================================
 
   static final UserModel adminUser = UserModel(
     phone: '249115855164',
-    password: 'MOX1234567890MOX',
+
+    // ❌ لا تضع كلمة سر الإدارة هنا.
+    password: '',
+
     name: 'مدير النظام',
+
     address: 'المركز الرئيسي',
+
     storeDescription: 'المركز الرئيسي لمنصة MOX الرقمية',
+
     balance: 5000.0,
+
     commission: 0.0,
+
     gender: 'ذكر',
+
     accountType: 'إدارة',
+
     moxId: 'ID-005000',
+
     role: 'admin',
+
     customWhatsApp: '249115855164',
+
     guardianMoxId: '',
+
     guardianMoxIdCustomer: 'MOX249-00010001',
+
     points: 0,
-    myAssets: [],
+
+    myAssets: const [],
   );
+
+  // ============================================================
+  // ADMIN ID CHECK
+  // ============================================================
+
+  static bool _isAdminIdentity({String? phone, String? moxId}) {
+    final cleanPhone = phone?.trim() ?? '';
+
+    final cleanMoxId = moxId?.trim() ?? '';
+
+    return cleanPhone == adminUser.phone || cleanMoxId == adminUser.moxId;
+  }
+
+  static bool _isAdminUser(UserModel user) {
+    return _isAdminIdentity(phone: user.phone, moxId: user.moxId);
+  }
 
   // ============================================================
   // LOAD USERS
@@ -51,41 +92,62 @@ class StorageService {
   static Future<void> loadUsers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
       await prefs.reload();
 
-      final String? encodedData = prefs.getString(savedUsersKey);
+      final encodedData = prefs.getString(savedUsersKey);
+
+      registeredUsers = [];
 
       if (encodedData != null && encodedData.isNotEmpty) {
-        final dynamic decoded = jsonDecode(encodedData);
+        try {
+          final decoded = json.decode(encodedData);
 
-        if (decoded is List) {
-          registeredUsers = decoded
-              .map(
-                (item) => UserModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList();
+          if (decoded is List) {
+            registeredUsers = decoded
+                .whereType<Map>()
+                .map(
+                  (item) => UserModel.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList();
+          }
+        } catch (e) {
+          debugPrint('❌ [Local JSON] بيانات المستخدمين تالفة: $e');
         }
       }
 
-      // ضمان وجود المدير
-      final bool adminExists = registeredUsers.any(
-        (u) => u.moxId == adminUser.moxId,
-      );
+      _ensureAdmin();
 
-      if (!adminExists) {
-        registeredUsers.insert(0, adminUser);
-        await saveUsersList();
-      }
+      await saveUsersList();
 
       _isLoaded = true;
 
-      // المزامنة السحابية في الخلفية
       _syncFromCloudInBackground();
     } catch (e) {
-      debugPrint('❌ [Storage] خطأ في التحميل المحلي: $e');
+      debugPrint('❌ [Hybrid Local] خطأ في التحميل المحلي: $e');
 
       registeredUsers = [adminUser];
+
       _isLoaded = true;
+    }
+  }
+
+  // ============================================================
+  // ENSURE ADMIN
+  // ============================================================
+
+  static void _ensureAdmin() {
+    final index = registeredUsers.indexWhere((u) => u.moxId == adminUser.moxId);
+
+    if (index == -1) {
+      registeredUsers.insert(0, adminUser);
+    } else {
+      // 🔐 مهم:
+      // لا نستورد كلمة سر الإدارة من Local Storage.
+      //
+      // نضمن أن النسخة المحلية للإدارة
+      // لا تحمل كلمة سر.
+      registeredUsers[index] = adminUser;
     }
   }
 
@@ -103,9 +165,9 @@ class StorageService {
         return;
       }
 
-      final dynamic decoded = jsonDecode(response.body);
+      final dynamic decoded = json.decode(response.body);
 
-      if (decoded is! List || decoded.isEmpty) {
+      if (decoded is! List) {
         return;
       }
 
@@ -113,50 +175,52 @@ class StorageService {
 
       for (final item in decoded) {
         try {
+          if (item is! Map) {
+            continue;
+          }
+
           final mapItem = Map<String, dynamic>.from(item);
 
-          // دعم moxId / MOXID
           if ((mapItem['moxId'] == null ||
                   mapItem['moxId'].toString().trim().isEmpty) &&
               mapItem['MOXID'] != null) {
             mapItem['moxId'] = mapItem['MOXID'];
           }
 
-          final user = UserModel.fromJson(mapItem);
+          final cloudUser = UserModel.fromJson(mapItem);
 
-          if (user.moxId.trim().isNotEmpty &&
-              user.moxId != 'null' &&
-              user.moxId != 'لم يحدد') {
-            cloudUsers.add(user);
+          if (cloudUser.moxId.trim().isEmpty || cloudUser.moxId == 'null') {
+            continue;
           }
+
+          // 🔐 لا نستورد كلمة سر الإدارة.
+          if (_isAdminUser(cloudUser)) {
+            continue;
+          }
+
+          cloudUsers.add(cloudUser);
         } catch (e) {
-          debugPrint('⚠️ [Cloud] تجاهل سجل غير صالح: $e');
+          debugPrint('⚠️ [Cloud User] تخطي مستخدم غير صالح: $e');
         }
       }
 
-      // دمج البيانات بدون حذف المستخدمين المحليين
       for (final cloudUser in cloudUsers) {
-        final int index = registeredUsers.indexWhere(
-          (localUser) =>
-              localUser.phone == cloudUser.phone ||
-              localUser.moxId == cloudUser.moxId,
+        final index = registeredUsers.indexWhere(
+          (u) => u.phone == cloudUser.phone || u.moxId == cloudUser.moxId,
         );
 
-        if (index >= 0) {
+        if (index != -1) {
           registeredUsers[index] = cloudUser;
         } else {
           registeredUsers.add(cloudUser);
         }
       }
 
-      // ضمان المدير
-      if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
-        registeredUsers.insert(0, adminUser);
-      }
+      _ensureAdmin();
 
       await saveUsersList();
     } catch (e) {
-      debugPrint('⚠️ [Cloud Sync] فشل المزامنة الخلفية: $e');
+      debugPrint('❌ [Cloud Sync] $e');
     }
   }
 
@@ -171,76 +235,100 @@ class StorageService {
   }
 
   // ============================================================
-  // SAVE LOCAL USERS
+  // SAVE LOCAL
   // ============================================================
 
   static Future<void> saveUsersList() async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      final List<Map<String, dynamic>> jsonList = registeredUsers
-          .map((user) => user.toJson())
-          .toList();
+      final jsonList = registeredUsers.map((u) => u.toJson()).toList();
 
-      await prefs.setString(savedUsersKey, jsonEncode(jsonList));
+      await prefs.setString(savedUsersKey, json.encode(jsonList));
 
       _isLoaded = true;
     } catch (e) {
-      debugPrint('❌ [Storage] خطأ في الحفظ المحلي: $e');
+      debugPrint('❌ [Local Save] $e');
     }
   }
 
   // ============================================================
-  // ASSET ENCODER
+  // ASSETS JSON
   // ============================================================
 
   static String _encodeAssets(List<MarketingCard> assets) {
     try {
-      return jsonEncode(assets.map((asset) => asset.toJson()).toList());
+      return json.encode(assets.map((a) => a.toJson()).toList());
     } catch (e) {
-      debugPrint('⚠️ [Assets] خطأ في تحويل الأصول: $e');
+      debugPrint('❌ [Assets JSON] $e');
+
       return '[]';
     }
   }
 
   // ============================================================
-  // CLOUD SAVE
+  // CLOUD PARAMETERS
   // ============================================================
 
-  static Future<void> _saveToCloud(UserModel user) async {
-    try {
-      final Map<String, String> queryParameters = {
-        'action': 'save',
-        'phone': user.phone,
-        'password': user.password,
-        'name': user.name,
-        'address': user.address,
-        'storeDescription': user.storeDescription,
-        'balance': user.balance.toString(),
-        'commission': user.commission.toString(),
-        'gender': user.gender,
-        'accountType': user.accountType,
-        'moxId': user.moxId,
-        'role': user.role,
-        'customWhatsApp': user.customWhatsApp ?? '',
-        'guardianMoxId': user.guardianMoxId ?? '',
-        'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
-        'points': user.points.toString(),
-        'myAssets': _encodeAssets(user.myAssets),
-      };
+  static Map<String, String> _userCloudParameters(UserModel user) {
+    final params = <String, String>{
+      'action': 'save',
 
-      final Uri uri = Uri.parse(
-        _scriptUrl,
-      ).replace(queryParameters: queryParameters);
+      'phone': user.phone,
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      'name': user.name,
 
-      if (response.statusCode != 200) {
-        debugPrint('⚠️ [Cloud] استجابة غير ناجحة: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('❌ [Cloud] خطأ في الحفظ السحابي: $e');
+      'address': user.address,
+
+      'storeDescription': user.storeDescription,
+
+      'balance': user.balance.toString(),
+
+      'commission': user.commission.toString(),
+
+      'gender': user.gender,
+
+      'accountType': user.accountType,
+
+      'moxId': user.moxId,
+
+      'role': user.role,
+
+      'customWhatsApp': user.customWhatsApp ?? '',
+
+      'guardianMoxId': user.guardianMoxId ?? '',
+
+      'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
+
+      'points': user.points.toString(),
+
+      'myAssets': _encodeAssets(user.myAssets),
+
+      'storePublishDate': user.storePublishDate ?? '',
+
+      'activationDate': user.activationDate ?? '',
+    };
+
+    // ==========================================================
+    // 🔐 PASSWORD
+    // ==========================================================
+    //
+    // المستخدم العادي:
+    // نرسل كلمة السر.
+    //
+    // الإدارة:
+    // لا نرسل كلمة السر إطلاقًا.
+    //
+    // Apps Script سيحافظ على كلمة السر
+    // الموجودة أصلًا في Google Sheet.
+    //
+    // ==========================================================
+
+    if (!_isAdminUser(user)) {
+      params['password'] = user.password;
     }
+
+    return params;
   }
 
   // ============================================================
@@ -250,72 +338,98 @@ class StorageService {
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
-    if (newUser.moxId.trim().isEmpty ||
-        newUser.moxId == 'null' ||
-        newUser.moxId == 'لم يحدد') {
-      debugPrint('❌ [Cloud] محاولة إضافة مستخدم بدون MoxId مرفوضة.');
+    if (newUser.moxId.trim().isEmpty || newUser.moxId == 'null') {
+      debugPrint('❌ محاولة حفظ مستخدم بدون MoxId تم رفضها.');
       return;
     }
 
-    final int index = registeredUsers.indexWhere(
-      (user) =>
-          user.phone == newUser.phone ||
-          (newUser.moxId != 'ID-000001' && user.moxId == newUser.moxId),
+    final index = registeredUsers.indexWhere(
+      (u) =>
+          u.phone == newUser.phone ||
+          (newUser.moxId != 'ID-000001' && u.moxId == newUser.moxId),
     );
 
-    if (index >= 0) {
+    if (index != -1) {
       registeredUsers[index] = newUser;
     } else {
       registeredUsers.add(newUser);
     }
 
+    _ensureAdmin();
+
     await saveUsersList();
 
+    // الإدارة يمكن تحديث بياناتها،
+    // لكن كلمة سرها لا تغادر Google Sheet.
     await _saveToCloud(newUser);
   }
 
   // ============================================================
-  // PARTIAL UPDATE
+  // UPDATE USER
   // ============================================================
 
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
-    if (user.moxId.trim().isEmpty) {
+    if (user.moxId.trim().isEmpty || user.moxId == 'null') {
+      debugPrint('❌ تحديث مرفوض: MoxId فارغ.');
       return;
     }
 
-    final int index = registeredUsers.indexWhere(
-      (existing) =>
-          existing.moxId == user.moxId || existing.phone == user.phone,
+    final index = registeredUsers.indexWhere(
+      (u) => u.moxId == user.moxId || u.phone == user.phone,
     );
 
-    if (index >= 0) {
+    if (index != -1) {
       registeredUsers[index] = user;
-      await saveUsersList();
+    } else {
+      registeredUsers.add(user);
     }
 
+    // 🔐 الإدارة محليًا لا تحمل كلمة سر.
+    _ensureAdmin();
+
+    await saveUsersList();
+
+    // ========================================================
     // تحديث الجلسة الحالية
+    // ========================================================
+
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      final String? currentUserJson = prefs.getString(userKey);
+      final currentUserJson = prefs.getString(userKey);
 
       if (currentUserJson != null && currentUserJson.isNotEmpty) {
-        final UserModel activeUser = UserModel.fromJson(
-          jsonDecode(currentUserJson),
-        );
+        final activeUser = UserModel.fromJson(jsonDecode(currentUserJson));
 
         if (activeUser.moxId == user.moxId || activeUser.phone == user.phone) {
           await prefs.setString(userKey, jsonEncode(user.toJson()));
         }
       }
     } catch (e) {
-      debugPrint('⚠️ [Session] خطأ في تحديث الجلسة: $e');
+      debugPrint('❌ [Session Cache] $e');
     }
 
-    // التحديث السحابي
     await _saveToCloud(user);
+  }
+
+  // ============================================================
+  // SAVE TO CLOUD
+  // ============================================================
+
+  static Future<void> _saveToCloud(UserModel user) async {
+    try {
+      final uri = Uri.parse(
+        _scriptUrl,
+      ).replace(queryParameters: _userCloudParameters(user));
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      debugPrint('☁️ [Cloud Save] ${response.statusCode}');
+    } catch (e) {
+      debugPrint('❌ [Cloud Save] $e');
+    }
   }
 
   // ============================================================
@@ -330,7 +444,7 @@ class StorageService {
 
       await addUser(user);
     } catch (e) {
-      debugPrint('❌ [Storage] خطأ في حفظ المستخدم النشط: $e');
+      debugPrint('❌ [Active User] $e');
     }
   }
 
@@ -342,15 +456,23 @@ class StorageService {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      final String? userJson = prefs.getString(userKey);
+      final userJson = prefs.getString(userKey);
 
       if (userJson == null || userJson.isEmpty) {
         return null;
       }
 
-      return UserModel.fromJson(jsonDecode(userJson));
+      final user = UserModel.fromJson(jsonDecode(userJson));
+
+      // 🔐 الإدارة لا تحتفظ بكلمة سر محليًا.
+      if (_isAdminUser(user)) {
+        return adminUser;
+      }
+
+      return user;
     } catch (e) {
-      debugPrint('⚠️ [Storage] تعذر قراءة المستخدم النشط: $e');
+      debugPrint('❌ [Get User] $e');
+
       return null;
     }
   }
@@ -362,64 +484,31 @@ class StorageService {
   static Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
       await prefs.remove(userKey);
-    } catch (e) {
-      debugPrint('⚠️ [Storage] خطأ أثناء تسجيل الخروج: $e');
-    }
+    } catch (_) {}
   }
 
   // ============================================================
-  // CLIENTS DATA
+  // CLIENT DATA
   // ============================================================
 
   static Future<Object?> getClientsData() async {
     await ensureLoaded();
 
-    return registeredUsers.map((user) => user.toJson()).toList();
+    return registeredUsers.map((u) => u.toJson()).toList();
   }
 
   static Future<void> saveClientsData(
     List<Map<String, dynamic>> clientsData,
   ) async {
-    try {
-      registeredUsers = clientsData
-          .map((item) => UserModel.fromJson(item))
-          .toList();
+    registeredUsers = clientsData.map((e) => UserModel.fromJson(e)).toList();
 
-      // ضمان المدير
-      if (!registeredUsers.any((u) => u.moxId == adminUser.moxId)) {
-        registeredUsers.insert(0, adminUser);
-      }
+    _ensureAdmin();
 
-      _isLoaded = true;
+    _isLoaded = true;
 
-      await saveUsersList();
-
-      // مزامنة كل السجلات مع السحابة
-      for (final user in registeredUsers) {
-        if (user.moxId != adminUser.moxId) {
-          await _saveToCloud(user);
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ [Clients] خطأ في حفظ بيانات العملاء: $e');
-    }
-  }
-
-  // ============================================================
-  // AUTHENTICATE LOCAL
-  // ============================================================
-
-  static UserModel? authenticate(String input, String password, bool isMoxId) {
-    try {
-      return registeredUsers.firstWhere(
-        (user) =>
-            (isMoxId ? user.moxId == input : user.phone == input) &&
-            user.password == password,
-      );
-    } catch (_) {
-      return null;
-    }
+    await saveUsersList();
   }
 
   // ============================================================
@@ -433,96 +522,174 @@ class StorageService {
   ) async {
     await ensureLoaded();
 
-    // البحث المحلي أولاً
-    UserModel? foundUser = authenticate(input, password, isMoxId);
+    final cleanInput = input.trim();
 
-    if (foundUser != null) {
-      return foundUser;
+    final cleanPassword = password.trim();
+
+    if (cleanInput.isEmpty || cleanPassword.isEmpty) {
+      return null;
     }
 
-    // البحث المباشر في Google
-    try {
-      debugPrint('🌐 [Cloud Fallback] البحث المباشر في Google Sheets...');
+    // ========================================================
+    // 🔐 ADMIN = CLOUD ONLY
+    // ========================================================
+    //
+    // الإدارة لا يتم التحقق منها محليًا.
+    // كلمة السر لا توجد داخل Flutter.
+    //
+    // ========================================================
 
-      final response = await http
-          .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 8));
+    final isAdminLogin = _isAdminIdentity(
+      phone: isMoxId ? null : cleanInput,
+      moxId: isMoxId ? cleanInput : null,
+    );
+
+    // ========================================================
+    // 1. LOCAL LOGIN
+    // ========================================================
+
+    if (!isAdminLogin) {
+      try {
+        final foundUser = registeredUsers.firstWhere(
+          (u) =>
+              (isMoxId
+                  ? u.moxId.trim() == cleanInput
+                  : u.phone.trim() == cleanInput) &&
+              u.password == cleanPassword,
+        );
+
+        return foundUser;
+      } catch (_) {}
+    }
+
+    // ========================================================
+    // 2. CLOUD LOGIN
+    // ========================================================
+
+    try {
+      final uri = Uri.parse(_scriptUrl).replace(
+        queryParameters: {
+          'action': 'login',
+
+          'input': cleanInput,
+
+          'password': cleanPassword,
+
+          'isMoxId': isMoxId.toString(),
+        },
+      );
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         return null;
       }
 
-      final dynamic decoded = jsonDecode(response.body);
+      final dynamic decoded = json.decode(response.body);
 
-      if (decoded is! List) {
+      if (decoded is! Map) {
         return null;
       }
 
-      for (final item in decoded) {
-        try {
-          final Map<String, dynamic> mapItem = Map<String, dynamic>.from(item);
+      final map = Map<String, dynamic>.from(decoded);
 
-          if ((mapItem['moxId'] == null ||
-                  mapItem['moxId'].toString().trim().isEmpty) &&
-              mapItem['MOXID'] != null) {
-            mapItem['moxId'] = mapItem['MOXID'];
-          }
-
-          final UserModel cloudUser = UserModel.fromJson(mapItem);
-
-          final bool identifierMatches = isMoxId
-              ? cloudUser.moxId == input
-              : cloudUser.phone == input;
-
-          final bool passwordMatches = cloudUser.password == password;
-
-          if (identifierMatches && passwordMatches) {
-            foundUser = cloudUser;
-
-            final int index = registeredUsers.indexWhere(
-              (user) =>
-                  user.moxId == cloudUser.moxId ||
-                  user.phone == cloudUser.phone,
-            );
-
-            if (index >= 0) {
-              registeredUsers[index] = cloudUser;
-            } else {
-              registeredUsers.add(cloudUser);
-            }
-
-            await saveUsersList();
-
-            debugPrint('✅ [Cloud Fallback] تم استدعاء العميل وحفظه محلياً.');
-
-            return foundUser;
-          }
-        } catch (e) {
-          debugPrint('⚠️ [Cloud Auth] تجاهل سجل غير صالح: $e');
-        }
+      if (map['status'] != 'success') {
+        return null;
       }
-    } catch (e) {
-      debugPrint('❌ [Cloud Auth] فشل الاتصال بالسحابة: $e');
-    }
 
-    return null;
+      final dynamic rawUser = map['user'];
+
+      if (rawUser is! Map) {
+        return null;
+      }
+
+      final cloudUser = UserModel.fromJson(Map<String, dynamic>.from(rawUser));
+
+      // ======================================================
+      // 🔐 ADMIN
+      // ======================================================
+
+      if (_isAdminUser(cloudUser)) {
+        // لا نخزن كلمة السر التي رجعت من السيرفر.
+        final safeAdmin = adminUser.copyWith(
+          name: cloudUser.name,
+          address: cloudUser.address,
+          storeDescription: cloudUser.storeDescription,
+          balance: cloudUser.balance,
+          commission: cloudUser.commission,
+          role: cloudUser.role,
+          guardianMoxId: cloudUser.guardianMoxId,
+          guardianMoxIdCustomer: cloudUser.guardianMoxIdCustomer,
+          storePublishDate: cloudUser.storePublishDate,
+          activationDate: cloudUser.activationDate,
+          points: cloudUser.points,
+          myAssets: cloudUser.myAssets,
+        );
+
+        final index = registeredUsers.indexWhere(
+          (u) => u.moxId == adminUser.moxId,
+        );
+
+        if (index == -1) {
+          registeredUsers.insert(0, safeAdmin);
+        } else {
+          registeredUsers[index] = safeAdmin;
+        }
+
+        await saveUsersList();
+
+        return safeAdmin;
+      }
+
+      // ======================================================
+      // NORMAL USER
+      // ======================================================
+
+      final index = registeredUsers.indexWhere(
+        (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
+      );
+
+      if (index == -1) {
+        registeredUsers.add(cloudUser);
+      } else {
+        registeredUsers[index] = cloudUser;
+      }
+
+      await saveUsersList();
+
+      return cloudUser;
+    } catch (e) {
+      debugPrint('❌ [Cloud Login] $e');
+
+      return null;
+    }
   }
 
   // ============================================================
-  // GET USER BY MOX ID
+  // AUTHENTICATE SYNC
   // ============================================================
 
-  static Future<UserModel?> getUserByMoxId(String moxId) async {
+  static UserModel? authenticate(String input, String password, bool isMoxId) {
+    final cleanInput = input.trim();
+
+    final cleanPassword = password.trim();
+
+    // 🔐 الإدارة لا يتم تسجيل دخولها
+    // بالطريقة المتزامنة المحلية.
+    if (_isAdminIdentity(
+      phone: isMoxId ? null : cleanInput,
+      moxId: isMoxId ? cleanInput : null,
+    )) {
+      return null;
+    }
+
     try {
-      await ensureLoaded();
-
-      final String target = moxId.trim().toUpperCase();
-
       return registeredUsers.firstWhere(
-        (user) =>
-            user.moxId.trim().toUpperCase() == target ||
-            (user.guardianMoxId ?? '').trim().toUpperCase() == target ||
-            (user.guardianMoxIdCustomer ?? '').trim().toUpperCase() == target,
+        (u) =>
+            (isMoxId
+                ? u.moxId.trim() == cleanInput
+                : u.phone.trim() == cleanInput) &&
+            u.password == cleanPassword,
       );
     } catch (_) {
       return null;
@@ -530,112 +697,24 @@ class StorageService {
   }
 
   // ============================================================
-  // PUBLIC IDENTIFIER - LOCAL
+  // USER BY MOX ID
   // ============================================================
 
-  static Future<UserModel?> getUserByPublicIdentifier(String identifier) async {
+  static Future<UserModel?> getUserByMoxId(String moxId) async {
     try {
       await ensureLoaded();
 
-      final String target = identifier.trim().toUpperCase();
+      final cleanMoxId = moxId.trim();
 
-      if (target.isEmpty) {
-        return null;
-      }
-
-      for (final user in registeredUsers) {
-        if (user.moxId.trim().toUpperCase() == target) {
-          return user;
-        }
-
-        if ((user.guardianMoxId ?? '').trim().toUpperCase() == target) {
-          return user;
-        }
-
-        if ((user.guardianMoxIdCustomer ?? '').trim().toUpperCase() == target) {
-          return user;
-        }
-
-        if (user.phone.trim() == identifier.trim()) {
-          return user;
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ [Public Identifier] خطأ محلي: $e');
+      return registeredUsers.firstWhere(
+        (u) =>
+            u.moxId.trim() == cleanMoxId ||
+            u.guardianMoxId?.trim() == cleanMoxId ||
+            u.guardianMoxIdCustomer?.trim() == cleanMoxId,
+      );
+    } catch (_) {
+      return null;
     }
-
-    return null;
-  }
-
-  // ============================================================
-  // PUBLIC IDENTIFIER - CLOUD
-  // ============================================================
-
-  static Future<UserModel?> getUserByPublicIdentifierFromCloud(
-    String identifier,
-  ) async {
-    try {
-      final String target = identifier.trim().toUpperCase();
-
-      if (target.isEmpty) {
-        return null;
-      }
-
-      final response = await http
-          .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 8));
-
-      if (response.statusCode != 200) {
-        return null;
-      }
-
-      final dynamic decoded = jsonDecode(response.body);
-
-      if (decoded is! List) {
-        return null;
-      }
-
-      for (final item in decoded) {
-        try {
-          final Map<String, dynamic> mapItem = Map<String, dynamic>.from(item);
-
-          if ((mapItem['moxId'] == null ||
-                  mapItem['moxId'].toString().trim().isEmpty) &&
-              mapItem['MOXID'] != null) {
-            mapItem['moxId'] = mapItem['MOXID'];
-          }
-
-          final UserModel user = UserModel.fromJson(mapItem);
-
-          final bool match =
-              user.moxId.trim().toUpperCase() == target ||
-              (user.guardianMoxId ?? '').trim().toUpperCase() == target ||
-              (user.guardianMoxIdCustomer ?? '').trim().toUpperCase() ==
-                  target ||
-              user.phone.trim() == identifier.trim();
-
-          if (match) {
-            final int index = registeredUsers.indexWhere(
-              (local) => local.moxId == user.moxId || local.phone == user.phone,
-            );
-
-            if (index >= 0) {
-              registeredUsers[index] = user;
-            } else {
-              registeredUsers.add(user);
-            }
-
-            await saveUsersList();
-
-            return user;
-          }
-        } catch (_) {}
-      }
-    } catch (e) {
-      debugPrint('❌ [Public Identifier Cloud] $e');
-    }
-
-    return null;
   }
 
   // ============================================================
@@ -644,30 +723,29 @@ class StorageService {
 
   static Future<List<Map<String, dynamic>>> getClientCards(String moxId) async {
     try {
-      final UserModel? user = await getUserByMoxId(moxId);
+      final user = await getUserByMoxId(moxId);
 
       if (user != null && user.myAssets.isNotEmpty) {
-        final List<Map<String, dynamic>> formattedAssets = [];
-
-        for (final MarketingCard asset in user.myAssets) {
-          formattedAssets.add(asset.toJson());
-        }
-
-        return formattedAssets;
+        return user.myAssets.map((card) => card.toJson()).toList();
       }
-    } catch (e) {
-      debugPrint('⚠️ [Client Cards] $e');
-    }
+    } catch (_) {}
 
-    // بطاقة احتياطية
     return [
       {
         'title': 'بطاقة المتجر السيادي الفاخرة',
+
         'description': 'منتج معتمد ومتاح للطلب الفوري عبر السوق المفتوح.',
+
+        'category': 'متجر وتجارة',
+
+        'iconKey': 'store',
+
         'price': 0.0,
+
         'whatsapp': '249115855164',
+
         'facebookUrl': '',
-        'category': 'بطاقة',
+
         'isApproved': true,
       },
     ];

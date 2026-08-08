@@ -1,26 +1,31 @@
 // ignore_for_file: use_build_context_synchronously
 
-// ignore: unused_import
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
-import '../data/user_data.dart';
 import '../services/storage_service.dart';
-import 'digital_signature_screen.dart';
+import '../screens/digital_signature_screen.dart';
 import '../widgets/store_preview_widget.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
-  final bool isPublic; // 🏛️ فصل بيئة المعاينة عن البيئة الحقيقية بالمسطرة
+
+  // نحافظ عليهما حتى لا تنكسر الاستدعاءات القديمة.
+  final String? directMoxId;
+  final List<Map<String, dynamic>> clientCards;
+
+  // true = العرض العام
+  // false = لوحة الإدارة
+  final bool isPublic;
 
   const ClientStoreAdminScreen({
     super.key,
     required this.user,
-    required String directMoxId,
-    required List<Map<String, dynamic>> clientCards,
-    this.isPublic = false, // القيمة الافتراضية للإدارة والتشغيل الداخلي
+    this.directMoxId,
+    this.clientCards = const [],
+    this.isPublic = false,
   });
 
   @override
@@ -28,204 +33,549 @@ class ClientStoreAdminScreen extends StatefulWidget {
 }
 
 class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
-  // 🔑 رقم التنشيط السيادي (مكون من 21 خانة)
+  // ============================================================
+  // 🔐 مفتاح التنشيط الحالي
+  // ============================================================
+
   static const String _sovereignActivationKey = "MOX-2026-KEY-9876543210AB";
 
-  final _formKey = GlobalKey<FormState>();
+  static const int _subscriptionDays = 365;
+
+  // ============================================================
+  // 🎨 هوية MOX
+  // ============================================================
+
+  static const Color _primaryColor = Color(0xFF28A9CC);
+
+  static const Color _darkColor = Color(0xFF1B6B80);
+
+  static const Color _indigoColor = Color(0xFF303F9F);
+
+  // ============================================================
+  // 📝 Form
+  // ============================================================
+
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final TextEditingController _storeNameController = TextEditingController();
+
   final TextEditingController _businessCategoryController =
       TextEditingController();
+
   final TextEditingController _phoneController = TextEditingController();
+
   final TextEditingController _descriptionController = TextEditingController();
+
   final TextEditingController _linkController = TextEditingController();
 
-  // 🏛️ الـ 8 أيقونات المعتمدة المتاحة للاختيار
+  // ============================================================
+  // 🛒 الأيقونات
+  // ============================================================
+
   static const List<Map<String, dynamic>> _availableIcons = [
     {"name": "حقيبة تسوق", "icon": Icons.shopping_bag},
-    {"name": "متجر/مبنى", "icon": Icons.store},
-    {"name": "سيارة توصيل", "icon": Icons.local_shipping},
-    {"name": "هدية مميزة", "icon": Icons.card_giftcard},
-    {"name": "نجمة ذهبية", "icon": Icons.star},
-    {"name": "بطاقة ائتمان", "icon": Icons.credit_card},
-    {"name": "عرض خاص", "icon": Icons.local_offer},
+    {"name": "متجر", "icon": Icons.store},
+    {"name": "توصيل", "icon": Icons.local_shipping},
+    {"name": "هدية", "icon": Icons.card_giftcard},
+    {"name": "نجمة", "icon": Icons.star},
+    {"name": "بطاقة", "icon": Icons.credit_card},
+    {"name": "عرض", "icon": Icons.local_offer},
     {"name": "خدمة عملاء", "icon": Icons.headset_mic},
   ];
 
-  // 🏛️ البطاقات الـ 5 السيادية المولدة بالمسطرة
-  late final List<Map<String, dynamic>> _resolvedCards = [
+  // ============================================================
+  // 🧱 البطاقات الخمس
+  // ============================================================
+
+  final List<Map<String, dynamic>> _resolvedCards = [
     {
       "title": "البطاقة السيادية الأولى للمتجر",
       "description":
-          "الوصف الهندسي للبطاقة الأولى ويغطي كافة تفاصيل العرض الأساسي بالمسطرة.",
+          "الوصف الهندسي للبطاقة الأولى ويغطي كافة تفاصيل العرض الأساسي.",
       "price": 1000.0,
       "category": "بطاقة",
     },
     {
       "title": "البطاقة السيادية الثانية للمتجر",
       "description":
-          "الوصف الهندسي للبطاقة الثانية ويغطي كافة تفاصيل العرض الفرعي بالمسطرة.",
+          "الوصف الهندسي للبطاقة الثانية ويغطي كافة تفاصيل العرض الفرعي.",
       "price": 2000.0,
       "category": "بطاقة",
     },
     {
       "title": "القسم السيادي الثالث للمتجر",
       "description":
-          "الوصف الهندسي للقسم الثالث ويغطي تصنيفات المنتجات والخدمات الكبرى.",
+          "الوصف الهندسي للقسم الثالث ويغطي تصنيفات المنتجات والخدمات.",
       "price": 3000.0,
       "category": "قسم",
     },
     {
       "title": "الرف السيادي الرابع للمتجر",
-      "description":
-          "الوصف الهندسي للرف الرابع ويغطي عرض المنتجات المميزة والخاصة.",
+      "description": "الوصف الهندسي للرف الرابع ويغطي عرض المنتجات المميزة.",
       "price": 4000.0,
       "category": "رف",
     },
     {
       "title": "البطاقة السيادية الخامسة للمتجر",
-      "description":
-          "الوصف الهندسي للبطاقة الخامسة وتختتم حزمة الأصول التسويقية والخدمية.",
+      "description": "الوصف الهندسي للبطاقة الخامسة وتختتم حزمة الأصول.",
       "price": 5000.0,
       "category": "بطاقة",
     },
   ];
 
+  // ============================================================
+  // ⚙️ حالة البطاقات
+  // ============================================================
+
   final Map<String, bool> _cardActivationStatus = {};
+
   final Map<String, String> _cardCategories = {};
+
   final Map<String, IconData> _cardSelectedIcons = {};
 
+  // ============================================================
+  // 🎛️ Controllers الخاصة بالبطاقات
+  // ============================================================
+
   final Map<String, TextEditingController> _cardTitleControllers = {};
+
   final Map<String, TextEditingController> _cardDescControllers = {};
+
   final Map<String, TextEditingController> _cardPriceControllers = {};
+
   final Map<String, TextEditingController> _cardWhatsappControllers = {};
+
   final Map<String, TextEditingController> _cardDetailsLinkControllers = {};
 
+  // ============================================================
+  // 🔐 الحالة
+  // ============================================================
+
   bool _isAuthorized = false;
+
   bool _isPublishing = false;
-  int _activationButtonState = 0;
+
   bool _isSubscriptionExpired = false;
+
+  int _activationButtonState = 0;
+
+  // نحتفظ بنسخة حية من المستخدم
+  // حتى لا تظل المعاينة تعتمد على widget.user القديمة.
+  late UserModel _liveUser;
+
+  // ============================================================
+  // 🚀 INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
-    _phoneController.text = widget.user.phone;
 
-    if (widget.user.name.isNotEmpty) {
-      _storeNameController.text = widget.user.name;
-    }
+    _liveUser = widget.user;
 
-    if (widget.user.address.isNotEmpty) {
-      _businessCategoryController.text = widget.user.address;
-    }
+    _initializeControllers();
 
-    if (widget.user.storeDescription.isNotEmpty) {
-      _descriptionController.text = widget.user.storeDescription;
-    } else if (widget.user.myAssets.isNotEmpty) {
-      try {
-        final firstAsset = widget.user.myAssets.first;
-        _descriptionController.text = firstAsset.description;
-      } catch (_) {}
-    }
+    _initializeCards();
 
-    // 🔗 بناء الرابط الموحد المعتمد بالمعرف الفعال
+    _initializeSubscription();
+
     _updateStoreLink();
 
-    for (var card in _resolvedCards) {
-      String title = card['title'].toString();
-
-      MarketingCard? existingAsset;
-      try {
-        existingAsset = widget.user.myAssets.firstWhere(
-          (asset) =>
-              asset.title == title ||
-              asset.description.contains(title.substring(0, 10)),
-        );
-      } catch (_) {
-        try {
-          int idx = _resolvedCards.indexOf(card);
-          if (widget.user.myAssets.length > idx) {
-            existingAsset = widget.user.myAssets[idx];
-          }
-        } catch (_) {
-          existingAsset = null;
-        }
-      }
-
-      bool isAlreadyActive = existingAsset != null;
-      _cardActivationStatus[title] = isAlreadyActive;
-      _cardCategories[title] =
-          existingAsset?.category ?? card['category'] ?? 'بطاقة';
-      _cardSelectedIcons[title] = Icons.shopping_bag;
-
-      _cardTitleControllers[title] = TextEditingController(
-        text: existingAsset?.title ?? title,
-      );
-      _cardDescControllers[title] = TextEditingController(
-        text: existingAsset?.description ?? card['description'] ?? '',
-      );
-      _cardPriceControllers[title] = TextEditingController(
-        text: (existingAsset?.price ?? card['price'] ?? 0.0).toString(),
-      );
-      _cardWhatsappControllers[title] = TextEditingController(
-        text: existingAsset?.whatsapp.isNotEmpty == true
-            ? existingAsset!.whatsapp
-            : widget.user.phone,
-      );
-      _cardDetailsLinkControllers[title] = TextEditingController(
-        text: existingAsset?.facebookUrl ?? '',
-      );
-    }
-
-    if (widget.user.storePublishDate != null &&
-        widget.user.storePublishDate!.isNotEmpty) {
-      if (_checkIf365DaysExpired(widget.user.storePublishDate)) {
-        _isSubscriptionExpired = true;
-        _activationButtonState = 0;
-      } else {
-        _isSubscriptionExpired = false;
-        _activationButtonState = 1;
-      }
-    } else {
-      _isSubscriptionExpired = false;
-      _activationButtonState = 0;
-    }
-
-    // 🏛️ تطبيق منطق الفحص المعتمد بناءً على حالة الـ isPublic بالمسطرة
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
       if (widget.isPublic) {
         setState(() {
           _isAuthorized = true;
         });
-      } else {
-        _showSecurityLoginDialog();
-        if (_isSubscriptionExpired) {
-          _showActivationKeyDialog();
-        }
+        return;
       }
+
+      _showSecurityLoginDialog();
     });
   }
 
-  void _updateStoreLink() {
-    final String activeMoxForUrl =
-        (widget.user.moxId != "لم يحدد" && widget.user.moxId.trim().isNotEmpty)
-        ? widget.user.moxId
-        : (widget.user.guardianMoxId ?? "MOX249-00010001");
+  // ============================================================
+  // 📝 تهيئة بيانات المتجر
+  // ============================================================
 
-    _linkController.text =
-        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
+  void _initializeControllers() {
+    _phoneController.text = _liveUser.phone;
+
+    _storeNameController.text = _liveUser.name;
+
+    _businessCategoryController.text = _liveUser.address;
+
+    _descriptionController.text = _liveUser.storeDescription;
+
+    // إذا لم يكن هناك وصف مستقل، نستخدم وصف أول أصل
+    // كحل توافق مع البيانات القديمة.
+    if (_descriptionController.text.trim().isEmpty &&
+        _liveUser.myAssets.isNotEmpty) {
+      _descriptionController.text = _liveUser.myAssets.first.description;
+    }
+  }
+
+  // ============================================================
+  // 🛒 تهيئة البطاقات
+  // ============================================================
+
+  void _initializeCards() {
+    for (int index = 0; index < _resolvedCards.length; index++) {
+      final cardData = _resolvedCards[index];
+
+      final String titleKey = cardData['title'].toString();
+
+      MarketingCard? existingAsset;
+
+      // أولاً: محاولة المطابقة بالعنوان
+      try {
+        existingAsset = _liveUser.myAssets.firstWhere(
+          (asset) => asset.title.trim() == titleKey.trim(),
+        );
+      } catch (_) {
+        existingAsset = null;
+      }
+
+      // ثانياً: fallback بالموقع
+      if (existingAsset == null && index < _liveUser.myAssets.length) {
+        existingAsset = _liveUser.myAssets[index];
+      }
+
+      final bool isActive = existingAsset != null;
+
+      _cardActivationStatus[titleKey] = isActive;
+
+      _cardCategories[titleKey] =
+          existingAsset?.category ??
+          cardData['category']?.toString() ??
+          'بطاقة';
+
+      _cardSelectedIcons[titleKey] = Icons.shopping_bag;
+
+      _cardTitleControllers[titleKey] = TextEditingController(
+        text: existingAsset?.title ?? titleKey,
+      );
+
+      _cardDescControllers[titleKey] = TextEditingController(
+        text:
+            existingAsset?.description ??
+            cardData['description']?.toString() ??
+            '',
+      );
+
+      _cardPriceControllers[titleKey] = TextEditingController(
+        text: (existingAsset?.price ?? cardData['price'] ?? 0.0).toString(),
+      );
+
+      _cardWhatsappControllers[titleKey] = TextEditingController(
+        text: existingAsset?.whatsapp.isNotEmpty == true
+            ? existingAsset!.whatsapp
+            : (_liveUser.customWhatsApp ?? _liveUser.phone),
+      );
+
+      _cardDetailsLinkControllers[titleKey] = TextEditingController(
+        text: existingAsset?.facebookUrl ?? '',
+      );
+    }
+  }
+
+  // ============================================================
+  // ⏳ الاشتراك
+  // ============================================================
+
+  void _initializeSubscription() {
+    final String? publishDate = _liveUser.storePublishDate;
+
+    if (publishDate == null ||
+        publishDate.trim().isEmpty ||
+        publishDate == "null") {
+      _isSubscriptionExpired = false;
+      _activationButtonState = 0;
+      return;
+    }
+
+    _isSubscriptionExpired = _checkIf365DaysExpired(publishDate);
+
+    _activationButtonState = _isSubscriptionExpired ? 0 : 1;
   }
 
   bool _checkIf365DaysExpired(String? publishDateStr) {
-    if (publishDateStr == null || publishDateStr.isEmpty) return false;
+    if (publishDateStr == null || publishDateStr.trim().isEmpty) {
+      return false;
+    }
+
     try {
-      DateTime publishDate = DateTime.parse(publishDateStr);
-      DateTime expiryDate = publishDate.add(const Duration(days: 365));
+      final DateTime publishDate = DateTime.parse(publishDateStr);
+
+      final DateTime expiryDate = publishDate.add(
+        const Duration(days: _subscriptionDays),
+      );
+
       return DateTime.now().isAfter(expiryDate);
     } catch (_) {
       return false;
     }
   }
+
+  int _getRemainingDays() {
+    final String? date = _liveUser.storePublishDate;
+
+    if (date == null || date.isEmpty || date == "null") {
+      return _subscriptionDays;
+    }
+
+    try {
+      final DateTime publishDate = DateTime.parse(date);
+
+      final DateTime expiryDate = publishDate.add(
+        const Duration(days: _subscriptionDays),
+      );
+
+      final int days = expiryDate.difference(DateTime.now()).inDays;
+
+      return days > 0 ? days : 0;
+    } catch (_) {
+      return _subscriptionDays;
+    }
+  }
+
+  // ============================================================
+  // 🔗 رابط المتجر
+  // ============================================================
+
+  void _updateStoreLink() {
+    final String ownMox = widget.user.moxId.trim();
+
+    final String guardianMox = (widget.user.guardianMoxId ?? '').trim();
+
+    final String customerGuardianMox = (widget.user.guardianMoxIdCustomer ?? '')
+        .trim();
+
+    String activeMoxForUrl;
+
+    if (ownMox.isNotEmpty && ownMox != "لم يحدد" && ownMox != "null") {
+      activeMoxForUrl = ownMox;
+    } else if (customerGuardianMox.isNotEmpty &&
+        customerGuardianMox != "null") {
+      activeMoxForUrl = customerGuardianMox;
+    } else if (guardianMox.isNotEmpty && guardianMox != "null") {
+      activeMoxForUrl = guardianMox;
+    } else {
+      activeMoxForUrl = "MOX249-00010001";
+    }
+
+    _linkController.text =
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
+  }
+
+  // ============================================================
+  // 🔐 نافذة تسجيل الدخول
+  // ============================================================
+
+  Future<void> _showSecurityLoginDialog() async {
+    final TextEditingController moxController = TextEditingController();
+
+    final TextEditingController passwordController = TextEditingController();
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_user, color: _primaryColor),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "التحقق من مالك المتجر",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _darkColor,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "أدخل رقم MOX وكلمة السر الخاصة بالمالك.",
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: moxController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: "رقم MOX",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.badge),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "كلمة السر",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+
+                if (!mounted) return;
+
+                Navigator.pop(context);
+              },
+              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () {
+                final String enteredMox = moxController.text
+                    .trim()
+                    .toUpperCase();
+
+                final String enteredPassword = passwordController.text.trim();
+
+                final String userMox = _liveUser.moxId.trim().toUpperCase();
+
+                final String guardianMox = (_liveUser.guardianMoxId ?? '')
+                    .trim()
+                    .toUpperCase();
+
+                final bool moxMatched =
+                    enteredMox.isNotEmpty &&
+                    (enteredMox == userMox || enteredMox == guardianMox);
+
+                final bool passwordMatched =
+                    enteredPassword.isNotEmpty &&
+                    enteredPassword == _liveUser.password;
+
+                Navigator.pop(ctx);
+
+                if (!moxMatched || !passwordMatched) {
+                  _showLuxuryErrorDialog();
+                  return;
+                }
+
+                if (!mounted) return;
+
+                setState(() {
+                  _isAuthorized = true;
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "✅ تم التحقق بنجاح — مرحباً بك في إدارة المتجر.",
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                if (_isSubscriptionExpired) {
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    if (mounted) {
+                      _showActivationKeyDialog();
+                    }
+                  });
+                }
+              },
+              child: const Text(
+                "تحقق",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    moxController.dispose();
+    passwordController.dispose();
+  }
+
+  // ============================================================
+  // ❌ خطأ التحقق
+  // ============================================================
+
+  void _showLuxuryErrorDialog() {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.gpp_bad, color: Colors.red),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "فشل التحقق",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            "رقم MOX أو كلمة السر غير صحيحة.",
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () {
+                Navigator.pop(ctx);
+
+                if (!mounted) return;
+
+                Navigator.pop(context);
+              },
+              child: const Text("حسناً", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // 🔑 التفعيل
+  // ============================================================
 
   void _showActivationKeyDialog() {
     final TextEditingController keyController = TextEditingController();
@@ -233,439 +583,284 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_clock, color: Colors.red),
-            SizedBox(width: 8),
-            Text(
-              "انتهت صلاحية المتجر (٣٦٥ يوماً)",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "المتجر مغلق حالياً. أدرج رقم التنشيط المكون من ٢١ خانة لإعادة تفعيل المتجر لـ ٣٦٥ يوماً جديدة بالمسطرة:",
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.4,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: keyController,
-              maxLength: 25,
-              decoration: const InputDecoration(
-                labelText: "رقم التنشيط السيادي (٢١ خانة)",
-                border: OutlineInputBorder(),
-                isDense: true,
-                counterText: "",
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF28A9CC),
-            ),
-            onPressed: () async {
-              String enteredKey = keyController.text.trim();
-
-              if (enteredKey == _sovereignActivationKey) {
-                Navigator.pop(ctx);
-                setState(() {
-                  _isSubscriptionExpired = false;
-                  _activationButtonState = 1;
-                  for (var key in _cardActivationStatus.keys) {
-                    _cardActivationStatus[key] = true;
-                  }
-                });
-
-                UserModel renewedUser = widget.user.copyWith(
-                  storePublishDate: DateTime.now().toIso8601String(),
-                  role: 'reviewed_active',
-                );
-                await StorageService.updateUserPartial(renewedUser);
-
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "✅ تم قبول رقم التنشيط بنجاح! عاد المتجر للحياة لـ 365 يوماً.",
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "❌ رقم التنشيط غير صحيح.. تأكد من الـ 21 خانة بالمسطرة!",
-                    ),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              "تفعيل المتجر",
-              style: TextStyle(color: Colors.white),
-            ),
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-        ],
-      ),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_clock, color: Colors.red),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "انتهت صلاحية المتجر",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "أدخل مفتاح التنشيط لإعادة تشغيل المتجر لمدة 365 يوماً.",
+                style: TextStyle(fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: keyController,
+                maxLength: 40,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: "مفتاح التنشيط",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.vpn_key),
+                  isDense: true,
+                  counterText: "",
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+              },
+              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () async {
+                final String enteredKey = keyController.text.trim();
+
+                if (enteredKey != _sovereignActivationKey) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("❌ مفتاح التنشيط غير صحيح."),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx);
+
+                await _renewSubscription();
+              },
+              child: const Text(
+                "تفعيل المتجر",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+
+    keyController.dispose();
   }
+
+  // ============================================================
+  // 🔄 تجديد الاشتراك
+  // ============================================================
+
+  Future<void> _renewSubscription() async {
+    final String newDate = DateTime.now().toIso8601String();
+
+    final UserModel renewedUser = _liveUser.copyWith(
+      storePublishDate: newDate,
+      role: 'reviewed_active',
+    );
+
+    try {
+      await StorageService.updateUserPartial(renewedUser);
+
+      _liveUser = renewedUser;
+
+      if (!mounted) return;
+
+      setState(() {
+        _isSubscriptionExpired = false;
+        _activationButtonState = 1;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ تم تفعيل المتجر لمدة 365 يوماً جديدة."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("حدث خطأ أثناء حفظ التفعيل: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ============================================================
+  // 🎨 اختيار أيقونة
+  // ============================================================
 
   void _showIconSelectorDialog(String titleKey) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          "اختر أيقونة البطاقة السيادية",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1B6B80),
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-        ),
-        content: SizedBox(
-          width: 300,
-          child: GridView.builder(
-            shrinkWrap: true,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
+          title: const Text(
+            "اختر أيقونة البطاقة",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: _darkColor,
             ),
-            itemCount: _availableIcons.length,
-            itemBuilder: (context, index) {
-              final item = _availableIcons[index];
-              final IconData iconData = item['icon'];
-              final String iconName = item['name'];
+          ),
+          content: SizedBox(
+            width: 320,
+            child: GridView.builder(
+              shrinkWrap: true,
+              itemCount: _availableIcons.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+              ),
+              itemBuilder: (context, index) {
+                final item = _availableIcons[index];
 
-              return InkWell(
-                onTap: () {
-                  setState(() {
-                    _cardSelectedIcons[titleKey] = iconData;
-                  });
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("✅ تم اختيار أيقونة ($iconName) للبطاقة"),
-                      backgroundColor: Colors.teal,
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF28A9CC),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(iconData, color: const Color(0xFF1B6B80), size: 28),
-                      const SizedBox(height: 4),
-                      Text(
-                        iconName,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
+                final IconData icon = item['icon'];
+
+                final String name = item['name'];
+
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    setState(() {
+                      _cardSelectedIcons[titleKey] = icon;
+                    });
+
+                    Navigator.pop(ctx);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("✅ تم اختيار أيقونة $name"),
+                        backgroundColor: Colors.teal,
+                        duration: const Duration(seconds: 1),
                       ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _storeNameController.dispose();
-    _businessCategoryController.dispose();
-    _phoneController.dispose();
-    _descriptionController.dispose();
-    _linkController.dispose();
-    for (var c in _cardTitleControllers.values) {
-      c.dispose();
-    }
-    for (var c in _cardDescControllers.values) {
-      c.dispose();
-    }
-    for (var c in _cardPriceControllers.values) {
-      c.dispose();
-    }
-    for (var c in _cardWhatsappControllers.values) {
-      c.dispose();
-    }
-    for (var c in _cardDetailsLinkControllers.values) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  void _showSecurityLoginDialog() async {
-    await StorageService.ensureLoaded();
-
-    final TextEditingController moxInputController = TextEditingController();
-    final TextEditingController passwordInputController =
-        TextEditingController();
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.verified_user, color: Color(0xFF28A9CC)),
-            SizedBox(width: 8),
-            Text(
-              "التحقق برقم موكس وكلمة السر",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1B6B80),
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "أدخل رقم موكس الخاص بك وكلمة السر بالمسطرة:",
-              style: TextStyle(fontSize: 12, color: Colors.black87),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: moxInputController,
-              decoration: const InputDecoration(
-                labelText: "أدرج رقم موكس (MOX)",
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: passwordInputController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "كلمة السر",
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF28A9CC),
-            ),
-            onPressed: () async {
-              String enteredMox = moxInputController.text.trim();
-              String enteredPassword = passwordInputController.text.trim();
-
-              bool isMoxMatchedInProfile = false;
-              bool isPasswordMatched = false;
-
-              try {
-                bool matchesUserMox =
-                    (widget.user.moxId.trim().toUpperCase() ==
-                        enteredMox.toUpperCase()) ||
-                    (widget.user.guardianMoxId != null &&
-                        widget.user.guardianMoxId!.trim().toUpperCase() ==
-                            enteredMox.toUpperCase());
-
-                if (enteredMox.isNotEmpty && matchesUserMox) {
-                  isMoxMatchedInProfile = true;
-                } else {
-                  for (var u in registeredUsers) {
-                    bool matchesStorageMox =
-                        (u.moxId.trim().toUpperCase() ==
-                            enteredMox.toUpperCase()) ||
-                        (u.guardianMoxId != null &&
-                            u.guardianMoxId!.trim().toUpperCase() ==
-                                enteredMox.toUpperCase());
-                    if (matchesStorageMox && enteredMox.isNotEmpty) {
-                      isMoxMatchedInProfile = true;
-                      break;
-                    }
-                  }
-                }
-
-                if (isMoxMatchedInProfile) {
-                  if (widget.user.password == enteredPassword &&
-                      enteredPassword.isNotEmpty) {
-                    isPasswordMatched = true;
-                  } else {
-                    for (var u in registeredUsers) {
-                      bool matchesStorageMox =
-                          (u.moxId.trim().toUpperCase() ==
-                              enteredMox.toUpperCase()) ||
-                          (u.guardianMoxId != null &&
-                              u.guardianMoxId!.trim().toUpperCase() ==
-                                  enteredMox.toUpperCase());
-                      if (matchesStorageMox &&
-                          u.password == enteredPassword &&
-                          enteredPassword.isNotEmpty) {
-                        isPasswordMatched = true;
-                        break;
-                      }
-                    }
-                  }
-                }
-              } catch (_) {
-                isMoxMatchedInProfile = false;
-                isPasswordMatched = false;
-              }
-
-              if (!mounted) return;
-              Navigator.pop(ctx);
-
-              if (!isMoxMatchedInProfile || !isPasswordMatched) {
-                setState(() {
-                  _isAuthorized = false;
-                });
-                _showLuxuryErrorDialog();
-              } else {
-                setState(() {
-                  _isAuthorized = true;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "✅ تم التحقق بنجاح - مرحباً بك في سيادة الدكان",
+                    );
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _primaryColor),
                     ),
-                    backgroundColor: Colors.green,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, color: _darkColor, size: 27),
+                        const SizedBox(height: 4),
+                        Text(
+                          name,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
-              }
-            },
-            child: const Text(
-              "تحقق معتمد",
-              style: TextStyle(color: Colors.white),
+              },
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showLuxuryErrorDialog() {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.gpp_bad, color: Colors.red),
-            SizedBox(width: 8),
-            Text(
-              "خطأ في التحقق والاعتماد السيادي",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
-                fontSize: 14,
-              ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
             ),
           ],
-        ),
-        content: const Text(
-          "عفواً.. رقم موكس غير مطابق أو كلمة السر غير صحيحة ✋",
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.5,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF28A9CC),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context);
-            },
-            child: const Text("حسناً", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  // 🛡️ استخلاص الأصول والمتحكمات من الشاشة مباشرة
+  // ============================================================
+  // 🧱 بناء الأصول الحالية
+  // ============================================================
+
   List<MarketingCard> _getCurrentAssetsFromUI() {
-    List<MarketingCard> currentAssets = [];
-    for (var cardData in _resolvedCards) {
-      String titleKey = cardData['title'].toString();
-      bool isChecked = _cardActivationStatus[titleKey] ?? false;
-      if (isChecked) {
-        currentAssets.add(
-          MarketingCard(
-            title: _cardTitleControllers[titleKey]?.text.trim() ?? titleKey,
-            description: _cardDescControllers[titleKey]?.text.trim() ?? '',
-            price:
-                double.tryParse(
-                  _cardPriceControllers[titleKey]?.text.trim() ?? '0',
-                ) ??
-                0.0,
-            whatsapp:
-                _cardWhatsappControllers[titleKey]?.text.trim() ??
-                _phoneController.text.trim(),
-            facebookUrl:
-                _cardDetailsLinkControllers[titleKey]?.text.trim() ?? '',
-            category: _cardCategories[titleKey] ?? 'بطاقة',
-            isApproved: true,
-          ),
-        );
-      }
+    final List<MarketingCard> assets = [];
+
+    for (final cardData in _resolvedCards) {
+      final String titleKey = cardData['title'].toString();
+
+      final bool isActive = _cardActivationStatus[titleKey] ?? false;
+
+      if (!isActive) continue;
+
+      final String title =
+          _cardTitleControllers[titleKey]?.text.trim() ?? titleKey;
+
+      final String description =
+          _cardDescControllers[titleKey]?.text.trim() ?? '';
+
+      final double price =
+          double.tryParse(
+            _cardPriceControllers[titleKey]?.text.trim() ?? '0',
+          ) ??
+          0.0;
+
+      final String whatsapp =
+          _cardWhatsappControllers[titleKey]?.text.trim() ??
+          _phoneController.text.trim();
+
+      final String facebookUrl =
+          _cardDetailsLinkControllers[titleKey]?.text.trim() ?? '';
+
+      final String category = _cardCategories[titleKey] ?? 'بطاقة';
+
+      assets.add(
+        MarketingCard(
+          title: title.isEmpty ? 'منتج أو خدمة' : title,
+          description: description,
+          price: price,
+          whatsapp: whatsapp,
+          facebookUrl: facebookUrl,
+          category: category,
+          isApproved: true,
+        ),
+      );
     }
-    return currentAssets;
+
+    return assets;
   }
 
-  // 🎯 بناء نموذج موحد متكامل للـ UserModel
+  // ============================================================
+  // 👤 بناء UserModel حي
+  // ============================================================
+
   UserModel _buildLiveUserModel() {
-    return widget.user.copyWith(
+    return _liveUser.copyWith(
       name: _storeNameController.text.trim(),
       address: _businessCategoryController.text.trim(),
       phone: _phoneController.text.trim(),
@@ -674,26 +869,34 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // 🔍 زر المعاينة المنبثقة (يعرض كـ Dialog)
+  // ============================================================
+  // 👁️ المعاينة
+  // ============================================================
+
   void _openStorePreview() {
     if (_isSubscriptionExpired) {
       _showActivationKeyDialog();
       return;
     }
 
-    UserModel liveUser = _buildLiveUserModel();
+    final UserModel liveUser = _buildLiveUserModel();
 
     showDialog(
       context: context,
-      builder: (context) => StorePreviewWidget(
-        user: liveUser,
-        allCards: _resolvedCards,
-        activeStatus: _cardActivationStatus,
-      ),
+      builder: (dialogContext) {
+        return StorePreviewWidget(
+          user: liveUser,
+          allCards: _resolvedCards,
+          activeStatus: _cardActivationStatus,
+        );
+      },
     );
   }
 
-  // 🚀 زر النشر المعتمد
+  // ============================================================
+  // 🚀 النشر والحفظ
+  // ============================================================
+
   Future<void> _publishStore() async {
     if (!_isAuthorized) {
       _showSecurityLoginDialog();
@@ -705,43 +908,65 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
-    if (_formKey.currentState!.validate()) {
-      List<MarketingCard> updatedAssets = _getCurrentAssetsFromUI();
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      if (updatedAssets.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "⚠️ تنبيه: يجب تفعيل بطاقة واحدة على الأقل بعلامة صح.",
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return;
-      }
+    final List<MarketingCard> updatedAssets = _getCurrentAssetsFromUI();
 
-      setState(() {
-        _isPublishing = true;
-      });
+    if (updatedAssets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚠️ يجب تفعيل بطاقة واحدة على الأقل."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
-      await Future.delayed(const Duration(seconds: 2));
+    setState(() {
+      _isPublishing = true;
+    });
 
-      String finalPublishTimestamp =
+    try {
+      /*
+     * إذا كان المتجر لديه تاريخ نشر صالح:
+     * نحافظ عليه ولا نبدأ 365 يوماً من جديد.
+     *
+     * إذا كان جديداً أو انتهت مدته:
+     * يبدأ تاريخ جديد.
+     */
+
+      final String finalPublishTimestamp =
           (widget.user.storePublishDate != null &&
-              widget.user.storePublishDate!.isNotEmpty &&
+              widget.user.storePublishDate!.trim().isNotEmpty &&
               !_checkIf365DaysExpired(widget.user.storePublishDate))
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      UserModel updatedUser = widget.user.copyWith(
+      final UserModel updatedUser = widget.user.copyWith(
         name: _storeNameController.text.trim(),
+
         phone: _phoneController.text.trim(),
+
         address: _businessCategoryController.text.trim(),
+
         storeDescription: _descriptionController.text.trim(),
+
         myAssets: updatedAssets,
+
         storePublishDate: finalPublishTimestamp,
+
         role: 'reviewed_active',
       );
+
+      /*
+     * الحفظ هنا يقوم بثلاثة أشياء:
+     *
+     * 1. SharedPreferences
+     * 2. registeredUsers
+     * 3. Google Sheets
+     */
 
       await StorageService.updateUserPartial(updatedUser);
 
@@ -749,252 +974,715 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       setState(() {
         _isPublishing = false;
-        _updateStoreLink();
+        _isSubscriptionExpired = false;
+        _activationButtonState = 1;
       });
+
+      _updateStoreLink();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            "🚀 تم تحديث ونشر المتجر بالبطاقات والبيانات العلوية بنجاح بالمسطرة!",
-          ),
+          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
           backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isPublishing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ حدث خطأ أثناء نشر المتجر: $e"),
+          backgroundColor: Colors.red,
         ),
       );
     }
   }
 
+  // ============================================================
+  // 📋 نسخ الرابط
+  // ============================================================
+
+  void _copyStoreLink() {
+    Clipboard.setData(ClipboardData(text: _linkController.text));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("📋 تم نسخ رابط المتجر."),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  // ============================================================
+  // 🧹 DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    _storeNameController.dispose();
+    _businessCategoryController.dispose();
+    _phoneController.dispose();
+    _descriptionController.dispose();
+    _linkController.dispose();
+
+    for (final controller in _cardTitleControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardDescControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardPriceControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardWhatsappControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardDetailsLinkControllers.values) {
+      controller.dispose();
+    }
+
+    super.dispose();
+  }
+
+  // ============================================================
+  // 🧩 CARD UI
+  // ============================================================
+
+  Widget _buildMarketingCard(Map<String, dynamic> cardData) {
+    final String titleKey = cardData['title'].toString();
+
+    final bool isChecked = _cardActivationStatus[titleKey] ?? false;
+
+    final String category = _cardCategories[titleKey] ?? 'بطاقة';
+
+    final IconData selectedIcon =
+        _cardSelectedIcons[titleKey] ?? Icons.shopping_bag;
+
+    final bool storeActive =
+        _activationButtonState == 1 || _liveUser.role == 'reviewed_active';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isChecked ? _primaryColor : Colors.grey.shade300,
+          width: isChecked ? 2 : 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // رأس البطاقة
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButton<String>(
+                    value: category,
+                    underline: const SizedBox(),
+                    isDense: true,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _darkColor,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'بطاقة', child: Text('بطاقة')),
+                      DropdownMenuItem(value: 'قسم', child: Text('قسم')),
+                      DropdownMenuItem(value: 'رف', child: Text('رف')),
+                    ],
+                    onChanged: storeActive
+                        ? (value) {
+                            if (value == null) {
+                              return;
+                            }
+
+                            setState(() {
+                              _cardCategories[titleKey] = value;
+                            });
+                          }
+                        : null,
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Text(
+                      "تنشيط",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Checkbox(
+                      value: isChecked,
+                      activeColor: _primaryColor,
+                      onChanged: storeActive
+                          ? (value) {
+                              setState(() {
+                                _cardActivationStatus[titleKey] =
+                                    value ?? false;
+                              });
+                            }
+                          : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const Divider(),
+
+            const SizedBox(height: 8),
+
+            // الأيقونة + العنوان والوصف
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: storeActive
+                      ? () => _showIconSelectorDialog(titleKey)
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: _primaryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _primaryColor),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(selectedIcon, color: _darkColor, size: 31),
+                        const SizedBox(height: 2),
+                        const Text(
+                          "أيقونة",
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: _darkColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                Expanded(
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _cardTitleControllers[titleKey],
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: "عنوان المنتج / الخدمة",
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _cardDescControllers[titleKey],
+                        maxLines: 3,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: "الوصف",
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // السعر والواتساب
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _cardPriceControllers[titleKey],
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: "السعر",
+                      suffixText: "ج.س",
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: _cardWhatsappControllers[titleKey],
+                    keyboardType: TextInputType.phone,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: "واتساب",
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 5),
+
+            const Text(
+              "اكتب رقم واتساب بالصيغة الدولية بدون +",
+              style: TextStyle(fontSize: 9, color: Colors.grey),
+            ),
+
+            const SizedBox(height: 10),
+
+            // فيسبوك / رابط التفاصيل
+            TextFormField(
+              controller: _cardDetailsLinkControllers[titleKey],
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: "رابط التفاصيل / فيسبوك / فيديو",
+                border: OutlineInputBorder(),
+                isDense: true,
+                prefixIcon: Icon(Icons.link),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 🔒 شاشة انتهاء الاشتراك
+  // ============================================================
+
+  Widget _buildExpiredScreen() {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.red,
+        title: const Text(
+          "المتجر مغلق",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.lock_person_rounded,
+                size: 80,
+                color: Colors.red,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "انتهت مدة المتجر البالغة 365 يوماً.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _indigoColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "قم بإدخال مفتاح التنشيط لإعادة تشغيل المتجر.",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _showActivationKeyDialog,
+                icon: const Icon(Icons.vpn_key, color: Colors.white),
+                label: const Text(
+                  "تنشيط المتجر",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 🌐 BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    // 🏛️ تطبيق الفصل الهندسي الصارم بالمسطرة بين البيئة العامة (Scaffold) والبيئة الداخلية/المعارض المنبثقة
+    // ==========================================================
+    // 🌐 العرض العام
+    // ==========================================================
+
     if (widget.isPublic) {
       return StorePreviewWidget(
         user: _buildLiveUserModel(),
         allCards: _resolvedCards,
         activeStatus: _cardActivationStatus,
+        isPublicView: true,
       );
     }
+
+    // ==========================================================
+    // 🔐 غير مصرح
+    // ==========================================================
 
     if (!_isAuthorized) {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.redAccent,
           title: const Text(
-            "منطقة مقفلة برهون الاعتماد",
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-        body: const Center(
-          child: Text(
-            "جاري التحقق برقم موكس وكلمة السر...",
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-          ),
-        ),
-      );
-    }
-
-    if (_isSubscriptionExpired) {
-      return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.red,
-          title: const Text(
-            "المتجر مغلق - انتهت صلاحية الـ ٣٦٥ يوماً",
+            "منطقة محمية",
             style: TextStyle(color: Colors.white, fontSize: 14),
           ),
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.lock_person_rounded,
-                  size: 80,
-                  color: Colors.red,
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: _primaryColor),
+              SizedBox(height: 18),
+              Text(
+                "جاري التحقق من بيانات المالك...",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: _indigoColor,
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  "المتجر سوف يعود قريباً بعد تنشيطه من قبل العميل المالك ✋",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                const Text(
-                  "يرجى إدخال رقم التنشيط المكون من ٢١ خانة لإعادة تشغيله بالمسطرة.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF28A9CC),
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _showActivationKeyDialog,
-                  icon: const Icon(Icons.vpn_key, color: Colors.white),
-                  label: const Text(
-                    "إدخال رقم التنشيط (٢١ خانة)",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    bool isStoreActive =
-        (_activationButtonState == 1 || widget.user.role == 'reviewed_active');
+    // ==========================================================
+    // 🔒 منتهي
+    // ==========================================================
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF28A9CC),
-        title: const Text(
-          "إدارة المتجر السيادي والبطاقات الـ 5 الداخلية",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
+    if (_isSubscriptionExpired) {
+      return _buildExpiredScreen();
+    }
+
+    // ==========================================================
+    // 🚀 الإدارة
+    // ==========================================================
+
+    final bool isStoreActive =
+        _activationButtonState == 1 || _liveUser.role == 'reviewed_active';
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: _primaryColor,
+          title: const Text(
+            "إدارة المتجر الرقمي",
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
           ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          // 🔏 زر الانتقال للتوقيع الرقمي السيادي بالمسطرة
-          IconButton(
-            icon: const Icon(Icons.fingerprint, color: Colors.white),
-            tooltip: "التوقيع الرقمي السيادي",
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DigitalSignatureScreen(
-                    user: widget.user,
-                    currentUser: widget.user,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.fingerprint, color: Colors.white),
+              tooltip: "التوقيع الرقمي",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DigitalSignatureScreen(
+                      currentUser: _liveUser,
+                      user: _liveUser,
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.remove_red_eye, color: Colors.white),
-            tooltip: "معاينة المتجر المنبثقة",
-            onPressed: _openStorePreview,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Form(
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.remove_red_eye, color: Colors.white),
+              tooltip: "معاينة",
+              onPressed: _openStorePreview,
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Form(
               key: _formKey,
               child: ListView(
+                padding: const EdgeInsets.all(18),
                 children: [
-                  const Text(
-                    "🛒 إعدادات المتجر السيادي وإدارة البطاقات الـ 5 المبتكرة محلياً بالكامل",
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo,
+                  // ======================================================
+                  // العنوان
+                  // ======================================================
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_primaryColor, _darkColor],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.storefront,
+                            color: _darkColor,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "متجرك الرقمي",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _storeNameController.text.trim().isEmpty
+                                    ? "المتجر الرقمي"
+                                    : _storeNameController.text.trim(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+
+                  const SizedBox(height: 16),
+
+                  // ======================================================
+                  // اسم المتجر
+                  // ======================================================
                   TextFormField(
                     controller: _storeNameController,
-                    onChanged: (val) {
-                      setState(() {});
-                      _updateStoreLink();
-                    },
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
-                      labelText: "١- اسم الدكان/المتجر (إلزامي)",
+                      labelText: "١- اسم المتجر",
                       border: OutlineInputBorder(),
-                      isDense: true,
+                      prefixIcon: Icon(Icons.store),
                     ),
-                    validator: (val) => val == null || val.isEmpty
-                        ? "يرجى إدخال اسم الدكان"
-                        : null,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return "يرجى إدخال اسم المتجر";
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 15),
+
+                  const SizedBox(height: 14),
+
+                  // ======================================================
+                  // المجال
+                  // ======================================================
                   TextFormField(
                     controller: _businessCategoryController,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
-                      labelText: "٢- المجال التجاري (إلزامي)",
+                      labelText: "٢- المجال التجاري",
                       border: OutlineInputBorder(),
-                      isDense: true,
+                      prefixIcon: Icon(Icons.category),
                     ),
-                    validator: (val) => val == null || val.isEmpty
-                        ? "يرجى تحديد المجال التجاري"
-                        : null,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return "يرجى تحديد المجال التجاري";
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 15),
+
+                  const SizedBox(height: 14),
+
+                  // ======================================================
+                  // الهاتف
+                  // ======================================================
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    onChanged: (val) {
-                      setState(() {});
-                      _updateStoreLink();
-                    },
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
-                      labelText: "٤- هاتف اتصال (إلزامي)",
+                      labelText: "٣- هاتف المتجر",
                       border: OutlineInputBorder(),
-                      isDense: true,
+                      prefixIcon: Icon(Icons.phone),
                     ),
-                    validator: (val) => val == null || val.length < 10
-                        ? "يرجى إدخال هاتف صحيح"
-                        : null,
+                    validator: (value) {
+                      if (value == null || value.trim().length < 8) {
+                        return "يرجى إدخال رقم هاتف صحيح";
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 15),
+
+                  const SizedBox(height: 14),
+
+                  // ======================================================
+                  // الوصف
+                  // ======================================================
                   TextFormField(
                     controller: _descriptionController,
                     maxLength: 256,
-                    maxLines: 3,
-                    onChanged: (val) => setState(() {}),
+                    maxLines: 4,
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
-                      labelText: "٥- وصف المتجر في حدود ٢٥٦ حرف (إلزامي)",
+                      labelText: "٤- وصف المتجر — 256 حرف كحد أقصى",
                       border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.description),
                     ),
-                    validator: (val) => val == null || val.isEmpty
-                        ? "يرجى كتابة وصف موجز"
-                        : null,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return "يرجى كتابة وصف المتجر";
+                      }
+                      return null;
+                    },
                   ),
-                  const SizedBox(height: 20),
 
+                  const SizedBox(height: 8),
+
+                  // ======================================================
+                  // حالة المتجر
+                  // ======================================================
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: Colors.indigo.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF28A9CC),
-                        width: 1,
-                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _primaryColor),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.timer, color: _darkColor),
+                            SizedBox(width: 8),
+                            Text(
+                              "مدة المتجر",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: _darkColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _primaryColor,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            "متبقي ${_getRemainingDays()} يوم",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ======================================================
+                  // الرابط
+                  // ======================================================
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _primaryColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "🔗 رابط المتجر الرقمي السيادي (للمشاركة والمعاينة):",
+                          "🔗 رابط المتجر الرقمي",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
+                            color: _darkColor,
                             fontSize: 12,
-                            color: Color(0xFF1B6B80),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1006,40 +1694,23 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                 readOnly: true,
                                 decoration: const InputDecoration(
                                   border: OutlineInputBorder(),
-                                  isDense: true,
                                   filled: true,
                                   fillColor: Colors.white,
+                                  isDense: true,
                                 ),
-                                style: const TextStyle(fontSize: 11),
+                                style: const TextStyle(fontSize: 10),
                               ),
                             ),
                             const SizedBox(width: 8),
-                            ElevatedButton.icon(
+                            ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF28A9CC),
-                                minimumSize: const Size(0, 40),
+                                backgroundColor: _primaryColor,
                               ),
-                              onPressed: () {
-                                Clipboard.setData(
-                                  ClipboardData(text: _linkController.text),
-                                );
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "📋 تم نسخ الرابط بنجاح بالمسطرة!",
-                                    ),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              },
-                              icon: const Icon(
+                              onPressed: _copyStoreLink,
+                              child: const Icon(
                                 Icons.copy,
                                 color: Colors.white,
-                                size: 16,
-                              ),
-                              label: const Text(
-                                "نسخ",
-                                style: TextStyle(color: Colors.white),
+                                size: 18,
                               ),
                             ),
                           ],
@@ -1049,261 +1720,72 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
 
                   const SizedBox(height: 20),
+
+                  // ======================================================
+                  // عنوان البطاقات
+                  // ======================================================
                   const Text(
-                    "٦- إدارة البطاقات الـ 5 المولدة داخلياً بالمسطرة:",
+                    "🛒 المنتجات والخدمات",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.indigo,
-                      fontSize: 13,
+                      fontSize: 16,
+                      color: _darkColor,
                     ),
                   ),
+
+                  const SizedBox(height: 5),
+
+                  const Text(
+                    "فعّل البطاقات التي تريد ظهورها في المتجر العام.",
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+
                   const SizedBox(height: 10),
 
-                  Column(
-                    children: _resolvedCards.map((cardData) {
-                      String titleKey = cardData['title'].toString();
-                      bool isChecked = _cardActivationStatus[titleKey] ?? false;
-                      String currentCategory =
-                          _cardCategories[titleKey] ?? 'بطاقة';
-                      IconData currentSelectedIcon =
-                          _cardSelectedIcons[titleKey] ?? Icons.shopping_bag;
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 10),
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(
-                            color: isChecked
-                                ? const Color(0xFF28A9CC)
-                                : Colors.grey.shade300,
-                            width: isChecked ? 2 : 1,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFF28A9CC,
-                                      ).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: DropdownButton<String>(
-                                      value: currentCategory,
-                                      underline: const SizedBox(),
-                                      isDense: true,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1B6B80),
-                                      ),
-                                      items: const [
-                                        DropdownMenuItem(
-                                          value: 'بطاقة',
-                                          child: Text('بطاقة'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'قسم',
-                                          child: Text('قسم'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'رف',
-                                          child: Text('رف'),
-                                        ),
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            _cardCategories[titleKey] = val;
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                  Row(
-                                    children: [
-                                      const Text(
-                                        "تنشيط البطاقة",
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Checkbox(
-                                        value: isChecked,
-                                        activeColor: const Color(0xFF28A9CC),
-                                        onChanged: isStoreActive
-                                            ? (bool? val) {
-                                                setState(() {
-                                                  _cardActivationStatus[titleKey] =
-                                                      val ?? false;
-                                                });
-                                              }
-                                            : null,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const Divider(height: 20),
-
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  InkWell(
-                                    onTap: () =>
-                                        _showIconSelectorDialog(titleKey),
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      width: 70,
-                                      height: 70,
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF28A9CC,
-                                        ).withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: const Color(0xFF28A9CC),
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            currentSelectedIcon,
-                                            color: const Color(0xFF1B6B80),
-                                            size: 32,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          const Text(
-                                            "تغيير",
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF1B6B80),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      children: [
-                                        TextFormField(
-                                          controller:
-                                              _cardTitleControllers[titleKey],
-                                          onChanged: (val) => setState(() {}),
-                                          decoration: const InputDecoration(
-                                            labelText: "عنوان البطاقة / العرض",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        TextFormField(
-                                          controller:
-                                              _cardDescControllers[titleKey],
-                                          maxLines: 2,
-                                          onChanged: (val) => setState(() {}),
-                                          decoration: const InputDecoration(
-                                            labelText: "وصف البطاقة التفصيلي",
-                                            border: OutlineInputBorder(),
-                                            isDense: true,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller:
-                                          _cardPriceControllers[titleKey],
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (val) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        labelText: "السعر (ج.س)",
-                                        border: OutlineInputBorder(),
-                                        isDense: true,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller:
-                                          _cardWhatsappControllers[titleKey],
-                                      keyboardType: TextInputType.phone,
-                                      onChanged: (val) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        labelText:
-                                            "رقم الواتساب (مثال: 249115855164)",
-                                        border: OutlineInputBorder(),
-                                        isDense: true,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                "تنبيه: يجب كتابة رقم الواتساب بالصيغة الدولية بدون علامة + (مثال: 249115855164)",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller:
-                                    _cardDetailsLinkControllers[titleKey],
-                                onChanged: (val) => setState(() {}),
-                                decoration: const InputDecoration(
-                                  labelText:
-                                      "رابط المزيد من التفاصيل (بوست فيسبوك أو فيديو طويل)",
-                                  border: OutlineInputBorder(),
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.link, size: 18),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  // ======================================================
+                  // البطاقات
+                  // ======================================================
+                  ..._resolvedCards.map(
+                    (cardData) => _buildMarketingCard(cardData),
                   ),
 
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF28A9CC),
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 20),
+
+                  // ======================================================
+                  // المعاينة
+                  // ======================================================
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      side: const BorderSide(color: _primaryColor),
+                    ),
+                    onPressed: _openStorePreview,
+                    icon: const Icon(Icons.visibility, color: _darkColor),
+                    label: const Text(
+                      "معاينة المتجر قبل النشر",
+                      style: TextStyle(
+                        color: _darkColor,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onPressed: _isPublishing ? null : _publishStore,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ======================================================
+                  // النشر
+                  // ======================================================
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      minimumSize: const Size(double.infinity, 54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                    onPressed: _isPublishing || !isStoreActive
+                        ? null
+                        : _publishStore,
                     icon: _isPublishing
                         ? const SizedBox(
                             width: 20,
@@ -1316,8 +1798,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         : const Icon(Icons.cloud_upload, color: Colors.white),
                     label: Text(
                       _isPublishing
-                          ? "جاري النشر والتحديث..."
-                          : "نشر وحفظ التعديلات السيادية",
+                          ? "جاري الحفظ والنشر..."
+                          : "🚀 حفظ ونشر المتجر",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -1325,11 +1807,39 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 30),
+
+                  const Center(
+                    child: Text(
+                      "MOX Digital • المنظومة أونلاين",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
-          ),
-        ],
+
+            // ==========================================================
+            // مؤشر الحفظ
+            // ==========================================================
+            if (_isPublishing)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: _primaryColor),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

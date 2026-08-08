@@ -1,6 +1,14 @@
 class MarketingCard {
   final String? id;
-  String title, description, whatsapp, facebookUrl, category;
+
+  String title;
+  String description;
+  String whatsapp;
+  String facebookUrl;
+  String category;
+
+  String iconKey;
+
   double price;
   bool isApproved;
 
@@ -11,60 +19,161 @@ class MarketingCard {
     required this.whatsapp,
     required this.facebookUrl,
     this.category = 'بطاقة',
+    this.iconKey = 'other',
     this.price = 0.0,
     this.isApproved = false,
   });
 
-  // 🌟 دالة مساعدة ذكية ومحدثة لمعالجة الأسعار والتحويل بدقة مطلقة
+  // ============================================================
+  // الرموز الرسمية
+  // ============================================================
+
+  static const Map<String, String> iconLabels = {
+    'store': 'متجر وتجارة',
+    'food': 'مطاعم وأطعمة',
+    'service': 'خدمات',
+    'education': 'تعليم',
+    'health': 'صحة',
+    'technology': 'تقنية',
+    'fashion': 'أزياء',
+    'other': 'أخرى',
+  };
+
+  static const Map<String, String> iconSymbols = {
+    'store': '🏪',
+    'food': '🍔',
+    'service': '🛠️',
+    'education': '🎓',
+    'health': '❤️',
+    'technology': '💻',
+    'fashion': '👗',
+    'other': '⭐',
+  };
+
+  // ============================================================
+  // NORMALIZE ICON
+  // ============================================================
+
+  static String normalizeIconKey(dynamic value) {
+    final key = value?.toString().trim().toLowerCase() ?? '';
+
+    if (iconSymbols.containsKey(key)) {
+      return key;
+    }
+
+    return 'other';
+  }
+
+  // ============================================================
+  // ICON SYMBOL
+  // ============================================================
+
+  String get iconSymbol {
+    return iconSymbols[normalizeIconKey(iconKey)] ?? '⭐';
+  }
+
+  // ============================================================
+  // ICON LABEL
+  // ============================================================
+
+  String get iconLabel {
+    return iconLabels[normalizeIconKey(iconKey)] ?? 'أخرى';
+  }
+
+  // ============================================================
+  // PRICE PARSER
+  // ============================================================
+
   static double _parsePrice(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is num) return value.toDouble();
+    if (value == null) {
+      return 0.0;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
     if (value is String) {
-      String val = value.trim();
-      if (val.isEmpty) return 0.0;
+      var val = value.trim();
 
-      // تنظيف النص مع الاحتفاظ بالأرقام والنقاط والفواصل
-      val = val.replaceAll(RegExp(r'[^\d.,]'), '');
+      if (val.isEmpty) {
+        return 0.0;
+      }
 
-      // معالجة الفواصل الخاصة بالآلاف أو الكسور العشرية
+      val = val.replaceAll(RegExp(r'[^\d.,-]'), '');
+
+      // إزالة فواصل الآلاف
       if (val.contains(',')) {
         val = val.replaceAll(',', '');
       }
 
       return double.tryParse(val) ?? 0.0;
     }
+
     return 0.0;
   }
 
-  // 1. تحويل الكائن إلى Map
-  Map<String, dynamic> toJson() => {
-    if (id != null) 'id': id,
-    'title': title,
-    'description': description,
-    'whatsapp': whatsapp,
-    'facebookUrl': facebookUrl,
-    'category': category,
-    'price': price,
-    'isApproved': isApproved,
-  };
+  // ============================================================
+  // TO JSON
+  // ============================================================
 
-  // 2. إنشاء كائن من Map مع دعم الصيغتين للسعر والـ Casting الآمن ودعم التصنيف
-  factory MarketingCard.fromJson(Map<String, dynamic> json) => MarketingCard(
-    id: json['id']?.toString(),
-    title: json['title']?.toString() ?? '',
-    description: json['description']?.toString() ?? '',
-    whatsapp: json['whatsapp']?.toString() ?? '',
-    facebookUrl: json['facebookUrl']?.toString() ?? '',
-    category: json['category']?.toString() ?? 'بطاقة',
-    price: _parsePrice(json['price']),
-    isApproved: json['isApproved'] == true,
-  );
+  Map<String, dynamic> toJson() {
+    return {
+      if (id != null) 'id': id,
 
-  // دالة مرادفة لضمان التوافقية الكاملة مع قواعد البيانات
-  factory MarketingCard.fromMap(Map<String, dynamic> map) =>
-      MarketingCard.fromJson(map);
+      'title': title,
+      'description': description,
 
-  // 3. 🌟 دالة copyWith السيادية لتحديث خصائص البطاقة بدقة
+      'whatsapp': whatsapp,
+      'facebookUrl': facebookUrl,
+
+      'category': category,
+
+      'iconKey': normalizeIconKey(iconKey),
+
+      'price': price,
+
+      'isApproved': isApproved,
+    };
+  }
+
+  // ============================================================
+  // FROM JSON
+  // ============================================================
+
+  factory MarketingCard.fromJson(Map<String, dynamic> json) {
+    return MarketingCard(
+      id: json['id']?.toString(),
+
+      title: json['title']?.toString() ?? '',
+
+      description: json['description']?.toString() ?? '',
+
+      whatsapp: json['whatsapp']?.toString() ?? '',
+
+      facebookUrl:
+          json['facebookUrl']?.toString() ?? json['facebook']?.toString() ?? '',
+
+      category: json['category']?.toString() ?? 'بطاقة',
+
+      iconKey: normalizeIconKey(json['iconKey']),
+
+      price: _parsePrice(json['price']),
+
+      isApproved:
+          json['isApproved'] == true ||
+          json['isApproved']?.toString().toLowerCase() == 'true',
+    );
+  }
+
+  factory MarketingCard.fromMap(Map<String, dynamic> map) {
+    return MarketingCard.fromJson(map);
+  }
+
+  // ============================================================
+  // COPY WITH
+  // ============================================================
+
   MarketingCard copyWith({
     String? id,
     String? title,
@@ -72,67 +181,105 @@ class MarketingCard {
     String? whatsapp,
     String? facebookUrl,
     String? category,
+    String? iconKey,
     double? price,
     bool? isApproved,
   }) {
     return MarketingCard(
       id: id ?? this.id,
+
       title: title ?? this.title,
+
       description: description ?? this.description,
+
       whatsapp: whatsapp ?? this.whatsapp,
+
       facebookUrl: facebookUrl ?? this.facebookUrl,
+
       category: category ?? this.category,
+
+      iconKey: iconKey ?? this.iconKey,
+
       price: price ?? this.price,
+
       isApproved: isApproved ?? this.isApproved,
     );
   }
 
-  // 🌟 معالجة معامل التشغيل لمنع أي خطأ نوع أو تعارض مع الخرائط
+  // ============================================================
+  // WRITE OPERATOR
+  // ============================================================
+
   void operator []=(String key, dynamic value) {
     switch (key) {
       case 'title':
         title = value?.toString() ?? '';
         break;
+
       case 'description':
         description = value?.toString() ?? '';
         break;
+
       case 'whatsapp':
         whatsapp = value?.toString() ?? '';
         break;
+
       case 'facebookUrl':
+      case 'facebook':
         facebookUrl = value?.toString() ?? '';
         break;
+
       case 'category':
         category = value?.toString() ?? 'بطاقة';
         break;
+
+      case 'iconKey':
+        iconKey = normalizeIconKey(value);
+        break;
+
       case 'price':
         price = _parsePrice(value);
         break;
+
       case 'isApproved':
-        isApproved = value == true;
+        isApproved = value == true || value?.toString().toLowerCase() == 'true';
         break;
     }
   }
 
-  // 🌟 إمكانية القراءة المباشرة عبر المشغل لتعامل سلس مع الخرائط
+  // ============================================================
+  // READ OPERATOR
+  // ============================================================
+
   dynamic operator [](String key) {
     switch (key) {
       case 'id':
         return id;
+
       case 'title':
         return title;
+
       case 'description':
         return description;
+
       case 'whatsapp':
         return whatsapp;
+
       case 'facebookUrl':
         return facebookUrl;
+
       case 'category':
         return category;
+
+      case 'iconKey':
+        return normalizeIconKey(iconKey);
+
       case 'price':
         return price;
+
       case 'isApproved':
         return isApproved;
+
       default:
         return null;
     }
