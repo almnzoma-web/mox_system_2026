@@ -989,7 +989,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       // ============================================================
 
       final UserModel? confirmedUser = await StorageService.getUserByMoxId(
-        updatedUser.moxId,
+        updatedUser.guardianMoxId?.trim() ?? '',
       );
 
       _liveUser = confirmedUser ?? updatedUser;

@@ -115,7 +115,7 @@ String? _getPublicIdentifierFromUrl() {
 
     identifier ??= uri.queryParameters['phone'];
 
-    identifier ??= uri.queryParameters['moxId'];
+    identifier ??= uri.queryParameters['guardianMoxId'];
 
     identifier ??= uri.queryParameters['identifier'];
 
@@ -144,7 +144,7 @@ String? _getPublicIdentifierFromUrl() {
 
       identifier ??= fragmentUri.queryParameters['phone'];
 
-      identifier ??= fragmentUri.queryParameters['moxId'];
+      identifier ??= fragmentUri.queryParameters['guardianMoxId'];
 
       identifier ??= fragmentUri.queryParameters['identifier'];
 
@@ -169,7 +169,7 @@ String? _getPublicIdentifierFromUrl() {
 
         identifier ??= queryUri['phone'];
 
-        identifier ??= queryUri['moxId'];
+        identifier ??= queryUri['guardianMoxId'];
 
         identifier ??= queryUri['identifier'];
 
