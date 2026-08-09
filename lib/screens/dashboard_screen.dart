@@ -1128,32 +1128,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📁 أصول العميل الرقمية ومتجره الالكتروني (النسخة النظيفة والموجهة رأساً للصفحة A)
+  // 📁 أصول العميل الرقمية ومتجره الإلكتروني
+  // الوظيفة الحالية: فتح لوحة إدارة ونشر المتجر فقط.
+  // البطاقات لم تعد تُدار من هنا.
   void _showClientAssetsScreen(BuildContext context) {
-    // جلب قائمة البطاقات الآمنة لتمريرها بسلاسة للصفحة (A) دون عرضها هنا
-    // ignore: no_leading_underscores_for_local_identifiers, unnecessary_null_comparison
-    final List<Map<String, dynamic>> _clientCards = widget.user.myAssets != null
-        // ignore: unnecessary_non_null_assertion
-        ? widget.user.myAssets!.map((e) {
-            if (e is Map) {
-              return Map<String, dynamic>.from(e as Map<dynamic, dynamic>);
-            } else {
-              return {
-                'id': e.id ?? '',
-                // ignore: dead_code, dead_null_aware_expression
-                'title': e.title ?? '',
-                // ignore: dead_null_aware_expression
-                'description': e.category ?? '',
-                // ignore: dead_null_aware_expression
-                'price': e.price ?? 0.0,
-                'whatsapp': "249${widget.user.phone}",
-                'facebook': '',
-                'isEditing': false,
-              };
-            }
-          }).toList()
-        // ignore: dead_code
-        : [];
+    // الهوية المعتمدة لرابط العميل:
+    // guardianMoxId هو المعرف اليدوي الذي يحدد رابط المتجر.
+    // moxId هو المعرف التلقائي ولا يُستخدم لبناء رابط المتجر.
+    final String directMoxId =
+        (widget.user.guardianMoxId?.trim().isNotEmpty == true)
+        ? widget.user.guardianMoxId!.trim()
+        : widget.user.moxId.trim();
 
     showModalBottomSheet(
       context: context,
@@ -1177,7 +1162,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // رأس النافذة الجمالي
+              // رأس النافذة
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1201,13 +1186,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: Colors.grey),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(ctxModal),
                   ),
                 ],
               ),
+
               const Divider(height: 25, thickness: 1.2),
 
-              // بطاقة ترحيبية جمالية توضيحية
+              // بطاقة المتجر
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -1247,7 +1233,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            "إدارة بطاقاتك وعرض متجرك أصبح أكثر سهولة واحترافية عبر اللوحة السيادية.",
+                            "من هنا يمكنك الدخول مباشرة إلى لوحة إعداد ونشر متجرك السيادي.",
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 11,
@@ -1263,7 +1249,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               const SizedBox(height: 25),
 
-              // الزر الفاخر الانتقالي المباشر للصفحة (A) بصيغة نظيفة وخالية من الأخطاء
+              // فتح لوحة إدارة المتجر
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -1277,21 +1263,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.pop(ctxModal);
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => ClientStoreAdminScreen(
                           user: widget.user,
-                          clientCards: _clientCards,
-                          directMoxId: '',
+
+                          // لم تعد أصول العميل مسؤولة عن البطاقات.
+                          // نرسل قائمة فارغة فقط للمحافظة على توافق
+                          // Constructor الحالي للصفحة A.
+                          clientCards: const [],
+
+                          // الرابط يعتمد على guardianMoxId أولاً.
+                          directMoxId: directMoxId,
                         ),
                       ),
                     );
                   },
                   icon: const Icon(Icons.rocket_launch_rounded, size: 20),
                   label: const Text(
-                    "فتح لوحة إعداد ونشر المتجر (الصفحة A)",
+                    "فتح لوحة إعداد ونشر المتجر",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),

@@ -9,6 +9,34 @@ import '../services/storage_service.dart';
 import '../screens/digital_signature_screen.dart';
 import '../widgets/store_preview_widget.dart';
 
+String buildStoreLink(String? guardianMoxId, {String? fallbackMoxId}) {
+  final String normalizedGuardian = (guardianMoxId ?? '').trim().toUpperCase();
+  final String normalizedFallback = (fallbackMoxId ?? '').trim().toUpperCase();
+
+  final String selectedIdentifier =
+      _isValidStoreLinkIdentifier(normalizedGuardian)
+      ? normalizedGuardian
+      : _isValidStoreLinkIdentifier(normalizedFallback)
+      ? normalizedFallback
+      : '';
+
+  if (selectedIdentifier.isEmpty) {
+    return '';
+  }
+
+  return 'https://mox-2026.vercel.app/#/?mox=$selectedIdentifier';
+}
+
+bool _isValidStoreLinkIdentifier(String? value) {
+  final String normalized = (value ?? '').trim().toUpperCase();
+
+  if (normalized.isEmpty) {
+    return false;
+  }
+
+  return normalized != 'NULL' && normalized != 'لم يحدد';
+}
+
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
 
@@ -344,18 +372,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🔗 رابط العميل — يعتمد حصريًا على guardianMoxId
   // ============================================================
   void _updateStoreLink() {
-    final String guardianMoxId = (_liveUser.guardianMoxId ?? '')
-        .trim()
-        .toUpperCase();
+    final String link = buildStoreLink(
+      _liveUser.guardianMoxId,
+      fallbackMoxId: widget.directMoxId ?? _liveUser.moxId,
+    );
 
-    if (guardianMoxId.isEmpty ||
-        guardianMoxId == 'لم يحدد' ||
-        guardianMoxId == 'NULL') {
+    if (link.isEmpty) {
       _linkController.clear();
       return;
     }
 
-    _linkController.text = 'https://mox-2026.vercel.app/#/?mox=$guardianMoxId';
+    _linkController.text = link;
   }
   // ============================================================
   // 🔐 نافذة تسجيل الدخول
@@ -957,7 +984,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
      */
 
       await StorageService.updateUserPartial(updatedUser);
-
       // ============================================================
       // 🔄 إعادة قراءة النسخة المعتمدة
       // ============================================================
@@ -1002,11 +1028,25 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 📋 نسخ الرابط
+  // 📋 نسخ رابط العميل
   // ============================================================
 
   void _copyStoreLink() {
-    Clipboard.setData(ClipboardData(text: _linkController.text));
+    final String link = _linkController.text.trim();
+
+    if (link.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "⚠️ لا يوجد رابط متجر صالح حتى الآن. تأكد من وجود guardianMoxId.",
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    Clipboard.setData(ClipboardData(text: link));
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
