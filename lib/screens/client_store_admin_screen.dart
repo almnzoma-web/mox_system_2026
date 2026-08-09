@@ -341,34 +341,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔗 رابط المتجر
+  // 🔗 رابط العميل — يعتمد حصريًا على guardianMoxId
   // ============================================================
-
   void _updateStoreLink() {
-    final String ownMox = widget.user.moxId.trim();
+    final String guardianMoxId = (_liveUser.guardianMoxId ?? '')
+        .trim()
+        .toUpperCase();
 
-    final String guardianMox = (widget.user.guardianMoxId ?? '').trim();
-
-    final String customerGuardianMox = (widget.user.guardianMoxIdCustomer ?? '')
-        .trim();
-
-    String activeMoxForUrl;
-
-    if (ownMox.isNotEmpty && ownMox != "لم يحدد" && ownMox != "null") {
-      activeMoxForUrl = ownMox;
-    } else if (customerGuardianMox.isNotEmpty &&
-        customerGuardianMox != "null") {
-      activeMoxForUrl = customerGuardianMox;
-    } else if (guardianMox.isNotEmpty && guardianMox != "null") {
-      activeMoxForUrl = guardianMox;
-    } else {
-      activeMoxForUrl = "MOX249-00010001";
+    if (guardianMoxId.isEmpty ||
+        guardianMoxId == 'لم يحدد' ||
+        guardianMoxId == 'NULL') {
+      _linkController.clear();
+      return;
     }
 
-    _linkController.text =
-        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
+    _linkController.text = 'https://mox-2026.vercel.app/#/?mox=$guardianMoxId';
   }
-
   // ============================================================
   // 🔐 نافذة تسجيل الدخول
   // ============================================================
