@@ -235,7 +235,7 @@ Future<UserModel?> _findPublicUserFromCloud(String identifier) async {
     }
 
     const scriptUrl =
-        'https://script.google.com/macros/s/AKfycbycCPFDCesTBzuQWhlpeBiacAu9snNz-f65GvcbbDOQ8q-Y2sKR8T40VW6Lwr4AWyO/exec';
+        'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
     final uri = Uri.parse(
       scriptUrl,
