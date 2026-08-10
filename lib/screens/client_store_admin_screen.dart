@@ -384,16 +384,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     _linkController.text = link;
   }
-  // ============================================================
-  // 🔐 استدعاء مالك المتجر الحقيقي
-  //
-  // الأولوية:
-  // 1. الذاكرة المحلية
-  // 2. Google Sheets
-  //
-  // يتم البحث باستخدام guardianMoxId باعتباره الهوية
-  // الأساسية للمتجر، مع دعم moxId القديم للتوافق.
-  // ============================================================
 
   // ============================================================
   // 🔐 استدعاء مالك المتجر الحقيقي
@@ -422,7 +412,23 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   Future<UserModel?> _loadStoreOwnerForLogin(String loginMoxId) async {
     try {
       // ==========================================================
-      // 1️⃣ تحديد الهوية التي أدخلها المستخدم
+      // 1️⃣ قراءة المستخدم الذي سجل دخوله في التطبيق الرئيسي
+      // ==========================================================
+
+      debugPrint('🔐 [Store Login] قراءة جلسة الدخول الرئيسية...');
+
+      final UserModel? sessionUser = await StorageService.getUser();
+
+      if (sessionUser == null) {
+        debugPrint('❌ [Store Login] لا توجد جلسة دخول رئيسية.');
+
+        return null;
+      }
+
+      debugPrint('✅ [Store Login] تم العثور على المستخدم في جلسة التطبيق.');
+
+      // ==========================================================
+      // 2️⃣ تحديد رقم MOX المدخل
       // ==========================================================
 
       String identifier = loginMoxId.trim().toUpperCase();
@@ -431,125 +437,90 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         identifier = (widget.directMoxId ?? '').trim().toUpperCase();
       }
 
-      if (identifier.isEmpty) {
-        identifier = (_liveUser.guardianMoxId ?? '').trim().toUpperCase();
-      }
+      // ==========================================================
+      // 3️⃣ إذا لم يكتب رقم MOX
+      //    استخدم رقم MOX الموجود في الجلسة
+      // ==========================================================
 
       if (identifier.isEmpty) {
-        identifier = _liveUser.moxId.trim().toUpperCase();
+        identifier = sessionUser.moxId.trim().toUpperCase();
       }
 
       if (identifier.isEmpty ||
           identifier == 'NULL' ||
           identifier == 'لم يحدد') {
-        debugPrint('⚠️ [Store Login] لا توجد هوية صالحة للمتجر.');
+        debugPrint('❌ [Store Login] لا توجد هوية MOX صالحة.');
 
         return null;
       }
 
-      debugPrint('☁️ [Store Login] البحث في Google Sheets عن: $identifier');
-
-      UserModel? owner;
-
       // ==========================================================
-      // 2️⃣ Google Sheets أولاً
-      //
-      // مهم جداً:
-      // نريد النسخة الحديثة من Google حتى لا نعتمد على نسخة
-      // قديمة محفوظة في SharedPreferences.
+      // 4️⃣ قراءة هويات المستخدم من جلسة الدخول الرئيسية
       // ==========================================================
 
-      try {
-        owner = await StorageService.getUserByMoxId(identifier);
+      final String moxId = sessionUser.moxId.trim().toUpperCase();
 
-        if (owner != null) {
-          debugPrint('✅ [Store Login] تم العثور على المالك من Google Sheets.');
+      final String guardianMoxId = (sessionUser.guardianMoxId ?? '')
+          .trim()
+          .toUpperCase();
 
-          debugPrint('🆔 [Store Login] moxId = ${owner.moxId}');
-
-          debugPrint('🔐 [Store Login] guardianMoxId = ${owner.guardianMoxId}');
-
-          debugPrint(
-            '👤 [Store Login] guardianMoxIdCustomer = ${owner.guardianMoxIdCustomer}',
-          );
-        }
-      } catch (e) {
-        debugPrint('⚠️ [Store Login] فشل الاتصال بـ Google Sheets: $e');
-      }
+      final String guardianMoxIdCustomer =
+          (sessionUser.guardianMoxIdCustomer ?? '').trim().toUpperCase();
 
       // ==========================================================
-      // 3️⃣ Local fallback
-      //
-      // لا نستخدمه إلا إذا لم نجد المالك من Google.
+      // 5️⃣ التحقق من أن رقم MOX يخص المستخدم المسجل دخوله
       // ==========================================================
 
-      if (owner == null) {
+      final bool matched =
+          identifier == moxId ||
+          identifier == guardianMoxId ||
+          identifier == guardianMoxIdCustomer;
+
+      if (!matched) {
         debugPrint(
-          '🔄 [Store Login] لم يتم العثور على المالك في Google، البحث محلياً...',
+          '❌ [Store Login] رقم MOX لا يطابق المستخدم المسجل في التطبيق.',
         );
 
-        try {
-          await StorageService.ensureLoaded();
+        debugPrint('🔎 [Store Login] المدخل: $identifier');
 
-          for (final UserModel user in StorageService.registeredUsers) {
-            final String moxId = user.moxId.trim().toUpperCase();
+        debugPrint('🔎 [Store Login] moxId: $moxId');
 
-            final String guardianMoxId = (user.guardianMoxId ?? '')
-                .trim()
-                .toUpperCase();
+        debugPrint('🔎 [Store Login] guardianMoxId: $guardianMoxId');
 
-            final String guardianMoxIdCustomer =
-                (user.guardianMoxIdCustomer ?? '').trim().toUpperCase();
-
-            final String phone = user.phone.trim().toUpperCase();
-
-            final bool matched =
-                moxId == identifier ||
-                guardianMoxId == identifier ||
-                guardianMoxIdCustomer == identifier ||
-                phone == identifier;
-
-            if (matched) {
-              owner = user;
-
-              debugPrint('✅ [Store Login] تم العثور على المالك محلياً.');
-
-              break;
-            }
-          }
-        } catch (e) {
-          debugPrint('⚠️ [Store Login] خطأ في البحث المحلي: $e');
-        }
-      }
-
-      // ==========================================================
-      // 4️⃣ لم يتم العثور على المالك
-      // ==========================================================
-
-      if (owner == null) {
         debugPrint(
-          '❌ [Store Login] لم يتم العثور على مالك للهوية: $identifier',
+          '🔎 [Store Login] guardianMoxIdCustomer: $guardianMoxIdCustomer',
         );
 
         return null;
       }
 
       // ==========================================================
-      // 5️⃣ تحديث النسخة الحية
-      //
-      // هنا نضع النسخة القادمة من Google في _liveUser
-      // حتى تستخدم بقية الشاشة البيانات الحديثة.
+      // 6️⃣ المستخدم صحيح
+      // ==========================================================
+
+      final UserModel owner = sessionUser;
+
+      debugPrint('✅ [Store Login] تم التحقق من هوية المستخدم من جلسة التطبيق.');
+
+      debugPrint('👤 [Store Login] المستخدم: ${owner.name}');
+
+      debugPrint('🪪 [Store Login] MOX: ${owner.moxId}');
+
+      debugPrint('🛡️ [Store Login] Guardian MOX: ${owner.guardianMoxId}');
+
+      // ==========================================================
+      // 7️⃣ تحديث المستخدم الحي
       // ==========================================================
 
       _liveUser = owner;
 
       // ==========================================================
-      // 6️⃣ تحديث بيانات الواجهة
+      // 8️⃣ تحديث بيانات الواجهة
       // ==========================================================
 
       if (mounted) {
         setState(() {
-          _phoneController.text = owner!.phone;
+          _phoneController.text = owner.phone;
 
           _storeNameController.text = owner.name;
 
@@ -560,21 +531,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       }
 
       // ==========================================================
-      // 7️⃣ تحديث رابط المتجر
-      //
-      // الرابط يبنى من guardianMoxId أولاً
-      // وليس من moxId العادي.
+      // 9️⃣ إرجاع المستخدم
       // ==========================================================
-
-      _updateStoreLink();
-
-      debugPrint(
-        '🔗 [Store Login] تم تحديث رابط المتجر باستخدام guardianMoxId.',
-      );
 
       return owner;
     } catch (e) {
-      debugPrint('❌ [Store Login] فشل تحميل بيانات مالك المتجر: $e');
+      debugPrint('❌ [Store Login] خطأ أثناء قراءة جلسة الدخول: $e');
 
       return null;
     }

@@ -24,33 +24,55 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
   // ☁️ رابط Google Apps Script المعتمد
   // ============================================================
+
   static const String _scriptUrl =
       'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
   // ============================================================
   // 🔗 بناء رابط العميل
   //
+  // نفس منطق المتجر العام:
+  //
+  // 1️⃣ guardianMoxId أولاً
+  // 2️⃣ moxId كـ fallback
+  //
+  // الرابط النهائي:
+  // https://mox-2026.vercel.app/#/?mox=IDENTIFIER
+  //
   // مهم:
-  // الرابط يعتمد حصريًا على guardianMoxId
-  // ولا يستخدم moxId إطلاقًا.
+  // إذا كان guardianMoxId موجوداً فهو المستخدم الأساسي للرابط.
+  // moxId لا يُستخدم إلا إذا لم توجد هوية guardian.
   // ============================================================
+
   String _buildClientStoreLink(UserModel user) {
-    final String guardianMoxId = (user.guardianMoxId ?? '')
+    final String normalizedGuardian = (user.guardianMoxId ?? '')
         .trim()
         .toUpperCase();
 
-    if (guardianMoxId.isEmpty ||
-        guardianMoxId == 'NULL' ||
-        guardianMoxId == 'لم يحدد') {
+    final String normalizedFallback = user.moxId.trim().toUpperCase();
+
+    final String selectedIdentifier =
+        normalizedGuardian.isNotEmpty &&
+            normalizedGuardian != 'NULL' &&
+            normalizedGuardian != 'لم يحدد'
+        ? normalizedGuardian
+        : normalizedFallback.isNotEmpty &&
+              normalizedFallback != 'NULL' &&
+              normalizedFallback != 'لم يحدد'
+        ? normalizedFallback
+        : '';
+
+    if (selectedIdentifier.isEmpty) {
       return '';
     }
 
-    return 'https://mox-2026.vercel.app/#/?mox=$guardianMoxId';
+    return 'https://mox-2026.vercel.app/#/?mox=$selectedIdentifier';
   }
 
   // ============================================================
   // 🚀 INIT
   // ============================================================
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +82,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
   // ☁️ جلب العملاء من Google
   // ============================================================
+
   Future<void> _fetchFromCloud() async {
     if (mounted) {
       setState(() => _isLoading = true);
@@ -91,6 +114,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       // ========================================================
       // 🔄 fallback للمخزن المحلي / الهجين
       // ========================================================
+
       await StorageService.loadUsers();
 
       if (!mounted) return;
@@ -108,15 +132,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
   // ☁️ ترحيل العميل إلى Google
   // ============================================================
+
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // نحافظ على UserModel بالكامل بما فيه myAssets
-      // وguardianMoxId.
+      // نحافظ على UserModel بالكامل
+      // بما فيه myAssets و guardianMoxId.
+
       await StorageService.updateUserPartial(user);
 
       if (!mounted) return;
 
       // تحديث الرابط بعد نجاح الحفظ
+
       final String clientLink = _buildClientStoreLink(user);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +151,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           content: Text(
             clientLink.isNotEmpty
                 ? "✅ تم تحديث بيانات ${user.name} والرابط السيادي بنجاح."
-                : "✅ تم تحديث بيانات ${user.name} بنجاح. أضف guardianMoxId لإنشاء الرابط.",
+                : "✅ تم تحديث بيانات ${user.name} بنجاح. أضف هوية MOX لإنشاء الرابط.",
           ),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 3),
@@ -147,13 +174,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
   // 🔗 نسخ رابط العميل
   // ============================================================
+
   Future<void> _copyClientStoreLink(UserModel user) async {
     final String link = _buildClientStoreLink(user);
 
     if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("⚠️ لا يوجد guardianMoxId لهذا العميل حتى الآن."),
+          content: Text("⚠️ لا توجد هوية MOX صالحة لهذا العميل حتى الآن."),
           backgroundColor: Colors.orange,
         ),
       );
@@ -175,11 +203,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
   // ✏️ تعديل بيانات العميل
   //
-  // ملاحظة:
-  // guardianMoxId هو المعرف السيادي اليدوي.
+  // guardianMoxId:
+  // المعرف السيادي اليدوي، وهو الأولوية في الرابط.
   //
-  // moxId موجود فقط للعرض/التوافق ولا يدخل في الرابط.
+  // moxId:
+  // الهوية الأساسية، وتستخدم كـ fallback إذا لم يوجد
+  // guardianMoxId.
   // ============================================================
+
   void _showEditClientDialog(UserModel user) {
     final TextEditingController guardianMoxController = TextEditingController(
       text: user.guardianMoxId ?? '',
@@ -214,7 +245,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(
                     labelText: "معرف MOX السيادي اليدوي",
-                    helperText: "هذا هو المعرف الذي يُبنى عليه رابط العميل.",
+                    helperText: "هذا هو المعرف ذو الأولوية في رابط العميل.",
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.verified_user),
                   ),
@@ -229,8 +260,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   controller: moxIdController,
                   readOnly: true,
                   decoration: const InputDecoration(
-                    labelText: "معرف MOX الأساسي (للعرض فقط)",
-                    helperText: "لا يُستخدم في رابط العميل.",
+                    labelText: "معرف MOX الأساسي",
+                    helperText: "يستخدم كبديل للرابط إذا لم توجد هوية سيادية.",
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.badge),
                   ),
@@ -259,11 +290,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           color: Color(0xFF1B6B80),
                         ),
                       ),
+
                       const SizedBox(height: 8),
+
                       Text(
                         currentLink.isNotEmpty
                             ? currentLink
-                            : "سيظهر الرابط بعد إضافة guardianMoxId",
+                            : "سيظهر الرابط بعد إضافة هوية MOX",
                         style: TextStyle(
                           fontSize: 10,
                           color: currentLink.isNotEmpty
@@ -281,7 +314,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             TextButton(
               onPressed: () {
                 guardianMoxController.dispose();
+
                 moxIdController.dispose();
+
                 Navigator.pop(dialogContext);
               },
               child: const Text("إلغاء"),
@@ -297,17 +332,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 final String newMoxId = moxIdController.text.trim();
 
                 // ==================================================
-                // تحديث المعرفات
+                // تحديث guardianMoxId
                 // ==================================================
+
                 user.guardianMoxId = newGuardianMoxId.isEmpty
                     ? null
                     : newGuardianMoxId;
 
-                // moxId لا نغيره من هنا.
-                // نحافظ على القيمة الموجودة أصلًا.
+                // ==================================================
+                // moxId لا نغيره فعلياً
+                // لأنه readOnly.
                 //
-                // هذا السطر موجود فقط للتوافق مع النموذج
-                // ولا يؤثر إطلاقًا على رابط العميل.
+                // فقط نحافظ على القيمة الحالية.
+                // ==================================================
+
                 if (newMoxId.isNotEmpty) {
                   user.moxId = newMoxId;
                 }
@@ -315,14 +353,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 Navigator.pop(dialogContext);
 
                 guardianMoxController.dispose();
+
                 moxIdController.dispose();
 
                 // ==================================================
                 // حفظ كامل UserModel
-                //
-                // myAssets تظل كما هي.
-                // guardianMoxId يتم حفظه مع العميل.
                 // ==================================================
+
                 await _syncClientToCloud(user);
               },
               child: const Text(
@@ -342,6 +379,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
   // 🌐 BUILD
   // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -357,9 +395,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         backgroundColor: moxBlue,
         centerTitle: true,
         actions: [
-          // ======================================================
-          // 🔄 تحديث البيانات
-          // ======================================================
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: "تحديث البيانات",
