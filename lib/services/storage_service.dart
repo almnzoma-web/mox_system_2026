@@ -51,8 +51,9 @@ class StorageService {
   // ============================================================
 
   static bool _isAdminIdentity({String? phone, String? moxId}) {
-    final cleanPhone = phone?.trim() ?? '';
-    final cleanMoxId = moxId?.trim() ?? '';
+    final String cleanPhone = phone?.trim() ?? '';
+
+    final String cleanMoxId = moxId?.trim() ?? '';
 
     return cleanPhone == adminUser.phone || cleanMoxId == adminUser.moxId;
   }
@@ -67,17 +68,17 @@ class StorageService {
 
   static Future<void> loadUsers() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
       await prefs.reload();
 
-      final encodedData = prefs.getString(savedUsersKey);
+      final String? encodedData = prefs.getString(savedUsersKey);
 
       registeredUsers = [];
 
       if (encodedData != null && encodedData.isNotEmpty) {
         try {
-          final decoded = json.decode(encodedData);
+          final dynamic decoded = json.decode(encodedData);
 
           if (decoded is List) {
             registeredUsers = decoded
@@ -113,7 +114,9 @@ class StorageService {
   // ============================================================
 
   static void _ensureAdmin() {
-    final index = registeredUsers.indexWhere((u) => u.moxId == adminUser.moxId);
+    final int index = registeredUsers.indexWhere(
+      (u) => u.moxId == adminUser.moxId,
+    );
 
     if (index == -1) {
       registeredUsers.insert(0, adminUser);
@@ -128,7 +131,7 @@ class StorageService {
 
   static Future<void> _syncFromCloudInBackground() async {
     try {
-      final response = await http
+      final http.Response response = await http
           .get(Uri.parse('$_scriptUrl?action=getAll'))
           .timeout(const Duration(seconds: 8));
 
@@ -144,13 +147,13 @@ class StorageService {
 
       final List<UserModel> cloudUsers = [];
 
-      for (final item in decoded) {
+      for (final dynamic item in decoded) {
         try {
           if (item is! Map) {
             continue;
           }
 
-          final mapItem = Map<String, dynamic>.from(item);
+          final Map<String, dynamic> mapItem = Map<String, dynamic>.from(item);
 
           if ((mapItem['moxId'] == null ||
                   mapItem['moxId'].toString().trim().isEmpty) &&
@@ -158,7 +161,7 @@ class StorageService {
             mapItem['moxId'] = mapItem['MOXID'];
           }
 
-          final cloudUser = UserModel.fromJson(mapItem);
+          final UserModel cloudUser = UserModel.fromJson(mapItem);
 
           if (cloudUser.moxId.trim().isEmpty || cloudUser.moxId == 'null') {
             continue;
@@ -174,8 +177,8 @@ class StorageService {
         }
       }
 
-      for (final cloudUser in cloudUsers) {
-        final index = registeredUsers.indexWhere(
+      for (final UserModel cloudUser in cloudUsers) {
+        final int index = registeredUsers.indexWhere(
           (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
         );
 
@@ -210,9 +213,11 @@ class StorageService {
 
   static Future<void> saveUsersList() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      final jsonList = registeredUsers.map((u) => u.toJson()).toList();
+      final List<Map<String, dynamic>> jsonList = registeredUsers
+          .map((u) => u.toJson())
+          .toList();
 
       await prefs.setString(savedUsersKey, json.encode(jsonList));
 
@@ -241,7 +246,7 @@ class StorageService {
   // ============================================================
 
   static Map<String, String> _userCloudParameters(UserModel user) {
-    final params = <String, String>{
+    return <String, String>{
       'action': 'save',
 
       'phone': user.phone,
@@ -266,10 +271,16 @@ class StorageService {
 
       'customWhatsApp': user.customWhatsApp ?? '',
 
+      // ========================================================
+      // هوية الرابط العام
+      // ========================================================
       'guardianMoxId': user.guardianMoxId ?? '',
 
       'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
 
+      // ========================================================
+      // البيانات
+      // ========================================================
       'points': user.points.toString(),
 
       'myAssets': _encodeAssets(user.myAssets),
@@ -278,12 +289,6 @@ class StorageService {
 
       'activationDate': user.activationDate ?? '',
     };
-
-    if (!_isAdminUser(user)) {
-      params['password'] = user.password;
-    }
-
-    return params;
   }
 
   // ============================================================
@@ -298,7 +303,7 @@ class StorageService {
       return;
     }
 
-    final index = registeredUsers.indexWhere(
+    final int index = registeredUsers.indexWhere(
       (u) => u.phone == newUser.phone || u.moxId == newUser.moxId,
     );
 
@@ -332,7 +337,7 @@ class StorageService {
       throw Exception('تعذر حفظ بيانات المتجر في Google Sheet.');
     }
 
-    final index = registeredUsers.indexWhere(
+    final int index = registeredUsers.indexWhere(
       (u) => u.moxId == user.moxId || u.phone == user.phone,
     );
 
@@ -347,12 +352,14 @@ class StorageService {
     await saveUsersList();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      final currentUserJson = prefs.getString(userKey);
+      final String? currentUserJson = prefs.getString(userKey);
 
       if (currentUserJson != null && currentUserJson.isNotEmpty) {
-        final activeUser = UserModel.fromJson(jsonDecode(currentUserJson));
+        final UserModel activeUser = UserModel.fromJson(
+          jsonDecode(currentUserJson),
+        );
 
         if (activeUser.moxId == user.moxId || activeUser.phone == user.phone) {
           await prefs.setString(userKey, jsonEncode(user.toJson()));
@@ -369,16 +376,19 @@ class StorageService {
 
   static Future<bool> _saveToCloud(UserModel user) async {
     try {
-      final uri = Uri.parse(
+      final Uri uri = Uri.parse(
         _scriptUrl,
       ).replace(queryParameters: _userCloudParameters(user));
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 15));
 
       debugPrint('☁️ [Cloud Save] HTTP ${response.statusCode}');
 
       if (response.statusCode != 200) {
         debugPrint('❌ [Cloud Save] HTTP Error: ${response.body}');
+
         return false;
       }
 
@@ -386,10 +396,11 @@ class StorageService {
         final dynamic decoded = json.decode(response.body);
 
         if (decoded is Map) {
-          final status = decoded['status']?.toString().toLowerCase();
+          final String? status = decoded['status']?.toString().toLowerCase();
 
           if (status == 'error' || status == 'failed' || status == 'failure') {
             debugPrint('❌ [Cloud Save] Apps Script رفض الحفظ: $decoded');
+
             return false;
           }
         }
@@ -409,7 +420,7 @@ class StorageService {
 
   static Future<void> saveUser(UserModel user) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
       await prefs.setString(userKey, jsonEncode(user.toJson()));
 
@@ -425,15 +436,15 @@ class StorageService {
 
   static Future<UserModel?> getUser() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      final userJson = prefs.getString(userKey);
+      final String? userJson = prefs.getString(userKey);
 
       if (userJson == null || userJson.isEmpty) {
         return null;
       }
 
-      final user = UserModel.fromJson(jsonDecode(userJson));
+      final UserModel user = UserModel.fromJson(jsonDecode(userJson));
 
       if (_isAdminUser(user)) {
         return adminUser;
@@ -453,7 +464,7 @@ class StorageService {
 
   static Future<void> logout() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
       await prefs.remove(userKey);
     } catch (_) {}
@@ -492,15 +503,15 @@ class StorageService {
   ) async {
     await ensureLoaded();
 
-    final cleanInput = input.trim();
+    final String cleanInput = input.trim();
 
-    final cleanPassword = password.trim();
+    final String cleanPassword = password.trim();
 
     if (cleanInput.isEmpty || cleanPassword.isEmpty) {
       return null;
     }
 
-    final isAdminLogin = _isAdminIdentity(
+    final bool isAdminLogin = _isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
       moxId: isMoxId ? cleanInput : null,
     );
@@ -511,7 +522,7 @@ class StorageService {
 
     if (!isAdminLogin) {
       try {
-        final foundUser = registeredUsers.firstWhere(
+        final UserModel foundUser = registeredUsers.firstWhere(
           (u) =>
               (isMoxId
                   ? u.moxId.trim() == cleanInput
@@ -528,19 +539,18 @@ class StorageService {
     // ========================================================
 
     try {
-      final uri = Uri.parse(_scriptUrl).replace(
+      final Uri uri = Uri.parse(_scriptUrl).replace(
         queryParameters: {
           'action': 'login',
-
           'input': cleanInput,
-
           'password': cleanPassword,
-
           'isMoxId': isMoxId.toString(),
         },
       );
 
-      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         return null;
@@ -552,7 +562,7 @@ class StorageService {
         return null;
       }
 
-      final map = Map<String, dynamic>.from(decoded);
+      final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
 
       if (map['status'] != 'success') {
         return null;
@@ -564,14 +574,16 @@ class StorageService {
         return null;
       }
 
-      final cloudUser = UserModel.fromJson(Map<String, dynamic>.from(rawUser));
+      final UserModel cloudUser = UserModel.fromJson(
+        Map<String, dynamic>.from(rawUser),
+      );
 
       // ======================================================
       // ADMIN
       // ======================================================
 
       if (_isAdminUser(cloudUser)) {
-        final safeAdmin = adminUser.copyWith(
+        final UserModel safeAdmin = adminUser.copyWith(
           name: cloudUser.name,
           address: cloudUser.address,
           storeDescription: cloudUser.storeDescription,
@@ -586,7 +598,7 @@ class StorageService {
           myAssets: cloudUser.myAssets,
         );
 
-        final index = registeredUsers.indexWhere(
+        final int index = registeredUsers.indexWhere(
           (u) => u.moxId == adminUser.moxId,
         );
 
@@ -605,7 +617,7 @@ class StorageService {
       // NORMAL USER
       // ======================================================
 
-      final index = registeredUsers.indexWhere(
+      final int index = registeredUsers.indexWhere(
         (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
       );
 
@@ -630,9 +642,9 @@ class StorageService {
   // ============================================================
 
   static UserModel? authenticate(String input, String password, bool isMoxId) {
-    final cleanInput = input.trim();
+    final String cleanInput = input.trim();
 
-    final cleanPassword = password.trim();
+    final String cleanPassword = password.trim();
 
     if (_isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
@@ -655,32 +667,54 @@ class StorageService {
   }
 
   // ============================================================
-  // USER BY MOX ID
+  // USER BY PUBLIC IDENTIFIER
+  //
+  // اسم الدالة القديم يبقى كما هو حتى لا نكسر أي ملف آخر.
+  //
+  // تستقبل:
+  // - moxId
+  // - guardianMoxId
+  // - guardianMoxIdCustomer
+  // - phone
+  //
+  // لذلك لا نحتاج getUserByGuardianMoxId()
   // ============================================================
 
-  static Future<UserModel?> getUserByMoxId(String moxId) async {
-    final cleanMoxId = moxId.trim();
+  static Future<UserModel?> getUserByMoxId(String identifier) async {
+    final String cleanIdentifier = identifier.trim();
 
-    if (cleanMoxId.isEmpty) {
+    if (cleanIdentifier.isEmpty) {
       return null;
     }
 
+    // ========================================================
+    // أولاً: Cloud
+    // ========================================================
+
     try {
-      final response = await http
-          .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 10));
+      final Uri uri = Uri.parse('$_scriptUrl?action=getAll');
+
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         final dynamic decoded = json.decode(response.body);
 
         if (decoded is List) {
-          for (final item in decoded) {
+          for (final dynamic item in decoded) {
             if (item is! Map) {
               continue;
             }
 
             try {
-              final mapItem = Map<String, dynamic>.from(item);
+              final Map<String, dynamic> mapItem = Map<String, dynamic>.from(
+                item,
+              );
+
+              // ------------------------------------------------
+              // دعم الاسم القديم MOXID
+              // ------------------------------------------------
 
               if ((mapItem['moxId'] == null ||
                       mapItem['moxId'].toString().trim().isEmpty) &&
@@ -688,18 +722,37 @@ class StorageService {
                 mapItem['moxId'] = mapItem['MOXID'];
               }
 
-              final cloudUser = UserModel.fromJson(mapItem);
+              final UserModel cloudUser = UserModel.fromJson(mapItem);
+
+              // ------------------------------------------------
+              // الهوية العامة
+              // ------------------------------------------------
+
+              final String cloudMoxId = cloudUser.moxId.trim();
+
+              final String cloudPhone = cloudUser.phone.trim();
+
+              final String cloudGuardian = (cloudUser.guardianMoxId ?? '')
+                  .trim();
+
+              final String cloudGuardianCustomer =
+                  (cloudUser.guardianMoxIdCustomer ?? '').trim();
 
               final bool matched =
-                  cloudUser.moxId.trim() == cleanMoxId ||
-                  cloudUser.guardianMoxId?.trim() == cleanMoxId ||
-                  cloudUser.guardianMoxIdCustomer?.trim() == cleanMoxId;
+                  cloudMoxId == cleanIdentifier ||
+                  cloudPhone == cleanIdentifier ||
+                  cloudGuardian == cleanIdentifier ||
+                  cloudGuardianCustomer == cleanIdentifier;
 
               if (!matched) {
                 continue;
               }
 
-              final index = registeredUsers.indexWhere(
+              // ------------------------------------------------
+              // تحديث الذاكرة المحلية
+              // ------------------------------------------------
+
+              final int index = registeredUsers.indexWhere(
                 (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
               );
 
@@ -724,32 +777,54 @@ class StorageService {
       debugPrint('⚠️ [Cloud User Fetch] $e');
     }
 
+    // ========================================================
+    // ثانياً: Local fallback
+    // ========================================================
+
     try {
       await ensureLoaded();
 
-      return registeredUsers.firstWhere(
-        (u) =>
-            u.moxId.trim() == cleanMoxId ||
-            u.guardianMoxId?.trim() == cleanMoxId ||
-            u.guardianMoxIdCustomer?.trim() == cleanMoxId,
-      );
-    } catch (_) {
-      return null;
-    }
+      for (final UserModel user in registeredUsers) {
+        final String moxId = user.moxId.trim();
+
+        final String phone = user.phone.trim();
+
+        final String guardianMoxId = (user.guardianMoxId ?? '').trim();
+
+        final String guardianMoxIdCustomer = (user.guardianMoxIdCustomer ?? '')
+            .trim();
+
+        if (moxId == cleanIdentifier ||
+            phone == cleanIdentifier ||
+            guardianMoxId == cleanIdentifier ||
+            guardianMoxIdCustomer == cleanIdentifier) {
+          return user;
+        }
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   // ============================================================
   // CLIENT CARDS
+  //
+  // أبقيناها للتوافق مع أي ملف قديم يستدعيها.
+  // الصفحة الحالية لا تحتاج عرض البطاقات من هنا.
   // ============================================================
 
-  static Future<List<Map<String, dynamic>>> getClientCards(String moxId) async {
+  static Future<List<Map<String, dynamic>>> getClientCards(
+    String identifier,
+  ) async {
     try {
-      final user = await getUserByMoxId(moxId);
+      final UserModel? user = await getUserByMoxId(identifier);
 
       if (user != null && user.myAssets.isNotEmpty) {
         return user.myAssets.map((card) => card.toJson()).toList();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('⚠️ [Client Cards] $e');
+    }
 
     return [
       {

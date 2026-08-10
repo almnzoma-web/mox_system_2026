@@ -51,9 +51,9 @@ void main() async {
       // 1. البحث عن متجر عام من الرابط
       // ========================================================
 
-      final targetIdentifier = _getPublicIdentifierFromUrl();
+      final String? targetIdentifier = _getPublicIdentifierFromUrl();
 
-      if (targetIdentifier != null && targetIdentifier.isNotEmpty) {
+      if (targetIdentifier != null && targetIdentifier.trim().isNotEmpty) {
         debugPrint('🔎 [Public Store] البحث عن: $targetIdentifier');
 
         UserModel? foundUser = _findPublicUserLocally(targetIdentifier);
@@ -65,11 +65,10 @@ void main() async {
 
           initialScreen = Scaffold(
             backgroundColor: Colors.white,
-
             body: StorePreviewWidget(user: foundUser, isPublicView: true),
           );
         } else {
-          debugPrint('⚠️ [Public Store] المتجر غير موجود');
+          debugPrint('⚠️ [Public Store] المتجر غير موجود: $targetIdentifier');
         }
       } else {
         // ======================================================
@@ -77,7 +76,7 @@ void main() async {
         //    نفحص الجلسة المحفوظة
         // ======================================================
 
-        final savedUser = await StorageService.getUser();
+        final UserModel? savedUser = await StorageService.getUser();
 
         if (savedUser != null) {
           debugPrint('🔐 [Remember Login] جلسة محفوظة موجودة');
@@ -101,82 +100,143 @@ void main() async {
 
 // ============================================================
 // استخراج معرف المتجر من الرابط
+//
+// الأولوية:
+// 1. mox
+// 2. guardianMoxId
+// 3. moxId
+// 4. phone
+// 5. identifier
+//
+// مهم:
+// مع HashUrlStrategy يمكن أن يكون:
+// https://domain/#/?mox=MOX249-00010001
+//
+// وبالتالي نبحث داخل:
+// Uri.base.queryParameters
+// وكذلك Uri.base.fragment
 // ============================================================
 
 String? _getPublicIdentifierFromUrl() {
   try {
-    final uri = Uri.base;
+    final Uri uri = Uri.base;
 
     // --------------------------------------------------------
-    // Query Parameters
+    // دالة داخلية لتنظيف القيمة
     // --------------------------------------------------------
 
-    String? identifier = uri.queryParameters['mox'];
+    String? clean(String? value) {
+      if (value == null) {
+        return null;
+      }
 
-    identifier ??= uri.queryParameters['phone'];
+      final String result = value.trim();
 
-    identifier ??= uri.queryParameters['guardianMoxId'];
+      if (result.isEmpty) {
+        return null;
+      }
 
-    identifier ??= uri.queryParameters['identifier'];
-
-    if (identifier != null && identifier.trim().isNotEmpty) {
-      return identifier.trim();
+      return result;
     }
 
     // --------------------------------------------------------
-    // Fragment
+    // دالة استخراج المعرف من Query
     // --------------------------------------------------------
 
-    final fragment = uri.fragment.trim();
+    String? extractFromQuery(Map<String, String> query) {
+      String? identifier;
+
+      // نبقي mox كما هو.
+      identifier = clean(query['mox']);
+
+      // الرابط الحديث يعتمد على guardianMoxId.
+      identifier ??= clean(query['guardianMoxId']);
+
+      // دعم الروابط القديمة.
+      identifier ??= clean(query['moxId']);
+
+      identifier ??= clean(query['phone']);
+
+      identifier ??= clean(query['identifier']);
+
+      return identifier;
+    }
+
+    // --------------------------------------------------------
+    // أولاً: Query Parameters العادية
+    // --------------------------------------------------------
+
+    String? identifier = extractFromQuery(uri.queryParameters);
+
+    if (identifier != null) {
+      debugPrint('🔗 [URL] identifier من query: $identifier');
+
+      return identifier;
+    }
+
+    // --------------------------------------------------------
+    // ثانياً: Fragment
+    // --------------------------------------------------------
+
+    final String fragment = uri.fragment.trim();
 
     if (fragment.isEmpty) {
       return null;
     }
 
+    debugPrint('🔗 [URL] fragment: $fragment');
+
     // --------------------------------------------------------
-    // محاولة قراءة Fragment كـ URI
+    // حالة:
+    // #/?mox=MOX249-00010001
+    // --------------------------------------------------------
+
+    String fragmentQuery = fragment;
+
+    if (fragmentQuery.startsWith('?')) {
+      fragmentQuery = fragmentQuery.substring(1);
+    }
+
+    if (fragmentQuery.contains('?')) {
+      fragmentQuery = fragmentQuery.substring(fragmentQuery.indexOf('?') + 1);
+    }
+
+    // --------------------------------------------------------
+    // محاولة قراءة Fragment كـ Query
     // --------------------------------------------------------
 
     try {
-      final fragmentUri = Uri.parse('https://mox.local/$fragment');
+      if (fragmentQuery.contains('=')) {
+        final Map<String, String> query = Uri.splitQueryString(fragmentQuery);
 
-      identifier = fragmentUri.queryParameters['mox'];
+        identifier = extractFromQuery(query);
 
-      identifier ??= fragmentUri.queryParameters['phone'];
+        if (identifier != null) {
+          debugPrint('🔗 [URL] identifier من fragment: $identifier');
 
-      identifier ??= fragmentUri.queryParameters['guardianMoxId'];
-
-      identifier ??= fragmentUri.queryParameters['identifier'];
-
-      if (identifier != null && identifier.trim().isNotEmpty) {
-        return identifier.trim();
-      }
-    } catch (_) {}
-
-    // --------------------------------------------------------
-    // معالجة ? داخل Fragment
-    // --------------------------------------------------------
-
-    final questionIndex = fragment.indexOf('?');
-
-    if (questionIndex != -1 && questionIndex + 1 < fragment.length) {
-      try {
-        final queryString = fragment.substring(questionIndex + 1);
-
-        final queryUri = Uri.splitQueryString(queryString);
-
-        identifier = queryUri['mox'];
-
-        identifier ??= queryUri['phone'];
-
-        identifier ??= queryUri['guardianMoxId'];
-
-        identifier ??= queryUri['identifier'];
-
-        if (identifier != null && identifier.trim().isNotEmpty) {
-          return identifier.trim();
+          return identifier;
         }
-      } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('⚠️ [URL Fragment Query] $e');
+    }
+
+    // --------------------------------------------------------
+    // محاولة URI كاملة داخل Fragment
+    // --------------------------------------------------------
+
+    try {
+      final Uri fragmentUri = Uri.parse('https://mox.local/$fragment');
+
+      identifier = extractFromQuery(fragmentUri.queryParameters);
+
+      if (identifier != null) {
+        debugPrint('🔗 [URL] identifier من fragment URI: $identifier');
+
+        return identifier;
+      }
+    } catch (e) {
+      debugPrint('⚠️ [URL Fragment URI] $e');
     }
 
     return null;
@@ -193,20 +253,21 @@ String? _getPublicIdentifierFromUrl() {
 
 UserModel? _findPublicUserLocally(String identifier) {
   try {
-    final cleanIdentifier = identifier.trim();
+    final String cleanIdentifier = identifier.trim();
 
     if (cleanIdentifier.isEmpty) {
       return null;
     }
 
-    for (final user in StorageService.registeredUsers) {
-      final moxId = user.moxId.trim();
+    for (final UserModel user in StorageService.registeredUsers) {
+      final String moxId = user.moxId.trim();
 
-      final phone = user.phone.trim();
+      final String phone = user.phone.trim();
 
-      final guardianMoxId = (user.guardianMoxId ?? '').trim();
+      final String guardianMoxId = (user.guardianMoxId ?? '').trim();
 
-      final guardianMoxIdCustomer = (user.guardianMoxIdCustomer ?? '').trim();
+      final String guardianMoxIdCustomer = (user.guardianMoxIdCustomer ?? '')
+          .trim();
 
       if (moxId == cleanIdentifier ||
           phone == cleanIdentifier ||
@@ -228,20 +289,23 @@ UserModel? _findPublicUserLocally(String identifier) {
 
 Future<UserModel?> _findPublicUserFromCloud(String identifier) async {
   try {
-    final cleanIdentifier = identifier.trim();
+    final String cleanIdentifier = identifier.trim();
 
     if (cleanIdentifier.isEmpty) {
       return null;
     }
 
-    const scriptUrl =
+    // نفس الرابط المعتمد في StorageService.
+    const String scriptUrl =
         'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
-    final uri = Uri.parse(
+    final Uri uri = Uri.parse(
       scriptUrl,
     ).replace(queryParameters: {'action': 'getAll'});
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    final http.Response response = await http
+        .get(uri)
+        .timeout(const Duration(seconds: 12));
 
     if (response.statusCode != 200) {
       debugPrint('❌ [Cloud Public Search] HTTP ${response.statusCode}');
@@ -257,13 +321,13 @@ Future<UserModel?> _findPublicUserFromCloud(String identifier) async {
       return null;
     }
 
-    for (final item in decoded) {
+    for (final dynamic item in decoded) {
       try {
         if (item is! Map) {
           continue;
         }
 
-        final map = Map<String, dynamic>.from(item);
+        final Map<String, dynamic> map = Map<String, dynamic>.from(item);
 
         // ----------------------------------------------------
         // دعم MOXID القديم
@@ -274,16 +338,21 @@ Future<UserModel?> _findPublicUserFromCloud(String identifier) async {
           map['moxId'] = map['MOXID'];
         }
 
-        final moxId = map['moxId']?.toString().trim() ?? '';
+        final String moxId = map['moxId']?.toString().trim() ?? '';
 
-        final phone = map['phone']?.toString().trim() ?? '';
+        final String phone = map['phone']?.toString().trim() ?? '';
 
-        final guardianMoxId = map['guardianMoxId']?.toString().trim() ?? '';
+        final String guardianMoxId =
+            map['guardianMoxId']?.toString().trim() ?? '';
 
-        final guardianMoxIdCustomer =
+        final String guardianMoxIdCustomer =
             map['guardianMoxIdCustomer']?.toString().trim() ?? '';
 
-        final matches =
+        // ----------------------------------------------------
+        // التحقق من هوية المتجر
+        // ----------------------------------------------------
+
+        final bool matches =
             moxId == cleanIdentifier ||
             phone == cleanIdentifier ||
             guardianMoxId == cleanIdentifier ||
@@ -293,7 +362,26 @@ Future<UserModel?> _findPublicUserFromCloud(String identifier) async {
           continue;
         }
 
-        return UserModel.fromJson(map);
+        final UserModel user = UserModel.fromJson(map);
+
+        // ----------------------------------------------------
+        // تحديث النسخة المحلية بالنسخة القادمة
+        // من Google Sheets
+        // ----------------------------------------------------
+
+        final int index = StorageService.registeredUsers.indexWhere(
+          (u) =>
+              u.moxId.trim() == user.moxId.trim() ||
+              u.phone.trim() == user.phone.trim(),
+        );
+
+        if (index == -1) {
+          StorageService.registeredUsers.add(user);
+        } else {
+          StorageService.registeredUsers[index] = user;
+        }
+
+        return user;
       } catch (e) {
         debugPrint('⚠️ [Cloud Public Search] صف غير صالح: $e');
       }
