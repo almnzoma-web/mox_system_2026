@@ -9,34 +9,6 @@ import '../services/storage_service.dart';
 import '../screens/digital_signature_screen.dart';
 import '../widgets/store_preview_widget.dart';
 
-String buildStoreLink(String? guardianMoxId, {String? fallbackMoxId}) {
-  final String normalizedGuardian = (guardianMoxId ?? '').trim().toUpperCase();
-  final String normalizedFallback = (fallbackMoxId ?? '').trim().toUpperCase();
-
-  final String selectedIdentifier =
-      _isValidStoreLinkIdentifier(normalizedGuardian)
-      ? normalizedGuardian
-      : _isValidStoreLinkIdentifier(normalizedFallback)
-      ? normalizedFallback
-      : '';
-
-  if (selectedIdentifier.isEmpty) {
-    return '';
-  }
-
-  return 'https://mox-2026.vercel.app/#/?mox=$selectedIdentifier';
-}
-
-bool _isValidStoreLinkIdentifier(String? value) {
-  final String normalized = (value ?? '').trim().toUpperCase();
-
-  if (normalized.isEmpty) {
-    return false;
-  }
-
-  return normalized != 'NULL' && normalized != 'لم يحدد';
-}
-
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
 
@@ -369,182 +341,36 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔗 رابط العميل — يعتمد حصريًا على guardianMoxId
+  // 🔗 رابط المتجر
   // ============================================================
+
   void _updateStoreLink() {
-    final String link = buildStoreLink(
-      _liveUser.guardianMoxId,
-      fallbackMoxId: widget.directMoxId ?? _liveUser.moxId,
-    );
+    final String ownMox = widget.user.moxId.trim();
 
-    if (link.isEmpty) {
-      _linkController.clear();
-      return;
+    final String guardianMox = (widget.user.guardianMoxId ?? '').trim();
+
+    final String customerGuardianMox = (widget.user.guardianMoxIdCustomer ?? '')
+        .trim();
+
+    String activeMoxForUrl;
+
+    if (ownMox.isNotEmpty && ownMox != "لم يحدد" && ownMox != "null") {
+      activeMoxForUrl = ownMox;
+    } else if (customerGuardianMox.isNotEmpty &&
+        customerGuardianMox != "null") {
+      activeMoxForUrl = customerGuardianMox;
+    } else if (guardianMox.isNotEmpty && guardianMox != "null") {
+      activeMoxForUrl = guardianMox;
+    } else {
+      activeMoxForUrl = "MOX249-00010001";
     }
 
-    _linkController.text = link;
+    _linkController.text =
+        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
   }
 
   // ============================================================
-  // 🔐 استدعاء مالك المتجر الحقيقي
-  //
-  // الأولوية:
-  // 1. Google Sheets
-  // 2. الذاكرة المحلية كاحتياط
-  //
-  // البحث الأساسي يتم برقم MOX الذي أدخله المستخدم.
-  // ============================================================
-
-  // ============================================================
-  // 🔐 جلب مالك المتجر لتسجيل الدخول
-  //
-  // الأولوية:
-  // 1️⃣ Google Sheets — النسخة الحديثة والمعتمدة
-  // 2️⃣ Local Storage — fallback فقط إذا فشل Google
-  //
-  // البحث يتم باستخدام:
-  // - moxId
-  // - guardianMoxId
-  // - guardianMoxIdCustomer
-  // - phone
-  // ============================================================
-
-  Future<UserModel?> _loadStoreOwnerForLogin(String loginMoxId) async {
-    try {
-      // ==========================================================
-      // 1️⃣ قراءة المستخدم الذي سجل دخوله في التطبيق الرئيسي
-      // ==========================================================
-
-      debugPrint('🔐 [Store Login] قراءة جلسة الدخول الرئيسية...');
-
-      final UserModel? sessionUser = await StorageService.getUser();
-
-      if (sessionUser == null) {
-        debugPrint('❌ [Store Login] لا توجد جلسة دخول رئيسية.');
-
-        return null;
-      }
-
-      debugPrint('✅ [Store Login] تم العثور على المستخدم في جلسة التطبيق.');
-
-      // ==========================================================
-      // 2️⃣ تحديد رقم MOX المدخل
-      // ==========================================================
-
-      String identifier = loginMoxId.trim().toUpperCase();
-
-      if (identifier.isEmpty) {
-        identifier = (widget.directMoxId ?? '').trim().toUpperCase();
-      }
-
-      // ==========================================================
-      // 3️⃣ إذا لم يكتب رقم MOX
-      //    استخدم رقم MOX الموجود في الجلسة
-      // ==========================================================
-
-      if (identifier.isEmpty) {
-        identifier = sessionUser.moxId.trim().toUpperCase();
-      }
-
-      if (identifier.isEmpty ||
-          identifier == 'NULL' ||
-          identifier == 'لم يحدد') {
-        debugPrint('❌ [Store Login] لا توجد هوية MOX صالحة.');
-
-        return null;
-      }
-
-      // ==========================================================
-      // 4️⃣ قراءة هويات المستخدم من جلسة الدخول الرئيسية
-      // ==========================================================
-
-      final String moxId = sessionUser.moxId.trim().toUpperCase();
-
-      final String guardianMoxId = (sessionUser.guardianMoxId ?? '')
-          .trim()
-          .toUpperCase();
-
-      final String guardianMoxIdCustomer =
-          (sessionUser.guardianMoxIdCustomer ?? '').trim().toUpperCase();
-
-      // ==========================================================
-      // 5️⃣ التحقق من أن رقم MOX يخص المستخدم المسجل دخوله
-      // ==========================================================
-
-      final bool matched =
-          identifier == moxId ||
-          identifier == guardianMoxId ||
-          identifier == guardianMoxIdCustomer;
-
-      if (!matched) {
-        debugPrint(
-          '❌ [Store Login] رقم MOX لا يطابق المستخدم المسجل في التطبيق.',
-        );
-
-        debugPrint('🔎 [Store Login] المدخل: $identifier');
-
-        debugPrint('🔎 [Store Login] moxId: $moxId');
-
-        debugPrint('🔎 [Store Login] guardianMoxId: $guardianMoxId');
-
-        debugPrint(
-          '🔎 [Store Login] guardianMoxIdCustomer: $guardianMoxIdCustomer',
-        );
-
-        return null;
-      }
-
-      // ==========================================================
-      // 6️⃣ المستخدم صحيح
-      // ==========================================================
-
-      final UserModel owner = sessionUser;
-
-      debugPrint('✅ [Store Login] تم التحقق من هوية المستخدم من جلسة التطبيق.');
-
-      debugPrint('👤 [Store Login] المستخدم: ${owner.name}');
-
-      debugPrint('🪪 [Store Login] MOX: ${owner.moxId}');
-
-      debugPrint('🛡️ [Store Login] Guardian MOX: ${owner.guardianMoxId}');
-
-      // ==========================================================
-      // 7️⃣ تحديث المستخدم الحي
-      // ==========================================================
-
-      _liveUser = owner;
-
-      // ==========================================================
-      // 8️⃣ تحديث بيانات الواجهة
-      // ==========================================================
-
-      if (mounted) {
-        setState(() {
-          _phoneController.text = owner.phone;
-
-          _storeNameController.text = owner.name;
-
-          _businessCategoryController.text = owner.address;
-
-          _descriptionController.text = owner.storeDescription;
-        });
-      }
-
-      // ==========================================================
-      // 9️⃣ إرجاع المستخدم
-      // ==========================================================
-
-      return owner;
-    } catch (e) {
-      debugPrint('❌ [Store Login] خطأ أثناء قراءة جلسة الدخول: $e');
-
-      return null;
-    }
-  }
-  // ============================================================
-  // 🔐 نافذة تسجيل الدخول إلى لوحة المتجر
-  //
-  // يتم جلب أحدث بيانات المالك قبل التحقق.
+  // 🔐 نافذة تسجيل الدخول
   // ============================================================
 
   Future<void> _showSecurityLoginDialog() async {
@@ -558,228 +384,130 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        bool isLoading = false;
-
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-
-              title: const Row(
-                children: [
-                  Icon(Icons.verified_user, color: _primaryColor),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "التحقق من مالك المتجر",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: _darkColor,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "أدخل رقم MOX وكلمة السر الخاصة بالمالك.",
-                    style: TextStyle(fontSize: 12, color: Colors.black87),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  TextField(
-                    controller: moxController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: "رقم MOX",
-                      hintText: "MOX249-xxxxxxxx",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.badge),
-                      isDense: true,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller: passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: "كلمة السر",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock),
-                      isDense: true,
-                    ),
-                  ),
-                ],
-              ),
-
-              actions: [
-                TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          Navigator.pop(ctx);
-
-                          if (!mounted) return;
-
-                          Navigator.pop(context);
-                        },
-                  child: const Text(
-                    "إلغاء",
-                    style: TextStyle(color: Colors.grey),
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_user, color: _primaryColor),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "التحقق من مالك المتجر",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _darkColor,
+                    fontSize: 14,
                   ),
                 ),
-
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                  ),
-
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                          final String enteredMox = moxController.text
-                              .trim()
-                              .toUpperCase();
-
-                          final String enteredPassword = passwordController.text
-                              .trim();
-
-                          if (enteredMox.isEmpty || enteredPassword.isEmpty) {
-                            return;
-                          }
-
-                          // ======================================
-                          // 🔄 جلب أحدث نسخة من المالك
-                          // ======================================
-
-                          setDialogState(() {
-                            isLoading = true;
-                          });
-
-                          final UserModel? owner =
-                              await _loadStoreOwnerForLogin(enteredMox);
-
-                          // ======================================
-                          // ❌ المالك غير موجود
-                          // ======================================
-
-                          if (owner == null) {
-                            Navigator.pop(ctx);
-
-                            _showLuxuryErrorDialog();
-
-                            return;
-                          }
-
-                          // ======================================
-                          // 🔐 الهويات المقبولة
-                          // ======================================
-
-                          final String ownerMox = owner.moxId
-                              .trim()
-                              .toUpperCase();
-
-                          final String ownerGuardianMox =
-                              (owner.guardianMoxId ?? '').trim().toUpperCase();
-
-                          final String ownerGuardianCustomer =
-                              (owner.guardianMoxIdCustomer ?? '')
-                                  .trim()
-                                  .toUpperCase();
-
-                          final bool moxMatched =
-                              enteredMox == ownerMox ||
-                              enteredMox == ownerGuardianMox ||
-                              enteredMox == ownerGuardianCustomer;
-
-                          // ======================================
-                          // 🔑 كلمة السر من النسخة المستدعاة
-                          // ======================================
-
-                          final bool passwordMatched =
-                              enteredPassword == owner.password;
-
-                          // ======================================
-                          // إغلاق النافذة
-                          // ======================================
-
-                          Navigator.pop(ctx);
-
-                          // ======================================
-                          // ❌ فشل التحقق
-                          // ======================================
-
-                          if (!moxMatched || !passwordMatched) {
-                            _showLuxuryErrorDialog();
-                            return;
-                          }
-
-                          // ======================================
-                          // ✅ نجاح
-                          // ======================================
-
-                          setState(() {
-                            _liveUser = owner;
-
-                            _isAuthorized = true;
-                          });
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "✅ تم التحقق بنجاح — مرحباً بك في إدارة المتجر.",
-                              ),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-
-                          // ======================================
-                          // 🔒 الاشتراك من النسخة الحديثة
-                          // ======================================
-
-                          _initializeSubscription();
-
-                          if (_isSubscriptionExpired) {
-                            Future.delayed(
-                              const Duration(milliseconds: 300),
-                              () {
-                                if (mounted) {
-                                  _showActivationKeyDialog();
-                                }
-                              },
-                            );
-                          }
-                        },
-
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          "تحقق",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "أدخل رقم MOX وكلمة السر الخاصة بالمالك.",
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: moxController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: "رقم MOX",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.badge),
+                  isDense: true,
                 ),
-              ],
-            );
-          },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: "كلمة السر",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+
+                if (!mounted) return;
+
+                Navigator.pop(context);
+              },
+              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () {
+                final String enteredMox = moxController.text
+                    .trim()
+                    .toUpperCase();
+
+                final String enteredPassword = passwordController.text.trim();
+
+                final String userMox = _liveUser.moxId.trim().toUpperCase();
+
+                final String guardianMox = (_liveUser.guardianMoxId ?? '')
+                    .trim()
+                    .toUpperCase();
+
+                final bool moxMatched =
+                    enteredMox.isNotEmpty &&
+                    (enteredMox == userMox || enteredMox == guardianMox);
+
+                final bool passwordMatched =
+                    enteredPassword.isNotEmpty &&
+                    enteredPassword == _liveUser.password;
+
+                Navigator.pop(ctx);
+
+                if (!moxMatched || !passwordMatched) {
+                  _showLuxuryErrorDialog();
+                  return;
+                }
+
+                if (!mounted) return;
+
+                setState(() {
+                  _isAuthorized = true;
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "✅ تم التحقق بنجاح — مرحباً بك في إدارة المتجر.",
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                if (_isSubscriptionExpired) {
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    if (mounted) {
+                      _showActivationKeyDialog();
+                    }
+                  });
+                }
+              },
+              child: const Text(
+                "تحقق",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -787,6 +515,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     moxController.dispose();
     passwordController.dispose();
   }
+
   // ============================================================
   // ❌ خطأ التحقق
   // ============================================================
@@ -1215,7 +944,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      final UserModel updatedUser = _liveUser.copyWith(
+      final UserModel updatedUser = widget.user.copyWith(
+        name: _storeNameController.text.trim(),
+
         phone: _phoneController.text.trim(),
 
         address: _businessCategoryController.text.trim(),
@@ -1238,17 +969,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
      */
 
       await StorageService.updateUserPartial(updatedUser);
-      // ============================================================
-      // 🔄 إعادة قراءة النسخة المعتمدة من Google Sheets
-      // ============================================================
 
-      final String lookupMoxId =
-          (updatedUser.guardianMoxId ?? '').trim().isNotEmpty
-          ? updatedUser.guardianMoxId!.trim()
-          : updatedUser.moxId.trim();
+      // ============================================================
+      // 🔄 إعادة قراءة النسخة المعتمدة
+      // ============================================================
 
       final UserModel? confirmedUser = await StorageService.getUserByMoxId(
-        lookupMoxId,
+        updatedUser.moxId,
       );
 
       _liveUser = confirmedUser ?? updatedUser;
@@ -1287,25 +1014,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 📋 نسخ رابط العميل
+  // 📋 نسخ الرابط
   // ============================================================
 
   void _copyStoreLink() {
-    final String link = _linkController.text.trim();
-
-    if (link.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "⚠️ لا يوجد رابط متجر صالح حتى الآن. تأكد من وجود guardianMoxId.",
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    Clipboard.setData(ClipboardData(text: link));
+    Clipboard.setData(ClipboardData(text: _linkController.text));
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
