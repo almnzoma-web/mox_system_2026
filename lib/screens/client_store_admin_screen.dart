@@ -515,7 +515,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     moxController.dispose();
     passwordController.dispose();
   }
-
   // ============================================================
   // ❌ خطأ التحقق
   // ============================================================
