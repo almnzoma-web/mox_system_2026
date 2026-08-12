@@ -417,32 +417,55 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔗 رابط المتجر
+  // 🔗 رابط المتجر العام — النسخة الحية
   // ============================================================
 
   void _updateStoreLink() {
-    final String ownMox = widget.user.moxId.trim();
+    String clean(String? value) {
+      final String result = (value ?? '').trim();
 
-    final String guardianMox = (widget.user.guardianMoxId ?? '').trim();
+      if (result.isEmpty ||
+          result.toLowerCase() == 'null' ||
+          result == 'لم يحدد') {
+        return '';
+      }
 
-    final String customerGuardianMox = (widget.user.guardianMoxIdCustomer ?? '')
-        .trim();
+      return result;
+    }
+
+    // مهم جداً:
+    // نقرأ من _liveUser وليس widget.user
+    final String ownMox = clean(_liveUser.moxId);
+
+    final String customerGuardianMox = clean(_liveUser.guardianMoxIdCustomer);
+
+    final String guardianMox = clean(_liveUser.guardianMoxId);
+
+    final String phone = clean(_liveUser.phone);
 
     String activeMoxForUrl;
 
-    if (ownMox.isNotEmpty && ownMox != "لم يحدد" && ownMox != "null") {
+    if (ownMox.isNotEmpty) {
       activeMoxForUrl = ownMox;
-    } else if (customerGuardianMox.isNotEmpty &&
-        customerGuardianMox != "null") {
+    } else if (customerGuardianMox.isNotEmpty) {
       activeMoxForUrl = customerGuardianMox;
-    } else if (guardianMox.isNotEmpty && guardianMox != "null") {
+    } else if (guardianMox.isNotEmpty) {
       activeMoxForUrl = guardianMox;
+    } else if (phone.isNotEmpty) {
+      activeMoxForUrl = phone;
     } else {
-      activeMoxForUrl = "MOX249-00010001";
+      activeMoxForUrl = 'MOX249-00010001';
     }
 
+    // نضمن أن الرابط لا يحتوي مسافات
+    activeMoxForUrl = activeMoxForUrl.trim();
+
     _linkController.text =
-        "https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl";
+        'https://mox-2026.vercel.app/#/?mox=${Uri.encodeComponent(activeMoxForUrl)}';
+
+    debugPrint('🔗 [Store Link] MOX المستخدم: ${_liveUser.moxId}');
+
+    debugPrint('🔗 [Store Link] الرابط النهائي: ${_linkController.text}');
   }
 
   // ============================================================
@@ -1053,7 +1076,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ? widget.user.storePublishDate!
           : DateTime.now().toIso8601String();
 
-      final UserModel updatedUser = widget.user.copyWith(
+      final UserModel updatedUser = _liveUser.copyWith(
         name: _storeNameController.text.trim(),
 
         phone: _phoneController.text.trim(),

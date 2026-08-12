@@ -53,6 +53,10 @@ void main() async {
 
       final String? targetIdentifier = _getPublicIdentifierFromUrl();
 
+      debugPrint('🌐 [MAIN] الرابط الحالي: ${Uri.base}');
+
+      debugPrint('🌐 [MAIN] معرف المتجر المستخرج: $targetIdentifier');
+
       if (targetIdentifier != null && targetIdentifier.trim().isNotEmpty) {
         debugPrint('🔎 [Public Store] البحث عن: $targetIdentifier');
 
@@ -99,74 +103,40 @@ void main() async {
 }
 
 // ============================================================
-// استخراج معرف المتجر من الرابط
-//
-// الأولوية:
-// 1. mox
-// 2. guardianMoxId
-// 3. moxId
-// 4. phone
-// 5. identifier
-//
-// مهم:
-// مع HashUrlStrategy يمكن أن يكون:
-// https://domain/#/?mox=MOX249-00010001
-//
-// وبالتالي نبحث داخل:
-// Uri.base.queryParameters
-// وكذلك Uri.base.fragment
+// 🔗 استخراج معرف المتجر من الرابط
 // ============================================================
 
 String? _getPublicIdentifierFromUrl() {
   try {
     final Uri uri = Uri.base;
 
-    // --------------------------------------------------------
-    // دالة داخلية لتنظيف القيمة
-    // --------------------------------------------------------
-
     String? clean(String? value) {
-      if (value == null) {
-        return null;
-      }
+      if (value == null) return null;
 
-      final String result = value.trim();
+      final String result = Uri.decodeComponent(value).trim();
 
-      if (result.isEmpty) {
+      if (result.isEmpty ||
+          result.toLowerCase() == 'null' ||
+          result == 'لم يحدد') {
         return null;
       }
 
       return result;
     }
 
-    // --------------------------------------------------------
-    // دالة استخراج المعرف من Query
-    // --------------------------------------------------------
-
-    String? extractFromQuery(Map<String, String> query) {
-      String? identifier;
-
-      // نبقي mox كما هو.
-      identifier = clean(query['mox']);
-
-      // الرابط الحديث يعتمد على guardianMoxId.
-      identifier ??= clean(query['guardianMoxId']);
-
-      // دعم الروابط القديمة.
-      identifier ??= clean(query['moxId']);
-
-      identifier ??= clean(query['phone']);
-
-      identifier ??= clean(query['identifier']);
-
-      return identifier;
+    String? extract(Map<String, String> query) {
+      return clean(query['mox']) ??
+          clean(query['guardianMoxId']) ??
+          clean(query['moxId']) ??
+          clean(query['phone']) ??
+          clean(query['identifier']);
     }
 
-    // --------------------------------------------------------
-    // أولاً: Query Parameters العادية
-    // --------------------------------------------------------
+    // ========================================================
+    // 1️⃣ Query العادي
+    // ========================================================
 
-    String? identifier = extractFromQuery(uri.queryParameters);
+    String? identifier = extract(uri.queryParameters);
 
     if (identifier != null) {
       debugPrint('🔗 [URL] identifier من query: $identifier');
@@ -174,42 +144,43 @@ String? _getPublicIdentifierFromUrl() {
       return identifier;
     }
 
-    // --------------------------------------------------------
-    // ثانياً: Fragment
-    // --------------------------------------------------------
+    // ========================================================
+    // 2️⃣ قراءة Fragment
+    // ========================================================
 
     final String fragment = uri.fragment.trim();
+
+    debugPrint('🔗 [URL] fragment الخام: $fragment');
 
     if (fragment.isEmpty) {
       return null;
     }
 
-    debugPrint('🔗 [URL] fragment: $fragment');
-
-    // --------------------------------------------------------
-    // حالة:
+    // ========================================================
+    // أمثلة:
+    //
     // #/?mox=MOX249-00010001
-    // --------------------------------------------------------
+    // #mox=MOX249-00010001
+    // ?mox=MOX249-00010001
+    // ========================================================
 
     String fragmentQuery = fragment;
+
+    final int questionIndex = fragmentQuery.indexOf('?');
+
+    if (questionIndex >= 0) {
+      fragmentQuery = fragmentQuery.substring(questionIndex + 1);
+    }
 
     if (fragmentQuery.startsWith('?')) {
       fragmentQuery = fragmentQuery.substring(1);
     }
 
-    if (fragmentQuery.contains('?')) {
-      fragmentQuery = fragmentQuery.substring(fragmentQuery.indexOf('?') + 1);
-    }
-
-    // --------------------------------------------------------
-    // محاولة قراءة Fragment كـ Query
-    // --------------------------------------------------------
-
     try {
       if (fragmentQuery.contains('=')) {
         final Map<String, String> query = Uri.splitQueryString(fragmentQuery);
 
-        identifier = extractFromQuery(query);
+        identifier = extract(query);
 
         if (identifier != null) {
           debugPrint('🔗 [URL] identifier من fragment: $identifier');
@@ -218,17 +189,17 @@ String? _getPublicIdentifierFromUrl() {
         }
       }
     } catch (e) {
-      debugPrint('⚠️ [URL Fragment Query] $e');
+      debugPrint('⚠️ [URL] خطأ في تحليل fragment: $e');
     }
 
-    // --------------------------------------------------------
-    // محاولة URI كاملة داخل Fragment
-    // --------------------------------------------------------
+    // ========================================================
+    // 3️⃣ محاولة أخيرة
+    // ========================================================
 
     try {
-      final Uri fragmentUri = Uri.parse('https://mox.local/$fragment');
+      final Uri fragmentUri = Uri.parse('https://mox.local/?$fragmentQuery');
 
-      identifier = extractFromQuery(fragmentUri.queryParameters);
+      identifier = extract(fragmentUri.queryParameters);
 
       if (identifier != null) {
         debugPrint('🔗 [URL] identifier من fragment URI: $identifier');
@@ -236,7 +207,7 @@ String? _getPublicIdentifierFromUrl() {
         return identifier;
       }
     } catch (e) {
-      debugPrint('⚠️ [URL Fragment URI] $e');
+      debugPrint('⚠️ [URL] خطأ في fragment URI: $e');
     }
 
     return null;
@@ -246,7 +217,6 @@ String? _getPublicIdentifierFromUrl() {
     return null;
   }
 }
-
 // ============================================================
 // البحث المحلي عن المتجر
 // ============================================================
