@@ -157,6 +157,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   bool _isSubscriptionExpired = false;
 
+  // ignore: unused_field
   int _activationButtonState = 0;
 
   // نحتفظ بنسخة حية من المستخدم
@@ -287,6 +288,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   void _initializeSubscription() {
     final String? publishDate = _liveUser.storePublishDate;
 
+    // المتجر لم يبدأ اشتراكه بعد
     if (publishDate == null ||
         publishDate.trim().isEmpty ||
         publishDate == "null") {
@@ -295,13 +297,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
+    // لديه تاريخ بداية
     _isSubscriptionExpired = _checkIf365DaysExpired(publishDate);
 
+    // 1 = الاشتراك فعال
+    // 0 = غير فعال / لم يبدأ أو انتهى
     _activationButtonState = _isSubscriptionExpired ? 0 : 1;
   }
 
+  // ============================================================
+  // 🔍 فحص انتهاء الـ365 يوماً
+  // ============================================================
+
   bool _checkIf365DaysExpired(String? publishDateStr) {
-    if (publishDateStr == null || publishDateStr.trim().isEmpty) {
+    if (publishDateStr == null ||
+        publishDateStr.trim().isEmpty ||
+        publishDateStr == "null") {
       return false;
     }
 
@@ -318,10 +329,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
+  // ============================================================
+  // 📅 الأيام المتبقية
+  // ============================================================
+
   int _getRemainingDays() {
     final String? date = _liveUser.storePublishDate;
 
-    if (date == null || date.isEmpty || date == "null") {
+    // لم يبدأ الاشتراك بعد
+    if (date == null || date.trim().isEmpty || date == "null") {
       return _subscriptionDays;
     }
 
@@ -332,11 +348,71 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         const Duration(days: _subscriptionDays),
       );
 
-      final int days = expiryDate.difference(DateTime.now()).inDays;
+      final Duration difference = expiryDate.difference(DateTime.now());
 
-      return days > 0 ? days : 0;
+      if (difference.isNegative) {
+        return 0;
+      }
+
+      // نضمن ظهور 365 في البداية بدلاً من 364
+      final int days = difference.inHours ~/ 24;
+
+      return days > 0 ? days : 1;
     } catch (_) {
       return _subscriptionDays;
+    }
+  }
+
+  // ============================================================
+  // 🚀 بدء الاشتراك لأول مرة
+  // ============================================================
+
+  Future<void> _startSubscription() async {
+    // إذا كان هناك اشتراك أصلاً لا نبدأ من جديد
+    final String? existingDate = _liveUser.storePublishDate;
+
+    if (existingDate != null &&
+        existingDate.trim().isNotEmpty &&
+        existingDate != "null") {
+      return;
+    }
+
+    final String startDate = DateTime.now().toIso8601String();
+
+    final UserModel activatedUser = _liveUser.copyWith(
+      storePublishDate: startDate,
+      role: 'reviewed_active',
+    );
+
+    try {
+      await StorageService.updateUserPartial(activatedUser);
+
+      // تحديث النسخة الحية
+      _liveUser = activatedUser;
+
+      if (!mounted) return;
+
+      setState(() {
+        _isSubscriptionExpired = false;
+        _activationButtonState = 1;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🚀 تم تشغيل المتجر بنجاح — بدأت مدة الـ365 يوماً."),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ حدث خطأ أثناء بدء الاشتراك: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -573,7 +649,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔑 التفعيل
+  // 🔑 التفعيل بعد انتهاء الاشتراك
   // ============================================================
 
   void _showActivationKeyDialog() {
@@ -587,6 +663,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
+
           title: const Row(
             children: [
               Icon(Icons.lock_clock, color: Colors.red),
@@ -603,19 +680,30 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
             ],
           ),
+
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "أدخل مفتاح التنشيط لإعادة تشغيل المتجر لمدة 365 يوماً.",
+                "انتهت مدة الاشتراك البالغة 365 يوماً.",
                 style: TextStyle(fontSize: 12, height: 1.5),
               ),
+
+              const SizedBox(height: 8),
+
+              const Text(
+                "أدخل مفتاح التنشيط لإعادة تشغيل المتجر لمدة 365 يوماً جديدة.",
+                style: TextStyle(fontSize: 12, height: 1.5),
+              ),
+
               const SizedBox(height: 15),
+
               TextField(
                 controller: keyController,
                 maxLength: 40,
                 textCapitalization: TextCapitalization.characters,
+
                 decoration: const InputDecoration(
                   labelText: "مفتاح التنشيط",
                   border: OutlineInputBorder(),
@@ -626,6 +714,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
             ],
           ),
+
           actions: [
             TextButton(
               onPressed: () {
@@ -633,12 +722,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               },
               child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
             ),
+
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-              onPressed: () async {
-                final String enteredKey = keyController.text.trim();
 
-                if (enteredKey != _sovereignActivationKey) {
+              onPressed: () async {
+                final String enteredKey = keyController.text
+                    .trim()
+                    .toUpperCase();
+
+                final String correctKey = _sovereignActivationKey.toUpperCase();
+
+                if (enteredKey != correctKey) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("❌ مفتاح التنشيط غير صحيح."),
@@ -652,6 +747,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                 await _renewSubscription();
               },
+
               child: const Text(
                 "تفعيل المتجر",
                 style: TextStyle(
@@ -667,9 +763,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     keyController.dispose();
   }
-
   // ============================================================
-  // 🔄 تجديد الاشتراك
+  // 🔄 تجديد الاشتراك لمدة 365 يوماً
   // ============================================================
 
   Future<void> _renewSubscription() async {
@@ -694,8 +789,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ تم تفعيل المتجر لمدة 365 يوماً جديدة."),
+          content: Text("✅ تم تجديد المتجر لمدة 365 يوماً جديدة."),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
         ),
       );
     } catch (e) {
@@ -703,7 +799,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("حدث خطأ أثناء حفظ التفعيل: $e"),
+          content: Text("❌ حدث خطأ أثناء حفظ التفعيل: $e"),
           backgroundColor: Colors.red,
         ),
       );
@@ -901,6 +997,20 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       _showSecurityLoginDialog();
       return;
     }
+    final bool hasSubscription =
+        _liveUser.storePublishDate != null &&
+        _liveUser.storePublishDate!.trim().isNotEmpty &&
+        _liveUser.storePublishDate != "null";
+
+    if (!hasSubscription) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🚀 اضغط «بدء تشغيل المتجر — 365 يوماً» أولاً."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     if (_isSubscriptionExpired) {
       _showActivationKeyDialog();
@@ -1076,8 +1186,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     final IconData selectedIcon =
         _cardSelectedIcons[titleKey] ?? Icons.shopping_bag;
 
-    final bool storeActive =
-        _activationButtonState == 1 || _liveUser.role == 'reviewed_active';
+    final bool canEditCards = _isAuthorized;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 10),
@@ -1121,7 +1230,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       DropdownMenuItem(value: 'قسم', child: Text('قسم')),
                       DropdownMenuItem(value: 'رف', child: Text('رف')),
                     ],
-                    onChanged: storeActive
+                    onChanged: canEditCards
                         ? (value) {
                             if (value == null) {
                               return;
@@ -1146,7 +1255,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     Checkbox(
                       value: isChecked,
                       activeColor: _primaryColor,
-                      onChanged: storeActive
+                      onChanged: canEditCards
                           ? (value) {
                               setState(() {
                                 _cardActivationStatus[titleKey] =
@@ -1169,7 +1278,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 InkWell(
-                  onTap: storeActive
+                  onTap: canEditCards
                       ? () => _showIconSelectorDialog(titleKey)
                       : null,
                   borderRadius: BorderRadius.circular(12),
@@ -1430,7 +1539,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     // ==========================================================
 
     final bool isStoreActive =
-        _activationButtonState == 1 || _liveUser.role == 'reviewed_active';
+        _liveUser.storePublishDate != null &&
+        _liveUser.storePublishDate!.trim().isNotEmpty &&
+        _liveUser.storePublishDate != "null" &&
+        !_isSubscriptionExpired;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1625,55 +1737,182 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   const SizedBox(height: 8),
 
                   // ======================================================
-                  // حالة المتجر
+                  // حالة المتجر والاشتراك
                   // ======================================================
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _primaryColor),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
+                  Builder(
+                    builder: (context) {
+                      final bool hasSubscription =
+                          _liveUser.storePublishDate != null &&
+                          _liveUser.storePublishDate!.trim().isNotEmpty &&
+                          _liveUser.storePublishDate != "null";
+
+                      final bool subscriptionActive =
+                          hasSubscription && !_isSubscriptionExpired;
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+
+                        decoration: BoxDecoration(
+                          color: subscriptionActive
+                              ? Colors.green.shade50
+                              : Colors.indigo.shade50,
+
+                          borderRadius: BorderRadius.circular(14),
+
+                          border: Border.all(
+                            color: subscriptionActive
+                                ? Colors.green
+                                : _primaryColor,
+                          ),
+                        ),
+
+                        child: Column(
                           children: [
-                            Icon(Icons.timer, color: _darkColor),
-                            SizedBox(width: 8),
-                            Text(
-                              "مدة المتجر",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: _darkColor,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      subscriptionActive
+                                          ? Icons.check_circle
+                                          : Icons.timer,
+                                      color: subscriptionActive
+                                          ? Colors.green
+                                          : _darkColor,
+                                    ),
+
+                                    const SizedBox(width: 8),
+
+                                    Text(
+                                      subscriptionActive
+                                          ? "المتجر يعمل"
+                                          : "المتجر جاهز للتشغيل",
+
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+
+                                        color: subscriptionActive
+                                            ? Colors.green.shade800
+                                            : _darkColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                if (subscriptionActive)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+
+                                    child: Text(
+                                      "متبقي ${_getRemainingDays()} يوم",
+
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
+
+                            // ==================================================
+                            // 🚀 بدء الاشتراك لأول مرة
+                            // ==================================================
+                            if (!hasSubscription) ...[
+                              const SizedBox(height: 14),
+
+                              Container(
+                                width: double.infinity,
+
+                                padding: const EdgeInsets.all(10),
+
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+
+                                child: const Text(
+                                  "المتجر جاهز بالكامل. اضغط الزر أدناه عندما تريد بدء مدة الاشتراك. ستبدأ الـ365 يوماً من لحظة الضغط.",
+                                  textAlign: TextAlign.center,
+
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    height: 1.5,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _primaryColor,
+
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+
+                                  onPressed: _startSubscription,
+
+                                  icon: const Icon(
+                                    Icons.play_circle_fill,
+                                    color: Colors.white,
+                                  ),
+
+                                  label: const Text(
+                                    "🚀 بدء تشغيل المتجر — 365 يوماً",
+
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            // ==================================================
+                            // 🔄 الاشتراك فعال
+                            // ==================================================
+                            if (subscriptionActive) ...[
+                              const SizedBox(height: 8),
+
+                              const Align(
+                                alignment: Alignment.centerRight,
+
+                                child: Text(
+                                  "✓ الاشتراك فعال ويمكنك الآن حفظ ونشر المتجر.",
+                                  style: TextStyle(
+                                    color: Colors.green,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _primaryColor,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            "متبقي ${_getRemainingDays()} يوم",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-
-                  const SizedBox(height: 16),
-
                   // ======================================================
                   // الرابط
                   // ======================================================
