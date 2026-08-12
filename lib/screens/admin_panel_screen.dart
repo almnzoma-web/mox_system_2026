@@ -51,7 +51,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
     final String normalizedFallback = user.moxId.trim().toUpperCase();
 
-    final String selectedIdentifier =
+    final String activeMoxForUrl =
         normalizedGuardian.isNotEmpty &&
             normalizedGuardian != 'NULL' &&
             normalizedGuardian != 'لم يحدد'
@@ -62,11 +62,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ? normalizedFallback
         : '';
 
-    if (selectedIdentifier.isEmpty) {
+    if (activeMoxForUrl.isEmpty) {
       return '';
     }
 
-    return 'https://mox-2026.vercel.app/#/?mox=$selectedIdentifier';
+    return 'https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl';
   }
 
   // ============================================================
