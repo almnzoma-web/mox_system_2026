@@ -1,1 +1,8 @@
-{"app_name":"mox_digital_app","version":"1.0.0","build_number":"1","package_name":"mox_digital_app"}
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
