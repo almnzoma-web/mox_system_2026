@@ -66,7 +66,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       return '';
     }
 
-    return 'https://mox-2026.vercel.app/#/?mox=$activeMoxForUrl';
+    return 'https://mox-2026.vercel.app/?mox=$activeMoxForUrl';
   }
 
   // ============================================================

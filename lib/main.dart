@@ -23,7 +23,9 @@ void main() async {
   // Web URL Strategy
   // ----------------------------------------------------------
 
-  setUrlStrategy(PathUrlStrategy());
+  if (kIsWeb) {
+    setUrlStrategy(PathUrlStrategy());
+  }
 
   // ----------------------------------------------------------
   // تحميل المستخدمين
@@ -110,31 +112,40 @@ String? _getPublicIdentifierFromUrl() {
   try {
     final Uri uri = Uri.base;
 
-    debugPrint('🌐 [URL] الرابط الحالي: $uri');
-    debugPrint('🌐 [URL] query: ${uri.queryParameters}');
+    debugPrint('🔗 [URL] الرابط الحالي: ${uri.toString()}');
+    debugPrint('🔗 [URL] query: ${uri.queryParameters}');
 
     String? clean(String? value) {
       if (value == null) return null;
 
       final String result = value.trim();
 
-      if (result.isEmpty ||
-          result.toLowerCase() == 'null' ||
-          result == 'لم يحدد') {
+      if (result.isEmpty || result == 'null' || result == 'لم يحدد') {
         return null;
       }
 
       return result;
     }
 
-    final String? identifier =
-        clean(uri.queryParameters['mox']) ??
-        clean(uri.queryParameters['guardianMoxId']) ??
-        clean(uri.queryParameters['moxId']) ??
-        clean(uri.queryParameters['phone']) ??
-        clean(uri.queryParameters['identifier']);
+    final Map<String, String> query = uri.queryParameters;
 
-    debugPrint('🌐 [URL] معرف المتجر المستخرج: $identifier');
+    String? identifier;
+
+    identifier = clean(query['mox']);
+
+    identifier ??= clean(query['guardianMoxId']);
+
+    identifier ??= clean(query['moxId']);
+
+    identifier ??= clean(query['phone']);
+
+    identifier ??= clean(query['identifier']);
+
+    if (identifier != null) {
+      debugPrint('🔑 [URL] معرف المتجر المستخرج: $identifier');
+    } else {
+      debugPrint('⚠️ [URL] لم يتم العثور على معرف متجر');
+    }
 
     return identifier;
   } catch (e) {
