@@ -417,48 +417,27 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔗 رابط المتجر العام — النسخة الحية
+  // 🔗 رابط المتجر العام
   // ============================================================
 
   void _updateStoreLink() {
-    String clean(String? value) {
-      final String result = (value ?? '').trim();
+    final String guardianMox = (widget.user.guardianMoxId ?? '').trim();
 
-      if (result.isEmpty ||
-          result.toLowerCase() == 'null' ||
-          result == 'لم يحدد') {
-        return '';
-      }
+    if (guardianMox.isEmpty ||
+        guardianMox == 'null' ||
+        guardianMox == 'لم يحدد') {
+      _linkController.text = '';
 
-      return result;
+      debugPrint('⚠️ [Store Link] لا توجد guardianMoxId');
+
+      return;
     }
 
-    final String ownMox = clean(_liveUser.moxId);
+    final String storeUrl = 'https://mox-2026.vercel.app/store/$guardianMox';
 
-    final String customerGuardianMox = clean(_liveUser.guardianMoxIdCustomer);
+    _linkController.text = storeUrl;
 
-    final String guardianMox = clean(_liveUser.guardianMoxId);
-
-    final String phone = clean(_liveUser.phone);
-
-    String activeMoxForUrl;
-
-    if (ownMox.isNotEmpty) {
-      activeMoxForUrl = ownMox;
-    } else if (customerGuardianMox.isNotEmpty) {
-      activeMoxForUrl = customerGuardianMox;
-    } else if (guardianMox.isNotEmpty) {
-      activeMoxForUrl = guardianMox;
-    } else if (phone.isNotEmpty) {
-      activeMoxForUrl = phone;
-    } else {
-      activeMoxForUrl = 'MOX249-00010001';
-    }
-
-    _linkController.text =
-        'https://mox-2026.vercel.app/?mox=${Uri.encodeQueryComponent(activeMoxForUrl)}';
-
-    debugPrint('🔗 [Store Link] الرابط النهائي: ${_linkController.text}');
+    debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
   // ============================================================
   // 🔐 نافذة تسجيل الدخول

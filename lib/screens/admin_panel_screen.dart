@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -19,54 +20,112 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   final Color moxBlue = const Color(0xFF33A1C9);
 
   List<UserModel> _clients = [];
+
   bool _isLoading = true;
 
   // ============================================================
-  // ☁️ رابط Google Apps Script المعتمد
+  // ☁️ Google Apps Script
   // ============================================================
 
   static const String _scriptUrl =
       'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
   // ============================================================
-  // 🔗 بناء رابط العميل
+  // 🔗 رابط العميل
   //
-  // نفس منطق المتجر العام:
+  // القاعدة النهائية:
   //
-  // 1️⃣ guardianMoxId أولاً
-  // 2️⃣ moxId كـ fallback
+  // 1️⃣ guardianMoxId
+  //     الهوية السيادية اليدوية
+  //
+  // 2️⃣ moxId
+  //     الهوية التلقائية للعميل
+  //
+  // لا نستخدم:
+  // phone
+  // guardianMoxIdCustomer
   //
   // الرابط النهائي:
-  // https://mox-2026.vercel.app/#/?mox=IDENTIFIER
   //
-  // مهم:
-  // إذا كان guardianMoxId موجوداً فهو المستخدم الأساسي للرابط.
-  // moxId لا يُستخدم إلا إذا لم توجد هوية guardian.
+  // https://mox-2026.vercel.app/store/MOX249-00010001
+  //
+  // بدون:
+  // #
+  // ?mox=
   // ============================================================
 
   String _buildClientStoreLink(UserModel user) {
-    final String normalizedGuardian = (user.guardianMoxId ?? '')
+    // ----------------------------------------------------------
+    // الهوية السيادية اليدوية
+    // ----------------------------------------------------------
+
+    final String guardianMoxId = (user.guardianMoxId ?? '')
         .trim()
         .toUpperCase();
 
-    final String normalizedFallback = user.moxId.trim().toUpperCase();
+    // ----------------------------------------------------------
+    // الهوية التلقائية للعميل
+    // ----------------------------------------------------------
 
-    final String activeMoxForUrl =
-        normalizedGuardian.isNotEmpty &&
-            normalizedGuardian != 'NULL' &&
-            normalizedGuardian != 'لم يحدد'
-        ? normalizedGuardian
-        : normalizedFallback.isNotEmpty &&
-              normalizedFallback != 'NULL' &&
-              normalizedFallback != 'لم يحدد'
-        ? normalizedFallback
-        : '';
+    final String moxId = user.moxId.trim().toUpperCase();
 
-    if (activeMoxForUrl.isEmpty) {
+    // ----------------------------------------------------------
+    // اختيار الهوية التي ستدخل في الرابط
+    // ----------------------------------------------------------
+
+    String activeMoxId = '';
+
+    if (_isValidMoxId(guardianMoxId)) {
+      activeMoxId = guardianMoxId;
+    } else if (_isValidMoxId(moxId)) {
+      activeMoxId = moxId;
+    }
+
+    // ----------------------------------------------------------
+    // لا يوجد معرف
+    // ----------------------------------------------------------
+
+    if (activeMoxId.isEmpty) {
       return '';
     }
 
-    return 'https://mox-2026.vercel.app/?mox=$activeMoxForUrl';
+    // ----------------------------------------------------------
+    // 🔗 الرابط النظيف
+    // ----------------------------------------------------------
+
+    final String encodedMoxId = Uri.encodeComponent(activeMoxId);
+
+    return 'https://mox-2026.vercel.app/store/$encodedMoxId';
+  }
+
+  // ============================================================
+  // 🔎 التحقق من صلاحية معرف MOX
+  // ============================================================
+
+  bool _isValidMoxId(String value) {
+    final String normalized = value.trim().toUpperCase();
+
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    if (normalized == 'NULL') {
+      return false;
+    }
+
+    if (normalized == 'لم يحدد') {
+      return false;
+    }
+
+    if (normalized == 'UNDEFINED') {
+      return false;
+    }
+
+    if (normalized == 'N/A') {
+      return false;
+    }
+
+    return true;
   }
 
   // ============================================================
@@ -76,73 +135,133 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   @override
   void initState() {
     super.initState();
+
     _fetchFromCloud();
   }
 
   // ============================================================
-  // ☁️ جلب العملاء من Google
+  // ☁️ جلب العملاء من Google Sheets
   // ============================================================
 
   Future<void> _fetchFromCloud() async {
     if (mounted) {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+      });
     }
 
     try {
-      final response = await http
-          .get(Uri.parse(_scriptUrl))
-          .timeout(const Duration(seconds: 8));
+      final Uri uri = Uri.parse(
+        _scriptUrl,
+      ).replace(queryParameters: {'action': 'getAll'});
 
-      if (!mounted) return;
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final dynamic decoded = json.decode(response.body);
+      debugPrint('☁️ [Admin Cloud] HTTP: ${response.statusCode}');
 
-        if (decoded is List) {
-          final List<UserModel> cloudClients = decoded
-              .map(
-                (item) => UserModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList();
+      if (response.statusCode != 200) {
+        throw Exception('Google Apps Script HTTP ${response.statusCode}');
+      }
 
-          setState(() {
-            _clients = cloudClients;
-          });
+      final dynamic decoded = json.decode(response.body);
+
+      if (decoded is! List) {
+        throw Exception('Google Apps Script لم يرجع List');
+      }
+
+      final List<UserModel> cloudClients = [];
+
+      for (final dynamic item in decoded) {
+        try {
+          if (item is! Map) {
+            continue;
+          }
+
+          final Map<String, dynamic> map = Map<String, dynamic>.from(item);
+
+          // ----------------------------------------------------
+          // دعم اسم العمود القديم MOXID
+          // ----------------------------------------------------
+
+          if ((map['moxId'] == null ||
+                  map['moxId'].toString().trim().isEmpty) &&
+              map['MOXID'] != null) {
+            map['moxId'] = map['MOXID'];
+          }
+
+          // ----------------------------------------------------
+          // تحويل السجل
+          // ----------------------------------------------------
+
+          final UserModel user = UserModel.fromJson(map);
+
+          cloudClients.add(user);
+        } catch (e) {
+          debugPrint('⚠️ [Admin Cloud] سجل غير صالح: $e');
         }
       }
-    } catch (_) {
-      // ========================================================
-      // 🔄 fallback للمخزن المحلي / الهجين
-      // ========================================================
 
-      await StorageService.loadUsers();
-
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
-        _clients = StorageService.registeredUsers;
+        _clients = cloudClients;
       });
+
+      debugPrint('✅ [Admin Cloud] تم تحميل ${cloudClients.length} عميل');
+    } catch (e) {
+      debugPrint('❌ [Admin Cloud] $e');
+
+      // ========================================================
+      // 🔄 fallback إلى التخزين المحلي
+      // ========================================================
+
+      try {
+        await StorageService.loadUsers();
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _clients = List<UserModel>.from(StorageService.registeredUsers);
+        });
+
+        debugPrint('🔄 [Admin Local] تم استخدام البيانات المحلية');
+      } catch (localError) {
+        debugPrint('❌ [Admin Local] $localError');
+      }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
 
   // ============================================================
-  // ☁️ ترحيل العميل إلى Google
+  // ☁️ حفظ العميل
   // ============================================================
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // نحافظ على UserModel بالكامل
-      // بما فيه myAssets و guardianMoxId.
+      // --------------------------------------------------------
+      // حفظ UserModel بالكامل
+      // --------------------------------------------------------
 
       await StorageService.updateUserPartial(user);
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      // تحديث الرابط بعد نجاح الحفظ
+      // --------------------------------------------------------
+      // إعادة بناء الرابط
+      // --------------------------------------------------------
 
       final String clientLink = _buildClientStoreLink(user);
 
@@ -150,21 +269,27 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         SnackBar(
           content: Text(
             clientLink.isNotEmpty
-                ? "✅ تم تحديث بيانات ${user.name} والرابط السيادي بنجاح."
-                : "✅ تم تحديث بيانات ${user.name} بنجاح. أضف هوية MOX لإنشاء الرابط.",
+                ? '✅ تم حفظ ${user.name} وتحديث رابط العميل.'
+                : '⚠️ تم حفظ ${user.name} ولكن لا توجد هوية MOX لإنشاء الرابط.',
           ),
-          backgroundColor: Colors.green,
+          backgroundColor: clientLink.isNotEmpty ? Colors.green : Colors.orange,
           duration: const Duration(seconds: 3),
         ),
       );
 
+      // --------------------------------------------------------
+      // إعادة تحميل البيانات من Google
+      // --------------------------------------------------------
+
       await _fetchFromCloud();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("❌ خطأ في الترحيل: $e"),
+          content: Text('❌ خطأ في حفظ بيانات العميل: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -172,7 +297,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   // ============================================================
-  // 🔗 نسخ رابط العميل
+  // 📋 نسخ رابط العميل
   // ============================================================
 
   Future<void> _copyClientStoreLink(UserModel user) async {
@@ -181,20 +306,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("⚠️ لا توجد هوية MOX صالحة لهذا العميل حتى الآن."),
+          content: Text('⚠️ لا توجد هوية MOX صالحة لهذا العميل.'),
           backgroundColor: Colors.orange,
         ),
       );
+
       return;
     }
 
     await Clipboard.setData(ClipboardData(text: link));
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("📋 تم نسخ رابط العميل."),
+        content: Text('📋 تم نسخ رابط العميل النظيف.'),
         backgroundColor: Colors.green,
       ),
     );
@@ -202,13 +330,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   // ============================================================
   // ✏️ تعديل بيانات العميل
-  //
-  // guardianMoxId:
-  // المعرف السيادي اليدوي، وهو الأولوية في الرابط.
-  //
-  // moxId:
-  // الهوية الأساسية، وتستخدم كـ fallback إذا لم يوجد
-  // guardianMoxId.
   // ============================================================
 
   void _showEditClientDialog(UserModel user) {
@@ -220,157 +341,217 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       text: user.moxId,
     );
 
-    final String currentLink = _buildClientStoreLink(user);
-
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            "تعديل المعرف السيادي: ${user.name}",
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ==================================================
-                // guardianMoxId
-                // ==================================================
-                TextField(
-                  controller: guardianMoxController,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: "معرف MOX السيادي اليدوي",
-                    helperText: "هذا هو المعرف ذو الأولوية في رابط العميل.",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.verified_user),
-                  ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // --------------------------------------------------
+            // بناء الرابط الحالي
+            // --------------------------------------------------
+
+            final String previewGuardian = guardianMoxController.text
+                .trim()
+                .toUpperCase();
+
+            final String previewMox = moxIdController.text.trim().toUpperCase();
+
+            String previewActiveId = '';
+
+            if (_isValidMoxId(previewGuardian)) {
+              previewActiveId = previewGuardian;
+            } else if (_isValidMoxId(previewMox)) {
+              previewActiveId = previewMox;
+            }
+
+            final String previewLink = previewActiveId.isNotEmpty
+                ? 'https://mox-2026.vercel.app/store/${Uri.encodeComponent(previewActiveId)}'
+                : '';
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+
+              title: Text(
+                'إدارة هوية العميل: ${user.name}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
                 ),
+              ),
 
-                const SizedBox(height: 15),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ==================================================
+                    // guardianMoxId
+                    // ==================================================
+                    TextField(
+                      controller: guardianMoxController,
+                      textCapitalization: TextCapitalization.characters,
 
-                // ==================================================
-                // moxId
-                // ==================================================
-                TextField(
-                  controller: moxIdController,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: "معرف MOX الأساسي",
-                    helperText: "يستخدم كبديل للرابط إذا لم توجد هوية سيادية.",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.badge),
-                  ),
-                ),
+                      onChanged: (_) {
+                        setDialogState(() {});
+                      },
 
-                const SizedBox(height: 15),
+                      decoration: const InputDecoration(
+                        labelText: 'معرف MOX السيادي اليدوي',
+                        helperText: 'الأولوية في رابط العميل.',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.verified_user),
+                      ),
+                    ),
 
-                // ==================================================
-                // رابط العميل الحالي
-                // ==================================================
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: moxBlue),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "🔗 رابط العميل",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1B6B80),
-                        ),
+                    const SizedBox(height: 15),
+
+                    // ==================================================
+                    // moxId
+                    // ==================================================
+                    TextField(
+                      controller: moxIdController,
+                      readOnly: true,
+
+                      decoration: const InputDecoration(
+                        labelText: 'معرف MOX الأساسي',
+                        helperText:
+                            'يُنشأ تلقائياً عند تسجيل العميل ويستخدم كبديل.',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.badge),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // ==================================================
+                    // رابط العميل
+                    // ==================================================
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: moxBlue),
                       ),
 
-                      const SizedBox(height: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
 
-                      Text(
-                        currentLink.isNotEmpty
-                            ? currentLink
-                            : "سيظهر الرابط بعد إضافة هوية MOX",
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: currentLink.isNotEmpty
-                              ? Colors.black87
-                              : Colors.red,
-                        ),
+                        children: [
+                          const Text(
+                            '🔗 رابط العميل النظيف',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B6B80),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Text(
+                            previewLink.isNotEmpty
+                                ? previewLink
+                                : 'سيظهر الرابط بعد تحديد هوية MOX',
+
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: previewLink.isNotEmpty
+                                  ? Colors.black87
+                                  : Colors.red,
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          if (_isValidMoxId(previewGuardian))
+                            const Text(
+                              '✓ الرابط يستخدم guardianMoxId',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          else
+                            const Text(
+                              '↳ الرابط يستخدم moxId تلقائياً',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+
+              actions: [
+                // ==================================================
+                // إلغاء
+                // ==================================================
+                TextButton(
+                  onPressed: () {
+                    guardianMoxController.dispose();
+                    moxIdController.dispose();
+
+                    Navigator.pop(dialogContext);
+                  },
+
+                  child: const Text('إلغاء'),
+                ),
+
+                // ==================================================
+                // حفظ
+                // ==================================================
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: moxBlue),
+
+                  onPressed: () async {
+                    final String newGuardianMoxId = guardianMoxController.text
+                        .trim()
+                        .toUpperCase();
+
+                    // ------------------------------------------------
+                    // تحديث الهوية السيادية فقط
+                    // ------------------------------------------------
+
+                    user.guardianMoxId = newGuardianMoxId.isEmpty
+                        ? null
+                        : newGuardianMoxId;
+
+                    // ------------------------------------------------
+                    // moxId لا يتم تغييره
+                    // ------------------------------------------------
+
+                    Navigator.pop(dialogContext);
+
+                    guardianMoxController.dispose();
+                    moxIdController.dispose();
+
+                    // ------------------------------------------------
+                    // حفظ
+                    // ------------------------------------------------
+
+                    await _syncClientToCloud(user);
+                  },
+
+                  child: const Text(
+                    'حفظ وتحديث الرابط',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                guardianMoxController.dispose();
-
-                moxIdController.dispose();
-
-                Navigator.pop(dialogContext);
-              },
-              child: const Text("إلغاء"),
-            ),
-
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: moxBlue),
-              onPressed: () async {
-                final String newGuardianMoxId = guardianMoxController.text
-                    .trim()
-                    .toUpperCase();
-
-                final String newMoxId = moxIdController.text.trim();
-
-                // ==================================================
-                // تحديث guardianMoxId
-                // ==================================================
-
-                user.guardianMoxId = newGuardianMoxId.isEmpty
-                    ? null
-                    : newGuardianMoxId;
-
-                // ==================================================
-                // moxId لا نغيره فعلياً
-                // لأنه readOnly.
-                //
-                // فقط نحافظ على القيمة الحالية.
-                // ==================================================
-
-                if (newMoxId.isNotEmpty) {
-                  user.moxId = newMoxId;
-                }
-
-                Navigator.pop(dialogContext);
-
-                guardianMoxController.dispose();
-
-                moxIdController.dispose();
-
-                // ==================================================
-                // حفظ كامل UserModel
-                // ==================================================
-
-                await _syncClientToCloud(user);
-              },
-              child: const Text(
-                "حفظ وتحديث الرابط",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -383,91 +564,116 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ==========================================================
+      // APP BAR
+      // ==========================================================
       appBar: AppBar(
         title: const Text(
-          "لوحة تحكم المدير - السجل السيادي",
+          'لوحة تحكم المدير - السجل السيادي',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
             fontSize: 16,
           ),
         ),
+
         backgroundColor: moxBlue,
+
         centerTitle: true,
+
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: "تحديث البيانات",
+
+            tooltip: 'تحديث البيانات',
+
             onPressed: _fetchFromCloud,
           ),
         ],
       ),
 
       // ==========================================================
-      // 📋 BODY
+      // BODY
       // ==========================================================
       body: _isLoading
+          // ------------------------------------------------------
+          // تحميل
+          // ------------------------------------------------------
           ? Center(child: CircularProgressIndicator(color: moxBlue))
+          // ------------------------------------------------------
+          // لا توجد بيانات
+          // ------------------------------------------------------
           : _clients.isEmpty
           ? const Center(
               child: Text(
-                "لا توجد سجلات عملاء مسجلة حالياً 📭",
+                'لا توجد سجلات عملاء مسجلة حالياً 📭',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.grey,
                 ),
               ),
             )
+          // ------------------------------------------------------
+          // جدول العملاء
+          // ------------------------------------------------------
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+
               child: SingleChildScrollView(
                 child: DataTable(
                   columns: const [
                     DataColumn(
                       label: Text(
-                        "الاسم",
+                        'الاسم',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "الهاتف",
+                        'الهاتف',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "الهوية الأساسية",
+                        'moxId',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "الهوية السيادية",
+                        'guardianMoxId',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "رابط العميل",
+                        'رابط العميل',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "الرصيد",
+                        'الرصيد',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "نوع الحساب",
+                        'نوع الحساب',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+
                     DataColumn(
                       label: Text(
-                        "الإجراء السيادي",
+                        'الإجراءات',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -476,13 +682,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   rows: _clients.map((user) {
                     final String clientLink = _buildClientStoreLink(user);
 
+                    final bool hasGuardian = _isValidMoxId(
+                      (user.guardianMoxId ?? '').trim().toUpperCase(),
+                    );
+
                     return DataRow(
                       cells: [
                         // ==================================================
                         // الاسم
                         // ==================================================
                         DataCell(
-                          Text(user.name.isNotEmpty ? user.name : "بدون اسم"),
+                          Text(user.name.isNotEmpty ? user.name : 'بدون اسم'),
                         ),
 
                         // ==================================================
@@ -490,7 +700,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         // ==================================================
                         DataCell(
                           Text(
-                            user.phone.isNotEmpty ? user.phone : "غير متوفر",
+                            user.phone.isNotEmpty ? user.phone : 'غير متوفر',
                           ),
                         ),
 
@@ -498,7 +708,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         // moxId
                         // ==================================================
                         DataCell(
-                          Text(user.moxId.isNotEmpty ? user.moxId : "---"),
+                          Text(user.moxId.isNotEmpty ? user.moxId : '---'),
                         ),
 
                         // ==================================================
@@ -507,14 +717,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         DataCell(
                           InkWell(
                             onTap: () => _showEditClientDialog(user),
+
                             child: Text(
-                              user.guardianMoxId?.isNotEmpty == true
+                              hasGuardian
                                   ? user.guardianMoxId!
-                                  : "اضغط للإضافة ⚙️",
+                                  : 'اضغط للإضافة ⚙️',
+
                               style: TextStyle(
-                                color: user.guardianMoxId?.isNotEmpty == true
-                                    ? Colors.indigo
-                                    : Colors.red,
+                                color: hasGuardian ? Colors.indigo : Colors.red,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -527,7 +737,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         DataCell(
                           clientLink.isEmpty
                               ? const Text(
-                                  "غير متاح",
+                                  'غير متاح',
                                   style: TextStyle(
                                     color: Colors.red,
                                     fontSize: 11,
@@ -535,18 +745,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 )
                               : Row(
                                   mainAxisSize: MainAxisSize.min,
+
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.link,
                                       size: 16,
-                                      color: Colors.green,
+                                      color: hasGuardian
+                                          ? Colors.green
+                                          : Colors.orange,
                                     ),
+
                                     const SizedBox(width: 5),
+
                                     TextButton(
                                       onPressed: () =>
                                           _copyClientStoreLink(user),
+
                                       child: const Text(
-                                        "نسخ الرابط",
+                                        'نسخ الرابط',
                                         style: TextStyle(fontSize: 11),
                                       ),
                                     ),
@@ -566,7 +782,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           Text(
                             user.accountType.isNotEmpty
                                 ? user.accountType
-                                : "عادي",
+                                : 'عادي',
                           ),
                         ),
 
@@ -576,19 +792,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         DataCell(
                           Row(
                             children: [
+                              // ------------------------------------------
+                              // تعديل
+                              // ------------------------------------------
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
                                   minimumSize: const Size(80, 32),
                                 ),
+
                                 onPressed: () => _showEditClientDialog(user),
+
                                 icon: const Icon(
                                   Icons.edit,
                                   color: Colors.white,
                                   size: 14,
                                 ),
+
                                 label: const Text(
-                                  "تعديل",
+                                  'تعديل',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 11,
@@ -598,19 +820,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                               const SizedBox(width: 6),
 
+                              // ------------------------------------------
+                              // ترحيل
+                              // ------------------------------------------
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: moxBlue,
                                   minimumSize: const Size(90, 32),
                                 ),
+
                                 onPressed: () => _syncClientToCloud(user),
+
                                 icon: const Icon(
                                   Icons.cloud_upload,
                                   color: Colors.white,
                                   size: 14,
                                 ),
+
                                 label: const Text(
-                                  "رحّل للشيت",
+                                  'رحّل للشيت',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 11,
