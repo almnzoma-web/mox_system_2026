@@ -250,7 +250,7 @@ if(A.tN(s,"webgl2",null)!=null){if($.bu().gdj()===B.bg)return 1
 return 2}if(A.tN(s,"webgl",null)!=null)return 1
 return-1},
 aK_(){var s=v.G
-return s.Intl.v8BreakIterator!=null&&s.Intl.v8BreakIterator!=null},
+return s.Intl.Segmenter!=null&&s.Intl.Segmenter!=null},
 aYY(){var s,r,q,p,o,n
 if($.bu().gej()!==B.bX)return!1
 s=A.cF("Version\\/([0-9]+)\\.([0-9]+)",!1)
@@ -810,8 +810,8 @@ aK6(a){return new v.G.ResizeObserver(A.aC7(new A.ayF(a)))},
 aYg(a){if(v.G.window.trustedTypes!=null)return $.aNr().createScriptURL(a)
 return a},
 aK7(a){var s,r=v.G
-if(r.Intl.v8BreakIterator==null)throw A.i(A.eb("Intl.v8BreakIterator() is not supported."))
-r=r.Intl.v8BreakIterator
+if(r.Intl.Segmenter==null)throw A.i(A.eb("Intl.Segmenter() is not supported."))
+r=r.Intl.Segmenter
 s=t.N
 s=A.a1(A.am(["granularity",a],s,s))
 s.toString
