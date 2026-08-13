@@ -23,7 +23,7 @@ void main() async {
   // Web URL Strategy
   // ----------------------------------------------------------
 
-  setUrlStrategy(HashUrlStrategy());
+  setUrlStrategy(PathUrlStrategy());
 
   // ----------------------------------------------------------
   // تحميل المستخدمين
@@ -110,10 +110,13 @@ String? _getPublicIdentifierFromUrl() {
   try {
     final Uri uri = Uri.base;
 
+    debugPrint('🌐 [URL] الرابط الحالي: $uri');
+    debugPrint('🌐 [URL] query: ${uri.queryParameters}');
+
     String? clean(String? value) {
       if (value == null) return null;
 
-      final String result = Uri.decodeComponent(value).trim();
+      final String result = value.trim();
 
       if (result.isEmpty ||
           result.toLowerCase() == 'null' ||
@@ -124,96 +127,18 @@ String? _getPublicIdentifierFromUrl() {
       return result;
     }
 
-    String? extract(Map<String, String> query) {
-      return clean(query['mox']) ??
-          clean(query['guardianMoxId']) ??
-          clean(query['moxId']) ??
-          clean(query['phone']) ??
-          clean(query['identifier']);
-    }
+    final String? identifier =
+        clean(uri.queryParameters['mox']) ??
+        clean(uri.queryParameters['guardianMoxId']) ??
+        clean(uri.queryParameters['moxId']) ??
+        clean(uri.queryParameters['phone']) ??
+        clean(uri.queryParameters['identifier']);
 
-    // ========================================================
-    // 1️⃣ Query العادي
-    // ========================================================
+    debugPrint('🌐 [URL] معرف المتجر المستخرج: $identifier');
 
-    String? identifier = extract(uri.queryParameters);
-
-    if (identifier != null) {
-      debugPrint('🔗 [URL] identifier من query: $identifier');
-
-      return identifier;
-    }
-
-    // ========================================================
-    // 2️⃣ قراءة Fragment
-    // ========================================================
-
-    final String fragment = uri.fragment.trim();
-
-    debugPrint('🔗 [URL] fragment الخام: $fragment');
-
-    if (fragment.isEmpty) {
-      return null;
-    }
-
-    // ========================================================
-    // أمثلة:
-    //
-    // #/?mox=MOX249-00010001
-    // #mox=MOX249-00010001
-    // ?mox=MOX249-00010001
-    // ========================================================
-
-    String fragmentQuery = fragment;
-
-    final int questionIndex = fragmentQuery.indexOf('?');
-
-    if (questionIndex >= 0) {
-      fragmentQuery = fragmentQuery.substring(questionIndex + 1);
-    }
-
-    if (fragmentQuery.startsWith('?')) {
-      fragmentQuery = fragmentQuery.substring(1);
-    }
-
-    try {
-      if (fragmentQuery.contains('=')) {
-        final Map<String, String> query = Uri.splitQueryString(fragmentQuery);
-
-        identifier = extract(query);
-
-        if (identifier != null) {
-          debugPrint('🔗 [URL] identifier من fragment: $identifier');
-
-          return identifier;
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ [URL] خطأ في تحليل fragment: $e');
-    }
-
-    // ========================================================
-    // 3️⃣ محاولة أخيرة
-    // ========================================================
-
-    try {
-      final Uri fragmentUri = Uri.parse('https://mox.local/?$fragmentQuery');
-
-      identifier = extract(fragmentUri.queryParameters);
-
-      if (identifier != null) {
-        debugPrint('🔗 [URL] identifier من fragment URI: $identifier');
-
-        return identifier;
-      }
-    } catch (e) {
-      debugPrint('⚠️ [URL] خطأ في fragment URI: $e');
-    }
-
-    return null;
+    return identifier;
   } catch (e) {
     debugPrint('❌ [URL Parser] $e');
-
     return null;
   }
 }

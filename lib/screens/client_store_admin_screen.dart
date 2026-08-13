@@ -433,8 +433,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return result;
     }
 
-    // مهم جداً:
-    // نقرأ من _liveUser وليس widget.user
     final String ownMox = clean(_liveUser.moxId);
 
     final String customerGuardianMox = clean(_liveUser.guardianMoxIdCustomer);
@@ -457,17 +455,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       activeMoxForUrl = 'MOX249-00010001';
     }
 
-    // نضمن أن الرابط لا يحتوي مسافات
-    activeMoxForUrl = activeMoxForUrl.trim();
-
     _linkController.text =
-        'https://mox-2026.vercel.app/#/?mox=${Uri.encodeComponent(activeMoxForUrl)}';
-
-    debugPrint('🔗 [Store Link] MOX المستخدم: ${_liveUser.moxId}');
+        'https://mox-2026.vercel.app/?mox=${Uri.encodeQueryComponent(activeMoxForUrl)}';
 
     debugPrint('🔗 [Store Link] الرابط النهائي: ${_linkController.text}');
   }
-
   // ============================================================
   // 🔐 نافذة تسجيل الدخول
   // ============================================================
