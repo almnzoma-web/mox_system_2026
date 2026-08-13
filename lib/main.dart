@@ -188,20 +188,22 @@ String? _getPublicIdentifierFromUrl() {
     }
 
     // ========================================================
-    // استخراج MOX ID
+    // استخراج guardianMoxId
     // ========================================================
 
-    final String moxId = Uri.decodeComponent(segments[storeIndex + 1]).trim();
+    final String guardianMoxId = Uri.decodeComponent(
+      segments[storeIndex + 1],
+    ).trim();
 
-    if (moxId.isEmpty) {
-      debugPrint('⚠️ [URL Parser] MOX ID فارغ');
+    if (guardianMoxId.isEmpty) {
+      debugPrint('⚠️ [URL Parser] guardianMoxId فارغ');
 
       return null;
     }
 
-    debugPrint('🏪 [URL Parser] MOX ID: $moxId');
+    debugPrint('🏪 [URL Parser] guardianMoxId: $guardianMoxId');
 
-    return moxId;
+    return guardianMoxId;
   } catch (e) {
     debugPrint('❌ [URL Parser] $e');
 
