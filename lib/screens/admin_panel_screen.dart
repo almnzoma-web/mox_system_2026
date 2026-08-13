@@ -63,10 +63,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         .trim()
         .toUpperCase();
 
+    if (guardianMoxId.isEmpty ||
+        guardianMoxId == 'NULL' ||
+        guardianMoxId == 'لم يحدد') {
+      return '';
+    }
+
+    return 'https://mox-2026.vercel.app/store/$guardianMoxId';
     // ----------------------------------------------------------
     // الهوية التلقائية للعميل
     // ----------------------------------------------------------
 
+    // ignore: dead_code
     final String moxId = user.moxId.trim().toUpperCase();
 
     // ----------------------------------------------------------
