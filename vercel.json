@@ -1,11 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/?mox=:mox",
-      "destination": "/api/og?mox=:mox"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/store/:moxId",
       "destination": "/index.html"
     }
   ]
