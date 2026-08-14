@@ -13,7 +13,11 @@
     },
     {
       "source": "/store/:guardianMoxId",
-      "destination": "/"
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
