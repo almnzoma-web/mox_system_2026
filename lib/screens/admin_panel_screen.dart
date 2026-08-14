@@ -31,86 +31,44 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
   // ============================================================
-  // 🔗 رابط العميل
+  // 🔗 رابط العميل العام
   //
-  // القاعدة النهائية:
+  // مهم جداً:
   //
-  // 1️⃣ guardianMoxId
-  //     الهوية السيادية اليدوية
+  // الرابط يعتمد على guardianMoxId فقط.
   //
-  // 2️⃣ moxId
-  //     الهوية التلقائية للعميل
+  // guardianMoxId:
+  // هوية MOX السيادية اليدوية التي يمنحها المدير.
   //
-  // لا نستخدم:
-  // phone
-  // guardianMoxIdCustomer
+  // moxId:
+  // رقم تلقائي للعميل عند التسجيل.
+  // لا يدخل في الرابط العام.
   //
   // الرابط النهائي:
   //
   // https://mox-2026.vercel.app/store/MOX249-00010001
   //
-  // بدون:
-  // #
-  // ?mox=
   // ============================================================
 
   String _buildClientStoreLink(UserModel user) {
-    // ----------------------------------------------------------
-    // الهوية السيادية اليدوية
-    // ----------------------------------------------------------
-
     final String guardianMoxId = (user.guardianMoxId ?? '')
         .trim()
         .toUpperCase();
 
-    if (guardianMoxId.isEmpty ||
-        guardianMoxId == 'NULL' ||
-        guardianMoxId == 'لم يحدد') {
+    if (!_isValidGuardianMoxId(guardianMoxId)) {
       return '';
     }
 
-    return 'https://mox-2026.vercel.app/store/$guardianMoxId';
-    // ----------------------------------------------------------
-    // الهوية التلقائية للعميل
-    // ----------------------------------------------------------
+    final String encodedGuardianMoxId = Uri.encodeComponent(guardianMoxId);
 
-    // ignore: dead_code
-    final String moxId = user.moxId.trim().toUpperCase();
-
-    // ----------------------------------------------------------
-    // اختيار الهوية التي ستدخل في الرابط
-    // ----------------------------------------------------------
-
-    String activeMoxId = '';
-
-    if (_isValidMoxId(guardianMoxId)) {
-      activeMoxId = guardianMoxId;
-    } else if (_isValidMoxId(moxId)) {
-      activeMoxId = moxId;
-    }
-
-    // ----------------------------------------------------------
-    // لا يوجد معرف
-    // ----------------------------------------------------------
-
-    if (activeMoxId.isEmpty) {
-      return '';
-    }
-
-    // ----------------------------------------------------------
-    // 🔗 الرابط النظيف
-    // ----------------------------------------------------------
-
-    final String encodedMoxId = Uri.encodeComponent(activeMoxId);
-
-    return 'https://mox-2026.vercel.app/store/$encodedMoxId';
+    return 'https://mox-2026.vercel.app/store/$encodedGuardianMoxId';
   }
 
   // ============================================================
-  // 🔎 التحقق من صلاحية معرف MOX
+  // 🔎 التحقق من guardianMoxId
   // ============================================================
 
-  bool _isValidMoxId(String value) {
+  bool _isValidGuardianMoxId(String value) {
     final String normalized = value.trim().toUpperCase();
 
     if (normalized.isEmpty) {
@@ -121,15 +79,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       return false;
     }
 
-    if (normalized == 'لم يحدد') {
-      return false;
-    }
-
     if (normalized == 'UNDEFINED') {
       return false;
     }
 
     if (normalized == 'N/A') {
+      return false;
+    }
+
+    if (normalized == 'لم يحدد') {
       return false;
     }
 
@@ -200,7 +158,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           }
 
           // ----------------------------------------------------
-          // تحويل السجل
+          // تحويل السجل إلى UserModel
           // ----------------------------------------------------
 
           final UserModel user = UserModel.fromJson(map);
@@ -259,6 +217,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     try {
       // --------------------------------------------------------
       // حفظ UserModel بالكامل
+      // بما فيه guardianMoxId
       // --------------------------------------------------------
 
       await StorageService.updateUserPartial(user);
@@ -267,10 +226,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         return;
       }
 
-      // --------------------------------------------------------
-      // إعادة بناء الرابط
-      // --------------------------------------------------------
-
       final String clientLink = _buildClientStoreLink(user);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -278,16 +233,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           content: Text(
             clientLink.isNotEmpty
                 ? '✅ تم حفظ ${user.name} وتحديث رابط العميل.'
-                : '⚠️ تم حفظ ${user.name} ولكن لا توجد هوية MOX لإنشاء الرابط.',
+                : '⚠️ تم حفظ ${user.name}، لكن guardianMoxId غير موجود.',
           ),
           backgroundColor: clientLink.isNotEmpty ? Colors.green : Colors.orange,
           duration: const Duration(seconds: 3),
         ),
       );
-
-      // --------------------------------------------------------
-      // إعادة تحميل البيانات من Google
-      // --------------------------------------------------------
 
       await _fetchFromCloud();
     } catch (e) {
@@ -314,7 +265,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     if (link.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ لا توجد هوية MOX صالحة لهذا العميل.'),
+          content: Text('⚠️ لا توجد guardianMoxId صالحة لهذا العميل.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -330,14 +281,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('📋 تم نسخ رابط العميل النظيف.'),
+        content: Text('📋 تم نسخ رابط العميل.'),
         backgroundColor: Colors.green,
       ),
     );
   }
 
   // ============================================================
-  // ✏️ تعديل بيانات العميل
+  // ✏️ تعديل guardianMoxId
   // ============================================================
 
   void _showEditClientDialog(UserModel user) {
@@ -345,6 +296,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       text: user.guardianMoxId ?? '',
     );
 
+    // moxId للعرض فقط
     final TextEditingController moxIdController = TextEditingController(
       text: user.moxId,
     );
@@ -355,25 +307,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             // --------------------------------------------------
-            // بناء الرابط الحالي
+            // قراءة guardianMoxId من الحقل مباشرة
             // --------------------------------------------------
 
             final String previewGuardian = guardianMoxController.text
                 .trim()
                 .toUpperCase();
 
-            final String previewMox = moxIdController.text.trim().toUpperCase();
+            // --------------------------------------------------
+            // الرابط يعتمد فقط على guardianMoxId
+            // --------------------------------------------------
 
-            String previewActiveId = '';
-
-            if (_isValidMoxId(previewGuardian)) {
-              previewActiveId = previewGuardian;
-            } else if (_isValidMoxId(previewMox)) {
-              previewActiveId = previewMox;
-            }
-
-            final String previewLink = previewActiveId.isNotEmpty
-                ? 'https://mox-2026.vercel.app/store/${Uri.encodeComponent(previewActiveId)}'
+            final String previewLink = _isValidGuardianMoxId(previewGuardian)
+                ? 'https://mox-2026.vercel.app/store/${Uri.encodeComponent(previewGuardian)}'
                 : '';
 
             return AlertDialog(
@@ -398,6 +344,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     // ==================================================
                     TextField(
                       controller: guardianMoxController,
+
                       textCapitalization: TextCapitalization.characters,
 
                       onChanged: (_) {
@@ -405,9 +352,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       },
 
                       decoration: const InputDecoration(
-                        labelText: 'معرف MOX السيادي اليدوي',
-                        helperText: 'الأولوية في رابط العميل.',
+                        labelText: 'guardianMoxId — هوية MOX السيادية',
+
+                        helperText:
+                            'هذه الهوية هي الوحيدة المستخدمة في رابط العميل.',
+
                         border: OutlineInputBorder(),
+
                         prefixIcon: Icon(Icons.verified_user),
                       ),
                     ),
@@ -419,13 +370,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     // ==================================================
                     TextField(
                       controller: moxIdController,
+
                       readOnly: true,
 
                       decoration: const InputDecoration(
-                        labelText: 'معرف MOX الأساسي',
+                        labelText: 'moxId — الهوية التلقائية',
+
                         helperText:
-                            'يُنشأ تلقائياً عند تسجيل العميل ويستخدم كبديل.',
+                            'رقم تلقائي للعميل عند التسجيل ولا يدخل في الرابط العام.',
+
                         border: OutlineInputBorder(),
+
                         prefixIcon: Icon(Icons.badge),
                       ),
                     ),
@@ -437,11 +392,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     // ==================================================
                     Container(
                       width: double.infinity,
+
                       padding: const EdgeInsets.all(12),
 
                       decoration: BoxDecoration(
                         color: Colors.indigo.shade50,
+
                         borderRadius: BorderRadius.circular(12),
+
                         border: Border.all(color: moxBlue),
                       ),
 
@@ -450,9 +408,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                         children: [
                           const Text(
-                            '🔗 رابط العميل النظيف',
+                            '🔗 رابط العميل',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
+
                               color: Color(0xFF1B6B80),
                             ),
                           ),
@@ -462,10 +421,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           Text(
                             previewLink.isNotEmpty
                                 ? previewLink
-                                : 'سيظهر الرابط بعد تحديد هوية MOX',
+                                : 'أدخل guardianMoxId لإنشاء رابط العميل',
 
                             style: TextStyle(
                               fontSize: 10,
+
                               color: previewLink.isNotEmpty
                                   ? Colors.black87
                                   : Colors.red,
@@ -474,9 +434,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                           const SizedBox(height: 8),
 
-                          if (_isValidMoxId(previewGuardian))
+                          if (_isValidGuardianMoxId(previewGuardian))
                             const Text(
-                              '✓ الرابط يستخدم guardianMoxId',
+                              '✓ الرابط يستخدم guardianMoxId فقط',
+
                               style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.green,
@@ -485,7 +446,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                             )
                           else
                             const Text(
-                              '↳ الرابط يستخدم moxId تلقائياً',
+                              '⚠️ لا يوجد guardianMoxId صالح',
+
                               style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.orange,
@@ -526,7 +488,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                         .toUpperCase();
 
                     // ------------------------------------------------
-                    // تحديث الهوية السيادية فقط
+                    // تحديث guardianMoxId فقط
                     // ------------------------------------------------
 
                     user.guardianMoxId = newGuardianMoxId.isEmpty
@@ -543,7 +505,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     moxIdController.dispose();
 
                     // ------------------------------------------------
-                    // حفظ
+                    // حفظ UserModel
                     // ------------------------------------------------
 
                     await _syncClientToCloud(user);
@@ -578,6 +540,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       appBar: AppBar(
         title: const Text(
           'لوحة تحكم المدير - السجل السيادي',
+
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -604,26 +567,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       // BODY
       // ==========================================================
       body: _isLoading
-          // ------------------------------------------------------
-          // تحميل
-          // ------------------------------------------------------
           ? Center(child: CircularProgressIndicator(color: moxBlue))
-          // ------------------------------------------------------
-          // لا توجد بيانات
-          // ------------------------------------------------------
           : _clients.isEmpty
           ? const Center(
               child: Text(
                 'لا توجد سجلات عملاء مسجلة حالياً 📭',
+
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
+
                   color: Colors.grey,
                 ),
               ),
             )
-          // ------------------------------------------------------
-          // جدول العملاء
-          // ------------------------------------------------------
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
 
@@ -633,6 +589,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'الاسم',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -640,6 +597,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'الهاتف',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -647,6 +605,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'moxId',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -654,6 +613,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'guardianMoxId',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -661,6 +621,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'رابط العميل',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -668,6 +629,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'الرصيد',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -675,6 +637,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'نوع الحساب',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -682,15 +645,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     DataColumn(
                       label: Text(
                         'الإجراءات',
+
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
 
                   rows: _clients.map((user) {
+                    // ------------------------------------------------
+                    // الرابط يعتمد فقط على guardianMoxId
+                    // ------------------------------------------------
+
                     final String clientLink = _buildClientStoreLink(user);
 
-                    final bool hasGuardian = _isValidMoxId(
+                    final bool hasGuardian = _isValidGuardianMoxId(
                       (user.guardianMoxId ?? '').trim().toUpperCase(),
                     );
 
@@ -733,6 +701,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                               style: TextStyle(
                                 color: hasGuardian ? Colors.indigo : Colors.red,
+
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -746,6 +715,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           clientLink.isEmpty
                               ? const Text(
                                   'غير متاح',
+
                                   style: TextStyle(
                                     color: Colors.red,
                                     fontSize: 11,
@@ -755,12 +725,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                   mainAxisSize: MainAxisSize.min,
 
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.link,
+
                                       size: 16,
-                                      color: hasGuardian
-                                          ? Colors.green
-                                          : Colors.orange,
+
+                                      color: Colors.green,
                                     ),
 
                                     const SizedBox(width: 5),
@@ -771,6 +741,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                                       child: const Text(
                                         'نسخ الرابط',
+
                                         style: TextStyle(fontSize: 11),
                                       ),
                                     ),
@@ -806,6 +777,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
+
                                   minimumSize: const Size(80, 32),
                                 ),
 
@@ -813,14 +785,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                                 icon: const Icon(
                                   Icons.edit,
+
                                   color: Colors.white,
+
                                   size: 14,
                                 ),
 
                                 label: const Text(
                                   'تعديل',
+
                                   style: TextStyle(
                                     color: Colors.white,
+
                                     fontSize: 11,
                                   ),
                                 ),
@@ -834,6 +810,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: moxBlue,
+
                                   minimumSize: const Size(90, 32),
                                 ),
 
@@ -841,14 +818,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                                 icon: const Icon(
                                   Icons.cloud_upload,
+
                                   color: Colors.white,
+
                                   size: 14,
                                 ),
 
                                 label: const Text(
                                   'رحّل للشيت',
+
                                   style: TextStyle(
                                     color: Colors.white,
+
                                     fontSize: 11,
                                   ),
                                 ),
