@@ -2,7 +2,18 @@
   "rewrites": [
     {
       "source": "/store/:guardianMoxId",
-      "destination": "/index.html"
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(facebookexternalhit|Facebot|WhatsApp|Twitterbot|LinkedInBot|TelegramBot|Discordbot|Googlebot)"
+        }
+      ],
+      "destination": "/api/og?guardianMoxId=:guardianMoxId"
+    },
+    {
+      "source": "/store/:guardianMoxId",
+      "destination": "/"
     }
   ]
 }
