@@ -2055,7 +2055,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                   const Center(
                     child: Text(
-                      "MOX Digital • المنظومة أونلاين",
+                      "MOX Digital App • المنظومة أونلاين",
                       style: TextStyle(
                         color: Colors.grey,
                         fontSize: 10,

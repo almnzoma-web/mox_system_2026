@@ -496,7 +496,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
 
-      title: 'MOX Digital',
+      title: 'MOX Digital App',
 
       theme: ThemeData(
         primaryColor: const Color(0xFF28A9CC),

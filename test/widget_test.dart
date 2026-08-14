@@ -5,7 +5,9 @@ import 'package:mox_digital_app/main.dart';
 import 'package:mox_digital_app/screens/welcome_screen.dart';
 
 void main() {
-  testWidgets('MOX Digital Initial Screen Test', (WidgetTester tester) async {
+  testWidgets('MOX Digital App Initial Screen Test', (
+    WidgetTester tester,
+  ) async {
     // بناء التطبيق مع تمرير شاشة البداية الإجبارية للاختبار
     await tester.pumpWidget(const MyApp(initialScreen: WelcomeScreen()));
 

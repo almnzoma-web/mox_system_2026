@@ -91371,7 +91371,7 @@ A.azm.prototype={
 $1(a){return a.hw()},
 $S:557}
 A.NA.prototype={
-H(a){return new A.B3(B.a5C,"MOX Digital",A.vL(null,A.aEc(B.aC,null,B.N,B.N),"Cairo",B.N,!0),!1,null)}}
+H(a){return new A.B3(B.a5C,"MOX Digital App",A.vL(null,A.aEc(B.aC,null,B.N,B.N),"Cairo",B.N,!0),!1,null)}}
 A.l8.prototype={
 hw(){var s=this
 return A.am(["title",s.a,"description",s.b,"whatsapp",s.c,"facebookUrl",s.d,"price",s.e,"isApproved",s.f],t.N,t.z)}}

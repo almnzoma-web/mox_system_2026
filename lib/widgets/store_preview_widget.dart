@@ -702,7 +702,7 @@ class StorePreviewWidget extends StatelessWidget {
             const SizedBox(height: 20),
 
             const Text(
-              'MOX Digital',
+              'MOX Digital App • المنظومة أونلاين',
 
               style: TextStyle(
                 color: Colors.grey,

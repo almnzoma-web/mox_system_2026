@@ -22,14 +22,14 @@ export default async function handler(request) {
         <html lang="ar" dir="rtl">
         <head>
           <meta charset="UTF-8">
-          <title>MOX Digital</title>
+          <title>MOX Digital App</title>
           <meta
             name="description"
-            content="المنظومة أونلاين - MOX Digital"
+            content="المنظومة أونلاين - MOX Digital App"
           >
         </head>
         <body>
-          <h1>MOX Digital</h1>
+          <h1>MOX Digital App</h1>
         </body>
         </html>
         `,
@@ -54,7 +54,7 @@ export default async function handler(request) {
     // القيم الافتراضية
     // ============================================================
 
-    let storeName = 'MOX Digital';
+    let storeName = 'MOX Digital App';
 
     let storeDesc =
       'المنظومة أونلاين - الحل الرقمي لإدارة متجرك.';
@@ -116,7 +116,7 @@ export default async function handler(request) {
                 item.shopName ||
                 item.businessName ||
                 item.name ||
-                'MOX Digital',
+                'MOX Digital App',
               ).trim();
 
             // ======================================================
@@ -178,7 +178,7 @@ export default async function handler(request) {
 
   <meta charset="UTF-8">
 
-  <title>${safeStoreName} | MOX Digital</title>
+  <title>${safeStoreName} | MOX Digital App</title>
 
   <meta
     name="description"
@@ -213,7 +213,7 @@ export default async function handler(request) {
 
   <meta
     property="og:site_name"
-    content="MOX Digital app - المنظومة أونلاين"
+    content="MOX Digital App - المنظومة أونلاين"
   >
 
   <meta
@@ -273,7 +273,7 @@ export default async function handler(request) {
     console.error('[MOX OG] Fatal error:', error);
 
     return new Response(
-      '<html><head><title>MOX Digital</title></head><body>MOX Digital app</body></html>',
+      '<html><head><title>MOX Digital App</title></head><body>MOX Digital App</body></html>',
       {
         status: 200,
         headers: {
