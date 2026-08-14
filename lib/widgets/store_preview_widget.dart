@@ -25,25 +25,6 @@ class StorePreviewWidget extends StatelessWidget {
   });
 
   // ============================================================
-  // STORE PUBLISH DATE
-  // ============================================================
-
-  // ignore: unused_element
-  DateTime? _getPublishDate() {
-    final value = user.storePublishDate?.trim() ?? '';
-
-    if (value.isEmpty || value == 'null') {
-      return null;
-    }
-
-    try {
-      return DateTime.parse(value);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ============================================================
   // STORE ACTIVATION DATE
   //
   // الأولوية:
