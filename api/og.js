@@ -128,7 +128,7 @@ export default async function handler(request) {
                 item.storeDesc ||
                 item.storeDescription ||
                 item.description ||
-                'متجر رقمي يعمل عبر منظومة MOX.',
+                'متجر رقمي يعمل عبر منظومة موكس.',
               ).trim();
 
             // ======================================================
@@ -213,7 +213,7 @@ export default async function handler(request) {
 
   <meta
     property="og:site_name"
-    content="MOX Digital - المنظومة أونلاين"
+    content="MOX Digital app - المنظومة أونلاين"
   >
 
   <meta
@@ -273,7 +273,7 @@ export default async function handler(request) {
     console.error('[MOX OG] Fatal error:', error);
 
     return new Response(
-      '<html><head><title>MOX Digital</title></head><body>MOX Digital</body></html>',
+      '<html><head><title>MOX Digital</title></head><body>MOX Digital app</body></html>',
       {
         status: 200,
         headers: {
