@@ -28,6 +28,7 @@ class StorePreviewWidget extends StatelessWidget {
   // STORE PUBLISH DATE
   // ============================================================
 
+  // ignore: unused_element
   DateTime? _getPublishDate() {
     final value = user.storePublishDate?.trim() ?? '';
 
@@ -43,17 +44,49 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
+  // STORE ACTIVATION DATE
+  //
+  // الأولوية:
+  // 1. storePublishDate
+  // 2. activationDate
+  // ============================================================
+
+  DateTime? _getActivationDate() {
+    final String publishDate = user.storePublishDate?.trim() ?? '';
+
+    if (publishDate.isNotEmpty && publishDate.toLowerCase() != 'null') {
+      final DateTime? parsed = DateTime.tryParse(publishDate);
+
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    final String activationDate = user.activationDate?.trim() ?? '';
+
+    if (activationDate.isNotEmpty && activationDate.toLowerCase() != 'null') {
+      final DateTime? parsed = DateTime.tryParse(activationDate);
+
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  // ============================================================
   // EXPIRY DATE
   // ============================================================
 
   DateTime? _getExpiryDate() {
-    final publishDate = _getPublishDate();
+    final DateTime? activationDate = _getActivationDate();
 
-    if (publishDate == null) {
+    if (activationDate == null) {
       return null;
     }
 
-    return publishDate.add(const Duration(days: 365));
+    return activationDate.add(const Duration(days: 365));
   }
 
   // ============================================================
@@ -61,13 +94,13 @@ class StorePreviewWidget extends StatelessWidget {
   // ============================================================
 
   int _getRemainingDays() {
-    final expiryDate = _getExpiryDate();
+    final DateTime? expiryDate = _getExpiryDate();
 
     if (expiryDate == null) {
       return 0;
     }
 
-    final difference = expiryDate.difference(DateTime.now());
+    final Duration difference = expiryDate.difference(DateTime.now());
 
     if (difference.isNegative) {
       return 0;
@@ -81,13 +114,14 @@ class StorePreviewWidget extends StatelessWidget {
   // ============================================================
 
   String _getStoreStatus() {
-    final publishDate = _getPublishDate();
+    final DateTime? activationDate = _getActivationDate();
 
-    if (publishDate == null) {
+    // لا يوجد أي تاريخ تفعيل
+    if (activationDate == null) {
       return 'غير مفعّل';
     }
 
-    final expiryDate = _getExpiryDate();
+    final DateTime? expiryDate = _getExpiryDate();
 
     if (expiryDate == null) {
       return 'غير مفعّل';
@@ -99,7 +133,6 @@ class StorePreviewWidget extends StatelessWidget {
 
     return 'نشط';
   }
-
   // ============================================================
   // PUBLIC CARDS
   // ============================================================
