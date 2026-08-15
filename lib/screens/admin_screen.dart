@@ -669,8 +669,8 @@ class _AdminScreenState extends State<AdminScreen> {
   // ==============================================================
 
   void _showEditMoxIdDialog(UserModel client) {
-    final TextEditingController moxIdController = TextEditingController(
-      text: client.moxId,
+    final TextEditingController guardianMoxIdController = TextEditingController(
+      text: client.guardianMoxId,
     );
 
     showDialog(
@@ -700,7 +700,7 @@ class _AdminScreenState extends State<AdminScreen> {
             const SizedBox(height: 10),
 
             TextField(
-              controller: moxIdController,
+              controller: guardianMoxIdController,
 
               decoration: const InputDecoration(
                 labelText: "رقم MOX",
@@ -724,7 +724,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
 
             onPressed: () async {
-              final String newMoxId = moxIdController.text.trim();
+              final String newMoxId = guardianMoxIdController.text.trim();
 
               if (newMoxId.isNotEmpty) {
                 setState(() {
