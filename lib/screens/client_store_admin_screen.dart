@@ -525,7 +525,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                 final String enteredPassword = passwordController.text.trim();
 
-                final String userMox = _liveUser.moxId.trim().toUpperCase();
+                final String userMox = _liveUser.guardianMoxId!
+                    .trim()
+                    .toUpperCase();
 
                 final String guardianMox = (_liveUser.guardianMoxId ?? '')
                     .trim()
