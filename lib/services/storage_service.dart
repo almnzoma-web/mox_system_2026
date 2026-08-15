@@ -8,30 +8,13 @@ import '../models/user_model.dart';
 import '../models/marketing_card.dart';
 
 class StorageService {
-  // ============================================================
-  // LOCAL KEYS
-  // ============================================================
-
   static const String userKey = 'current_mox_user';
 
   static const String savedUsersKey = 'saved_users';
 
-  // إصدار ذاكرة العملاء.
-  //
-  // عند رفع هذه النسخة سيتم تنظيف الذاكرة القديمة مرة واحدة.
-  static const String localUsersVersionKey = 'mox_local_users_version';
-
-  static const int currentLocalUsersVersion = 2;
-
-  // ============================================================
-  // RUNTIME MEMORY
-  // ============================================================
-
   static List<UserModel> registeredUsers = [];
 
   static bool _isLoaded = false;
-
-  static bool _cloudSyncRunning = false;
 
   // ============================================================
   // GOOGLE APPS SCRIPT
@@ -64,29 +47,13 @@ class StorageService {
   );
 
   // ============================================================
-  // NORMALIZE
-  // ============================================================
-
-  static String _clean(String? value) {
-    return value?.trim() ?? '';
-  }
-
-  static bool _isValidMoxId(String? value) {
-    final String id = _clean(value);
-
-    return id.isNotEmpty &&
-        id.toLowerCase() != 'null' &&
-        id.toLowerCase() != 'لم يحدد';
-  }
-
-  // ============================================================
   // ADMIN ID CHECK
   // ============================================================
 
   static bool _isAdminIdentity({String? phone, String? moxId}) {
-    final String cleanPhone = _clean(phone);
+    final String cleanPhone = phone?.trim() ?? '';
 
-    final String cleanMoxId = _clean(moxId);
+    final String cleanMoxId = moxId?.trim() ?? '';
 
     return cleanPhone == adminUser.phone || cleanMoxId == adminUser.moxId;
   }
@@ -97,16 +64,6 @@ class StorageService {
 
   // ============================================================
   // LOAD USERS
-  //
-  // المرحلة الأولى:
-  // تحميل Local Cache بسرعة.
-  //
-  // المرحلة الثانية:
-  // الاتصال بالسحابة في الخلفية.
-  //
-  // إذا نجحت السحابة:
-  // Google Sheets تصبح المصدر الأساسي ويتم استبدال
-  // القائمة المحلية بالكامل.
   // ============================================================
 
   static Future<void> loadUsers() async {
@@ -115,63 +72,32 @@ class StorageService {
 
       await prefs.reload();
 
-      // --------------------------------------------------------
-      // تنظيف الذاكرة القديمة مرة واحدة بعد التحديث
-      // --------------------------------------------------------
-
-      await _migrateLocalUsersIfNeeded(prefs);
-
-      // --------------------------------------------------------
-      // قراءة Local Cache
-      // --------------------------------------------------------
-
       final String? encodedData = prefs.getString(savedUsersKey);
 
-      final List<UserModel> localUsers = [];
+      registeredUsers = [];
 
-      if (encodedData != null && encodedData.trim().isNotEmpty) {
+      if (encodedData != null && encodedData.isNotEmpty) {
         try {
           final dynamic decoded = json.decode(encodedData);
 
           if (decoded is List) {
-            for (final dynamic item in decoded) {
-              if (item is! Map) {
-                continue;
-              }
-
-              try {
-                final UserModel user = UserModel.fromJson(
-                  Map<String, dynamic>.from(item),
-                );
-
-                if (!_isValidMoxId(user.moxId)) {
-                  continue;
-                }
-
-                localUsers.add(user);
-              } catch (e) {
-                debugPrint('⚠️ [Local User Parse] تخطي مستخدم: $e');
-              }
-            }
+            registeredUsers = decoded
+                .whereType<Map>()
+                .map(
+                  (item) => UserModel.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList();
           }
         } catch (e) {
           debugPrint('❌ [Local JSON] بيانات المستخدمين تالفة: $e');
         }
       }
 
-      // --------------------------------------------------------
-      // استبدال الذاكرة الحالية بالنسخة المحلية النظيفة
-      // --------------------------------------------------------
-
-      registeredUsers = localUsers;
-
       _ensureAdmin();
 
-      _isLoaded = true;
+      await saveUsersList();
 
-      // --------------------------------------------------------
-      // مزامنة Google Sheets في الخلفية
-      // --------------------------------------------------------
+      _isLoaded = true;
 
       _syncFromCloudInBackground();
     } catch (e) {
@@ -180,55 +106,6 @@ class StorageService {
       registeredUsers = [adminUser];
 
       _isLoaded = true;
-
-      // حتى في حالة فشل SharedPreferences
-      // نحاول جلب السحابة.
-      _syncFromCloudInBackground();
-    }
-  }
-
-  // ============================================================
-  // LOCAL MEMORY MIGRATION
-  //
-  // تنظف النسخة القديمة مرة واحدة.
-  //
-  // مهم:
-  // لا نحذف Google Sheets.
-  // التنظيف محلي فقط.
-  //
-  // بعد هذا التحديث تصبح Google Sheets هي مصدر
-  // إعادة بناء القائمة.
-  // ============================================================
-
-  static Future<void> _migrateLocalUsersIfNeeded(
-    SharedPreferences prefs,
-  ) async {
-    try {
-      final int savedVersion = prefs.getInt(localUsersVersionKey) ?? 0;
-
-      if (savedVersion >= currentLocalUsersVersion) {
-        return;
-      }
-
-      debugPrint('🧹 [Local Migration] تنظيف ذاكرة العملاء القديمة...');
-
-      // --------------------------------------------------------
-      // النسخة القديمة قد تحتوي على عملاء وهميين.
-      //
-      // لا نثق بها كمصدر نهائي.
-      //
-      // نحذف saved_users بالكامل.
-      //
-      // المدير سيتم إنشاؤه تلقائيًا بعد ذلك.
-      // --------------------------------------------------------
-
-      await prefs.remove(savedUsersKey);
-
-      await prefs.setInt(localUsersVersionKey, currentLocalUsersVersion);
-
-      debugPrint('✅ [Local Migration] تم تنظيف ذاكرة العملاء.');
-    } catch (e) {
-      debugPrint('❌ [Local Migration] $e');
     }
   }
 
@@ -237,7 +114,9 @@ class StorageService {
   // ============================================================
 
   static void _ensureAdmin() {
-    final int index = registeredUsers.indexWhere((u) => _isAdminUser(u));
+    final int index = registeredUsers.indexWhere(
+      (u) => u.moxId == adminUser.moxId,
+    );
 
     if (index == -1) {
       registeredUsers.insert(0, adminUser);
@@ -248,136 +127,45 @@ class StorageService {
 
   // ============================================================
   // CLOUD SYNC
-  //
-  // مهم جدًا:
-  //
-  // لا نعمل Merge مع Local Cache.
-  //
-  // Google Sheets هي المصدر الأساسي.
-  //
-  // لذلك:
-  //
-  // Cloud Users
-  //      ↓
-  // استبدال registeredUsers
-  //      ↓
-  // حفظ Local Cache
-  //
-  // وهذا يمنع عودة العملاء الوهميين.
   // ============================================================
 
   static Future<void> _syncFromCloudInBackground() async {
-    if (_cloudSyncRunning) {
-      return;
-    }
-
-    _cloudSyncRunning = true;
-
-    try {
-      final List<UserModel>? cloudUsers = await _fetchAllUsersFromCloud();
-
-      if (cloudUsers == null) {
-        debugPrint(
-          '⚠️ [Cloud Sync] لم تنجح المزامنة، سيتم استخدام Local Cache.',
-        );
-
-        return;
-      }
-
-      // --------------------------------------------------------
-      // Google Sheets نجحت.
-      //
-      // استبدال القائمة بالكامل.
-      // --------------------------------------------------------
-
-      registeredUsers = [];
-
-      for (final UserModel cloudUser in cloudUsers) {
-        if (_isAdminUser(cloudUser)) {
-          continue;
-        }
-
-        if (!_isValidMoxId(cloudUser.moxId)) {
-          continue;
-        }
-
-        registeredUsers.add(cloudUser);
-      }
-
-      _ensureAdmin();
-
-      await saveUsersList();
-
-      debugPrint(
-        '☁️ [Cloud Sync] تم تحديث العملاء من Google Sheets: '
-        '${registeredUsers.length} مستخدم.',
-      );
-    } catch (e) {
-      debugPrint('❌ [Cloud Sync] $e');
-    } finally {
-      _cloudSyncRunning = false;
-    }
-  }
-
-  // ============================================================
-  // FETCH ALL USERS FROM CLOUD
-  // ============================================================
-
-  static Future<List<UserModel>?> _fetchAllUsersFromCloud() async {
     try {
       final http.Response response = await http
           .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 12));
-
-      debugPrint('☁️ [Cloud GetAll] HTTP ${response.statusCode}');
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode != 200) {
-        return null;
+        return;
       }
 
       final dynamic decoded = json.decode(response.body);
 
       if (decoded is! List) {
-        debugPrint('❌ [Cloud GetAll] الاستجابة ليست List.');
-
-        return null;
+        return;
       }
 
       final List<UserModel> cloudUsers = [];
 
       for (final dynamic item in decoded) {
-        if (item is! Map) {
-          continue;
-        }
-
         try {
+          if (item is! Map) {
+            continue;
+          }
+
           final Map<String, dynamic> mapItem = Map<String, dynamic>.from(item);
 
-          // ----------------------------------------------------
-          // دعم الاسم القديم MOXID
-          // ----------------------------------------------------
-
-          if ((!mapItem.containsKey('moxId') ||
-                  _clean(mapItem['moxId']?.toString()).isEmpty) &&
-              mapItem.containsKey('MOXID')) {
+          if ((mapItem['moxId'] == null ||
+                  mapItem['moxId'].toString().trim().isEmpty) &&
+              mapItem['MOXID'] != null) {
             mapItem['moxId'] = mapItem['MOXID'];
           }
 
           final UserModel cloudUser = UserModel.fromJson(mapItem);
 
-          // ----------------------------------------------------
-          // رفض السجلات غير الصالحة
-          // ----------------------------------------------------
-
-          if (!_isValidMoxId(cloudUser.moxId)) {
-            debugPrint('⚠️ [Cloud GetAll] سجل بدون MoxId تم تجاهله.');
-
+          if (cloudUser.moxId.trim().isEmpty || cloudUser.moxId == 'null') {
             continue;
           }
-
-          // ----------------------------------------------------
-          // المدير لا يدخل في القائمة القادمة من السحابة
-          // ----------------------------------------------------
 
           if (_isAdminUser(cloudUser)) {
             continue;
@@ -385,15 +173,27 @@ class StorageService {
 
           cloudUsers.add(cloudUser);
         } catch (e) {
-          debugPrint('⚠️ [Cloud User Parse] تخطي سجل غير صالح: $e');
+          debugPrint('⚠️ [Cloud User] تخطي مستخدم غير صالح: $e');
         }
       }
 
-      return cloudUsers;
-    } catch (e) {
-      debugPrint('❌ [Cloud GetAll Exception] $e');
+      for (final UserModel cloudUser in cloudUsers) {
+        final int index = registeredUsers.indexWhere(
+          (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
+        );
 
-      return null;
+        if (index == -1) {
+          registeredUsers.add(cloudUser);
+        } else {
+          registeredUsers[index] = cloudUser;
+        }
+      }
+
+      _ensureAdmin();
+
+      await saveUsersList();
+    } catch (e) {
+      debugPrint('❌ [Cloud Sync] $e');
     }
   }
 
@@ -402,36 +202,24 @@ class StorageService {
   // ============================================================
 
   static Future<void> ensureLoaded() async {
-    if (!_isLoaded) {
-      await loadUsers();
-      return;
-    }
-
-    if (registeredUsers.isEmpty) {
+    if (!_isLoaded || registeredUsers.isEmpty) {
       await loadUsers();
     }
   }
 
   // ============================================================
-  // SAVE LOCAL USERS
+  // SAVE LOCAL
   // ============================================================
 
   static Future<void> saveUsersList() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      // --------------------------------------------------------
-      // لا نحفظ سجلات غير صالحة.
-      // --------------------------------------------------------
-
       final List<Map<String, dynamic>> jsonList = registeredUsers
-          .where((u) => _isAdminUser(u) || _isValidMoxId(u.moxId))
           .map((u) => u.toJson())
           .toList();
 
       await prefs.setString(savedUsersKey, json.encode(jsonList));
-
-      await prefs.setInt(localUsersVersionKey, currentLocalUsersVersion);
 
       _isLoaded = true;
     } catch (e) {
@@ -484,14 +272,14 @@ class StorageService {
       'customWhatsApp': user.customWhatsApp ?? '',
 
       // ========================================================
-      // PUBLIC STORE IDENTITY
+      // هوية الرابط العام
       // ========================================================
       'guardianMoxId': user.guardianMoxId ?? '',
 
       'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
 
       // ========================================================
-      // DATA
+      // البيانات
       // ========================================================
       'points': user.points.toString(),
 
@@ -500,17 +288,6 @@ class StorageService {
       'storePublishDate': user.storePublishDate ?? '',
 
       'activationDate': user.activationDate ?? '',
-
-      // ========================================================
-      // DIGITAL SIGNATURE IDENTITY
-      // ========================================================
-      'digitalPublicKey': user.digitalPublicKey ?? '',
-
-      'digitalSignatureAlgorithm': user.digitalSignatureAlgorithm,
-
-      'digitalSignatureCreatedAt': user.digitalSignatureCreatedAt ?? '',
-
-      'digitalSignatureKeyVersion': user.digitalSignatureKeyVersion.toString(),
     };
   }
 
@@ -521,41 +298,26 @@ class StorageService {
   static Future<void> addUser(UserModel newUser) async {
     await ensureLoaded();
 
-    if (!_isValidMoxId(newUser.moxId)) {
+    if (newUser.moxId.trim().isEmpty || newUser.moxId == 'null') {
       debugPrint('❌ محاولة حفظ مستخدم بدون MoxId تم رفضها.');
-
       return;
     }
 
-    // ----------------------------------------------------------
-    // أولاً Google Sheets
-    // ----------------------------------------------------------
-
-    final bool cloudSaved = await _saveToCloud(newUser);
-
-    if (!cloudSaved) {
-      debugPrint(
-        '⚠️ [Add User] فشل الحفظ السحابي، سيتم الاحتفاظ بالنسخة المحلية.',
-      );
-    }
-
-    // ----------------------------------------------------------
-    // تحديث Local Cache
-    // ----------------------------------------------------------
-
     final int index = registeredUsers.indexWhere(
-      (u) => u.moxId == newUser.moxId || u.phone == newUser.phone,
+      (u) => u.phone == newUser.phone || u.moxId == newUser.moxId,
     );
 
-    if (index == -1) {
-      registeredUsers.add(newUser);
-    } else {
+    if (index != -1) {
       registeredUsers[index] = newUser;
+    } else {
+      registeredUsers.add(newUser);
     }
 
     _ensureAdmin();
 
     await saveUsersList();
+
+    await _saveToCloud(newUser);
   }
 
   // ============================================================
@@ -565,13 +327,9 @@ class StorageService {
   static Future<void> updateUserPartial(UserModel user) async {
     await ensureLoaded();
 
-    if (!_isValidMoxId(user.moxId)) {
+    if (user.moxId.trim().isEmpty || user.moxId == 'null') {
       throw Exception('لا يمكن تحديث المستخدم بدون MoxId.');
     }
-
-    // ----------------------------------------------------------
-    // Cloud أولاً
-    // ----------------------------------------------------------
 
     final bool cloudSaved = await _saveToCloud(user);
 
@@ -579,27 +337,19 @@ class StorageService {
       throw Exception('تعذر حفظ بيانات المتجر في Google Sheet.');
     }
 
-    // ----------------------------------------------------------
-    // Local Cache
-    // ----------------------------------------------------------
-
     final int index = registeredUsers.indexWhere(
       (u) => u.moxId == user.moxId || u.phone == user.phone,
     );
 
-    if (index == -1) {
-      registeredUsers.add(user);
-    } else {
+    if (index != -1) {
       registeredUsers[index] = user;
+    } else {
+      registeredUsers.add(user);
     }
 
     _ensureAdmin();
 
     await saveUsersList();
-
-    // ----------------------------------------------------------
-    // Active Session
-    // ----------------------------------------------------------
 
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -642,16 +392,11 @@ class StorageService {
         return false;
       }
 
-      // --------------------------------------------------------
-      // فحص استجابة Apps Script
-      // --------------------------------------------------------
-
       try {
         final dynamic decoded = json.decode(response.body);
 
         if (decoded is Map) {
-          final String status =
-              decoded['status']?.toString().toLowerCase() ?? '';
+          final String? status = decoded['status']?.toString().toLowerCase();
 
           if (status == 'error' || status == 'failed' || status == 'failure') {
             debugPrint('❌ [Cloud Save] Apps Script رفض الحفظ: $decoded');
@@ -659,9 +404,7 @@ class StorageService {
             return false;
           }
         }
-      } catch (_) {
-        // بعض نسخ Apps Script قد تعيد نصًا وليس JSON.
-      }
+      } catch (_) {}
 
       return true;
     } catch (e) {
@@ -679,15 +422,7 @@ class StorageService {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      // --------------------------------------------------------
-      // Session أولاً
-      // --------------------------------------------------------
-
       await prefs.setString(userKey, jsonEncode(user.toJson()));
-
-      // --------------------------------------------------------
-      // Cloud + Local
-      // --------------------------------------------------------
 
       await addUser(user);
     } catch (e) {
@@ -702,8 +437,6 @@ class StorageService {
   static Future<UserModel?> getUser() async {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-      await prefs.reload();
 
       final String? userJson = prefs.getString(userKey);
 
@@ -747,40 +480,10 @@ class StorageService {
     return registeredUsers.map((u) => u.toJson()).toList();
   }
 
-  // ============================================================
-  // SAVE CLIENTS DATA
-  //
-  // يستخدم للتوافق مع الملفات القديمة.
-  //
-  // مهم:
-  // لا نعتبر هذه البيانات مصدرًا نهائيًا.
-  // Google Sheets هو المصدر الأساسي بعد المزامنة.
-  // ============================================================
-
   static Future<void> saveClientsData(
     List<Map<String, dynamic>> clientsData,
   ) async {
-    final List<UserModel> users = [];
-
-    for (final Map<String, dynamic> data in clientsData) {
-      try {
-        final UserModel user = UserModel.fromJson(data);
-
-        if (!_isValidMoxId(user.moxId)) {
-          continue;
-        }
-
-        if (_isAdminUser(user)) {
-          continue;
-        }
-
-        users.add(user);
-      } catch (e) {
-        debugPrint('⚠️ [Save Clients Data] تخطي سجل: $e');
-      }
-    }
-
-    registeredUsers = users;
+    registeredUsers = clientsData.map((e) => UserModel.fromJson(e)).toList();
 
     _ensureAdmin();
 
@@ -815,8 +518,6 @@ class StorageService {
 
     // ========================================================
     // LOCAL LOGIN
-    //
-    // يعمل حتى بدون إنترنت.
     // ========================================================
 
     if (!isAdminLogin) {
@@ -835,8 +536,6 @@ class StorageService {
 
     // ========================================================
     // CLOUD LOGIN
-    //
-    // المصدر الأساسي عند توفر الإنترنت.
     // ========================================================
 
     try {
@@ -897,13 +596,11 @@ class StorageService {
           activationDate: cloudUser.activationDate,
           points: cloudUser.points,
           myAssets: cloudUser.myAssets,
-          digitalPublicKey: cloudUser.digitalPublicKey,
-          digitalSignatureAlgorithm: cloudUser.digitalSignatureAlgorithm,
-          digitalSignatureCreatedAt: cloudUser.digitalSignatureCreatedAt,
-          digitalSignatureKeyVersion: cloudUser.digitalSignatureKeyVersion,
         );
 
-        final int index = registeredUsers.indexWhere((u) => _isAdminUser(u));
+        final int index = registeredUsers.indexWhere(
+          (u) => u.moxId == adminUser.moxId,
+        );
 
         if (index == -1) {
           registeredUsers.insert(0, safeAdmin);
@@ -920,10 +617,6 @@ class StorageService {
       // NORMAL USER
       // ======================================================
 
-      if (!_isValidMoxId(cloudUser.moxId)) {
-        return null;
-      }
-
       final int index = registeredUsers.indexWhere(
         (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
       );
@@ -933,8 +626,6 @@ class StorageService {
       } else {
         registeredUsers[index] = cloudUser;
       }
-
-      _ensureAdmin();
 
       await saveUsersList();
 
@@ -976,21 +667,17 @@ class StorageService {
   }
 
   // ============================================================
-  // GET USER BY PUBLIC IDENTIFIER
+  // USER BY PUBLIC IDENTIFIER
   //
-  // يقبل:
+  // اسم الدالة القديم يبقى كما هو حتى لا نكسر أي ملف آخر.
   //
-  // moxId
-  // guardianMoxId
-  // guardianMoxIdCustomer
-  // phone
+  // تستقبل:
+  // - moxId
+  // - guardianMoxId
+  // - guardianMoxIdCustomer
+  // - phone
   //
-  // الترتيب:
-  //
-  // 1. Google Sheets
-  // 2. Local Cache
-  //
-  // وهذا مهم جدًا لرابط العميل العام.
+  // لذلك لا نحتاج getUserByGuardianMoxId()
   // ============================================================
 
   static Future<UserModel?> getUserByMoxId(String identifier) async {
@@ -1001,13 +688,11 @@ class StorageService {
     }
 
     // ========================================================
-    // CLOUD FIRST
+    // أولاً: Cloud
     // ========================================================
 
     try {
-      final Uri uri = Uri.parse(
-        _scriptUrl,
-      ).replace(queryParameters: {'action': 'getAll'});
+      final Uri uri = Uri.parse('$_scriptUrl?action=getAll');
 
       final http.Response response = await http
           .get(uri)
@@ -1028,26 +713,30 @@ class StorageService {
               );
 
               // ------------------------------------------------
-              // دعم MOXID القديم
+              // دعم الاسم القديم MOXID
               // ------------------------------------------------
 
-              if ((!mapItem.containsKey('moxId') ||
-                      _clean(mapItem['moxId']?.toString()).isEmpty) &&
-                  mapItem.containsKey('MOXID')) {
+              if ((mapItem['moxId'] == null ||
+                      mapItem['moxId'].toString().trim().isEmpty) &&
+                  mapItem['MOXID'] != null) {
                 mapItem['moxId'] = mapItem['MOXID'];
               }
 
               final UserModel cloudUser = UserModel.fromJson(mapItem);
 
+              // ------------------------------------------------
+              // الهوية العامة
+              // ------------------------------------------------
+
               final String cloudMoxId = cloudUser.moxId.trim();
 
               final String cloudPhone = cloudUser.phone.trim();
 
-              final String cloudGuardian = _clean(cloudUser.guardianMoxId);
+              final String cloudGuardian = (cloudUser.guardianMoxId ?? '')
+                  .trim();
 
-              final String cloudGuardianCustomer = _clean(
-                cloudUser.guardianMoxIdCustomer,
-              );
+              final String cloudGuardianCustomer =
+                  (cloudUser.guardianMoxIdCustomer ?? '').trim();
 
               final bool matched =
                   cloudMoxId == cleanIdentifier ||
@@ -1059,30 +748,23 @@ class StorageService {
                 continue;
               }
 
-              if (!_isValidMoxId(cloudUser.moxId)) {
-                continue;
-              }
-
               // ------------------------------------------------
-              // تحديث Local Cache بالنسخة الحقيقية
+              // تحديث الذاكرة المحلية
               // ------------------------------------------------
 
-              if (!_isAdminUser(cloudUser)) {
-                final int index = registeredUsers.indexWhere(
-                  (u) =>
-                      u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
-                );
+              final int index = registeredUsers.indexWhere(
+                (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
+              );
 
-                if (index == -1) {
-                  registeredUsers.add(cloudUser);
-                } else {
-                  registeredUsers[index] = cloudUser;
-                }
-
-                _ensureAdmin();
-
-                await saveUsersList();
+              if (index == -1) {
+                registeredUsers.add(cloudUser);
+              } else {
+                registeredUsers[index] = cloudUser;
               }
+
+              _ensureAdmin();
+
+              await saveUsersList();
 
               return cloudUser;
             } catch (e) {
@@ -1096,9 +778,7 @@ class StorageService {
     }
 
     // ========================================================
-    // LOCAL FALLBACK
-    //
-    // يستخدم فقط عندما تفشل السحابة.
+    // ثانياً: Local fallback
     // ========================================================
 
     try {
@@ -1109,9 +789,10 @@ class StorageService {
 
         final String phone = user.phone.trim();
 
-        final String guardianMoxId = _clean(user.guardianMoxId);
+        final String guardianMoxId = (user.guardianMoxId ?? '').trim();
 
-        final String guardianMoxIdCustomer = _clean(user.guardianMoxIdCustomer);
+        final String guardianMoxIdCustomer = (user.guardianMoxIdCustomer ?? '')
+            .trim();
 
         if (moxId == cleanIdentifier ||
             phone == cleanIdentifier ||
@@ -1120,33 +801,16 @@ class StorageService {
           return user;
         }
       }
-    } catch (e) {
-      debugPrint('⚠️ [Local Public User] $e');
-    }
+    } catch (_) {}
 
     return null;
   }
 
   // ============================================================
-  // GET USER BY GUARDIAN MOX ID
-  //
-  // اسم الدالة يبقى للتوافق مع الملفات القديمة.
-  // ============================================================
-
-  static Future<UserModel?> getUserByGuardianMoxId(String guardianMoxId) async {
-    final String cleanId = guardianMoxId.trim();
-
-    if (cleanId.isEmpty) {
-      return null;
-    }
-
-    return getUserByMoxId(cleanId);
-  }
-
-  // ============================================================
   // CLIENT CARDS
   //
-  // للتوافق مع الملفات القديمة.
+  // أبقيناها للتوافق مع أي ملف قديم يستدعيها.
+  // الصفحة الحالية لا تحتاج عرض البطاقات من هنا.
   // ============================================================
 
   static Future<List<Map<String, dynamic>>> getClientCards(
@@ -1162,99 +826,17 @@ class StorageService {
       debugPrint('⚠️ [Client Cards] $e');
     }
 
-    return [];
-  }
-
-  // ============================================================
-  // FORCE CLOUD REFRESH
-  //
-  // مفيدة للوحة المطورين إذا أردت زر:
-  // "تحديث العملاء"
-  //
-  // ويمكن استدعاؤها يدويًا:
-  //
-  // await StorageService.refreshUsersFromCloud();
-  // ============================================================
-
-  static Future<bool> refreshUsersFromCloud() async {
-    if (_cloudSyncRunning) {
-      return false;
-    }
-
-    _cloudSyncRunning = true;
-
-    try {
-      final List<UserModel>? cloudUsers = await _fetchAllUsersFromCloud();
-
-      if (cloudUsers == null) {
-        return false;
-      }
-
-      // --------------------------------------------------------
-      // استبدال كامل — لا Merge
-      // --------------------------------------------------------
-
-      registeredUsers = [];
-
-      for (final UserModel user in cloudUsers) {
-        if (!_isValidMoxId(user.moxId)) {
-          continue;
-        }
-
-        if (_isAdminUser(user)) {
-          continue;
-        }
-
-        registeredUsers.add(user);
-      }
-
-      _ensureAdmin();
-
-      await saveUsersList();
-
-      return true;
-    } catch (e) {
-      debugPrint('❌ [Force Cloud Refresh] $e');
-
-      return false;
-    } finally {
-      _cloudSyncRunning = false;
-    }
-  }
-
-  // ============================================================
-  // CLEAR LOCAL USERS
-  //
-  // تنظيف يدوي للذاكرة المحلية.
-  //
-  // لا يحذف أي شيء من Google Sheets.
-  //
-  // بعد التنفيذ:
-  //
-  // registeredUsers = المدير فقط
-  //
-  // ثم يمكنك استدعاء:
-  //
-  // await refreshUsersFromCloud();
-  //
-  // لإعادة تحميل العملاء الحقيقيين.
-  // ============================================================
-
-  static Future<void> clearLocalUsers() async {
-    try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-      await prefs.remove(savedUsersKey);
-
-      registeredUsers = [adminUser];
-
-      _isLoaded = true;
-
-      await prefs.setInt(localUsersVersionKey, currentLocalUsersVersion);
-
-      debugPrint('🧹 [Local Clear] تم حذف جميع العملاء من الذاكرة المحلية.');
-    } catch (e) {
-      debugPrint('❌ [Local Clear] $e');
-    }
+    return [
+      {
+        'title': 'بطاقة المتجر السيادي الفاخرة',
+        'description': 'منتج معتمد ومتاح للطلب الفوري عبر السوق المفتوح.',
+        'category': 'متجر وتجارة',
+        'iconKey': 'store',
+        'price': 0.0,
+        'whatsapp': '249115855164',
+        'facebookUrl': '',
+        'isApproved': true,
+      },
+    ];
   }
 }
