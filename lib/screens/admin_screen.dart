@@ -580,7 +580,7 @@ class _AdminScreenState extends State<AdminScreen> {
 
                   tooltip: "تعديل وحفظ رقم MOX",
 
-                  onPressed: () => _showEditMoxIdDialog(client),
+                  onPressed: () => _showEditGuardianMoxIdDialog(client),
                 ),
 
                 IconButton(
@@ -668,7 +668,7 @@ class _AdminScreenState extends State<AdminScreen> {
   // EDIT MOX ID
   // ==============================================================
 
-  void _showEditMoxIdDialog(UserModel client) {
+  void _showEditGuardianMoxIdDialog(UserModel client) {
     final TextEditingController guardianMoxIdController = TextEditingController(
       text: client.guardianMoxId,
     );

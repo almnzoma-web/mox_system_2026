@@ -216,6 +216,66 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
       // --------------------------------------------------------
+      // 1. الاستدعاء من قوقل شيت أولاً لجلب أحدث قيم (guardianMoxId و password)
+      // --------------------------------------------------------
+      try {
+        final Uri uri = Uri.parse(
+          _scriptUrl,
+        ).replace(queryParameters: {'action': 'getAll'});
+        final http.Response cloudResponse = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 10));
+
+        if (cloudResponse.statusCode == 200) {
+          final dynamic decoded = json.decode(cloudResponse.body);
+          if (decoded is List) {
+            for (final dynamic item in decoded) {
+              if (item is Map) {
+                final Map<String, dynamic> map = Map<String, dynamic>.from(
+                  item,
+                );
+                final String cloudPhone = (map['phone'] ?? '')
+                    .toString()
+                    .trim();
+                final String cloudMoxId = (map['moxId'] ?? map['MOXID'] ?? '')
+                    .toString()
+                    .trim();
+
+                // مطابقة المستخدم بواسطة الهاتف أو الـ moxId الأساسي
+                if ((user.phone.isNotEmpty && cloudPhone == user.phone) ||
+                    (user.moxId.isNotEmpty && cloudMoxId == user.moxId)) {
+                  // جلب وتحديث guardianMoxId من الشيت إذا وجد
+                  final String cloudGuardian = (map['guardianMoxId'] ?? '')
+                      .toString()
+                      .trim();
+                  if (cloudGuardian.isNotEmpty &&
+                      cloudGuardian != 'null' &&
+                      cloudGuardian != 'undefined') {
+                    user.guardianMoxId = cloudGuardian;
+                  }
+
+                  // جلب وتحديث كلمة السر من الشيت إذا وجدت
+                  final String cloudPassword = (map['password'] ?? '')
+                      .toString()
+                      .trim();
+                  if (cloudPassword.isNotEmpty &&
+                      cloudPassword != 'null' &&
+                      cloudPassword != 'undefined') {
+                    user.password = cloudPassword;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch (fetchError) {
+        debugPrint(
+          '⚠️ [Cloud Fetch Warning] لم يتم تحديث البيانات من السحابة قبل الحفظ: $fetchError',
+        );
+      }
+
+      // --------------------------------------------------------
       // حفظ UserModel بالكامل
       // بما فيه guardianMoxId
       // --------------------------------------------------------
@@ -254,7 +314,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       );
     }
   }
-
   // ============================================================
   // 📋 نسخ رابط العميل
   // ============================================================
