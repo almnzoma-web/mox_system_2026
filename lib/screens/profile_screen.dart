@@ -16,7 +16,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
-  late TextEditingController _guardianController;
+  late TextEditingController _guardianMoxIdController;
+  late TextEditingController _guardianMoxIdCustomerController;
   bool _isLoading = false;
 
   @override
@@ -25,9 +26,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController = TextEditingController(text: widget.user.name);
     _phoneController = TextEditingController(text: widget.user.phone);
     _addressController = TextEditingController(text: widget.user.address);
-    // حقل رقم الوصي (المرشد) مع القيمة الافتراضية للمدير
-    _guardianController = TextEditingController(
-      text: widget.user.guardianMoxId ?? "MOX249-00010001",
+    _guardianMoxIdController = TextEditingController(
+      text: widget.user.guardianMoxId ?? "MOX249-xxxxxxxx",
+    );
+    _guardianMoxIdCustomerController = TextEditingController(
+      text: widget.user.guardianMoxIdCustomer ?? "MOX249-00010001",
     );
   }
 
@@ -36,7 +39,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _guardianController.dispose();
+    _guardianMoxIdController.dispose();
+    _guardianMoxIdCustomerController.dispose();
     super.dispose();
   }
 
@@ -84,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       widget.user.name = _nameController.text.trim();
       widget.user.phone = _phoneController.text.trim();
       widget.user.address = _addressController.text.trim();
-      widget.user.guardianMoxId = _guardianController.text.trim();
+      widget.user.guardianMoxId = _guardianMoxIdController.text.trim();
 
       // 2. إرسال البيانات للمنظومة (المحلي + السحابي في شيت Users)
       await StorageService.addUser(widget.user);
@@ -270,7 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // بطاقة رقم الوصي
             TextField(
-              controller: _guardianController,
+              controller: _guardianMoxIdController,
               decoration: const InputDecoration(
                 labelText: "رقم MOX للوصي (المرشد)",
                 hintText: "MOX249-XXXXXXXX",

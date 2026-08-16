@@ -24,7 +24,6 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-// ignore: unused_element
 class _DashboardScreenState extends State<DashboardScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
 
@@ -145,10 +144,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     bool isAdmin =
+        widget.user.moxId == "ID-005000" ||
         widget.user.role == "admin" ||
         widget.user.accountType == "إدارة" ||
         widget.user.accountType == "مدير" ||
-        widget.user.moxId == "MOX249-00010001";
+        widget.user.guardianMoxId == "MOX249-00010001";
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -501,7 +501,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 🪟 بطاقة منبثقة لحالة الحساب والبيانات السيادية الشاملة
   void _showAccountStatusModal(BuildContext context) {
     bool hasMox =
-        widget.user.moxId.isNotEmpty && widget.user.moxId != "لم يحدد";
+        widget.user.guardianMoxId!.isNotEmpty &&
+        widget.user.guardianMoxId != "لم يحدد";
 
     showModalBottomSheet(
       context: context,
@@ -1622,9 +1623,9 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
   void _updateAlerts() {
     _alerts = [
       "🚨 تنبيه MOX: لديك ${_currentUser.points} نقطة مكتسبة في شبكة الإحالة السيادية.",
-      _currentUser.moxId.isNotEmpty
-          ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${_currentUser.moxId}"
-          : "⚠️ حسابك لم يُرقَّ بعد، شارك رابط الترقية لتوثيق أصولك.",
+      _currentUser.guardianMoxId!.isNotEmpty
+          ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${_currentUser.guardianMoxId}"
+          : "⚠️ حسابك لم يُرقَّ بعد، شارك رابط الترقية لتوثيق أصولك.",
       "📌 متجر موكس جاهز لاستقبال طلبات بطاقات العرض والخدمات الرقمية.",
       "🏛️ المنظومة أونلاين: تأكد من تحديث وسائط التواصل لضمان تدفق الأرباح والأصول.",
     ];
