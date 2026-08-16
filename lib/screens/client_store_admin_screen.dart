@@ -8,6 +8,7 @@ import '../models/marketing_card.dart';
 import '../services/storage_service.dart';
 import '../screens/digital_signature_screen.dart';
 import '../widgets/store_preview_widget.dart';
+import '../helpers/store_url_helper.dart';
 
 class ClientStoreAdminScreen extends StatefulWidget {
   final UserModel user;
@@ -182,13 +183,37 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     _updateStoreLink();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
       if (widget.isPublic) {
         setState(() {
           _isAuthorized = true;
         });
+
+        // 🚀 استدعاء الهوية والجلب من المساعد الخارجي بكل سهولة ونظافة
+        final String? urlGuardian = StoreUrlHelper.extractGuardianMoxId();
+
+        String? targetId;
+        if (urlGuardian != null && urlGuardian.isNotEmpty) {
+          targetId = urlGuardian;
+        } else if (widget.directMoxId != null &&
+            widget.directMoxId!.isNotEmpty) {
+          targetId = widget.directMoxId!;
+        }
+
+        if (targetId != null) {
+          final UserModel? updatedUser =
+              await StoreUrlHelper.fetchStoreFromCloud(targetId);
+          if (updatedUser != null && mounted) {
+            setState(() {
+              _liveUser = updatedUser;
+              _initializeControllers();
+              _initializeCards();
+            });
+          }
+        }
+
         return;
       }
 
@@ -603,7 +628,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX (أو رقم الوصي) للتأكد من ربطه بملفك ونشر المتجر.",
+                "أدخل رقم موكس موكس للتأكد من ربطه بملفك ونشر المتجر.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -770,7 +795,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             ],
           ),
           content: const Text(
-            "رقم MOX غير مطابق لبيانات هذا المتجر المحلي.",
+            "رقم موكس غير مطابق لبيانات هذا المتجر المحلي.",
             style: TextStyle(
               fontSize: 13,
               height: 1.5,

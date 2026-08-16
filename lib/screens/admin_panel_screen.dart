@@ -349,7 +349,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX (أو الوصي) وكلمة السر الخاصة بالعميل.",
+                "أدخل رقم موكس  وكلمة السر الخاصة بالعميل.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -469,7 +469,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             ],
           ),
           content: const Text(
-            "رقم MOX أو كلمة السر غير صحيحة.",
+            "رقم موكس أو كلمة السر غير صحيحة.",
             style: TextStyle(
               fontSize: 13,
               height: 1.5,
