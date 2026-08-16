@@ -440,7 +440,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
   // ============================================================
-  // 🔐 نافذة تسجيل الدخول السيادية (المطورة بدقة متناهية بالمسطرة)
+  // 🔐 نافذة تسجيل الدخول السيادية (المعدلة للعمل حصراً بالوصي)
   // ============================================================
 
   Future<void> _showSecurityLoginDialog() async {
@@ -471,7 +471,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX (أو رقم الوصي) وكلمة السر الخاصة باشتراك المتجر.",
+                "أدخل رقم MOX (الوصي) وكلمة السر الخاصة باشتراك المتجر.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -479,7 +479,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 controller: moxController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
-                  labelText: "رقم MOX",
+                  labelText: "رقم MOX (الوصي)",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.badge),
                   isDense: true,
@@ -517,29 +517,33 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 Navigator.pop(ctx);
 
                 // --------------------------------------------------
-                // الفحص الدقيق والسيادي في الذاكرة الحالية (الجلسة)
+                // الفحص السيادي: الاعتماد الحصري على guardianMoxId
                 // --------------------------------------------------
 
-                // بيانات الجلسة الحالية (نفترض أنك تخزنها في متغير مثل _liveUser أو widget.user)
-                final UserModel currentUser =
-                    _liveUser; // أو widget.user حسب هيكل شاشتك
+                final UserModel currentUser = _liveUser;
 
+                // استخراج البيانات مع تنظيفها
                 final String sessionGuardianMoxId =
                     (currentUser.guardianMoxId ?? '').trim().toUpperCase();
                 final String sessionPassword = currentUser.password.trim();
 
-                // التحقق من المطابقة الدقيقة بالمسطرة
+                // التحقق من المطابقة (الحصري للوصي)
+                // التأكد أن الحقل ليس فارغاً لمنع أي تطابق خاطئ
                 final bool isMoxMatched =
-                    (enteredMox.isNotEmpty &&
                     sessionGuardianMoxId.isNotEmpty &&
-                    enteredMox == sessionGuardianMoxId);
-
+                    (enteredMox == sessionGuardianMoxId);
                 final bool isPasswordMatched =
-                    enteredPassword.isNotEmpty &&
                     sessionPassword.isNotEmpty &&
-                    enteredPassword == sessionPassword;
+                    (enteredPassword == sessionPassword);
 
-                // إذا لم تتم المطابقة بدقة، يتم إظهار رسالة الرفض الفاخرة ومنع الدخول فوراً
+                debugPrint(
+                  'DEBUG: Entered: $enteredMox, SessionGuardian: $sessionGuardianMoxId',
+                );
+                debugPrint(
+                  'DEBUG: IsMoxMatched: $isMoxMatched, IsPasswordMatched: $isPasswordMatched',
+                );
+
+                // إذا لم تتم المطابقة بدقة
                 if (!isMoxMatched || !isPasswordMatched) {
                   _showLuxuryAccessDeniedDialog();
                   return;
@@ -547,7 +551,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                 if (!mounted) return;
 
-                // إذا تمت المطابقة بنجاح تام
+                // إذا تمت المطابقة بنجاح
                 setState(() {
                   _isAuthorized = true;
                 });
@@ -561,18 +565,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                 );
 
-                // التحقق من حالة الاشتراك إذا كانت متوفرة في كلاس الشاشة
                 try {
                   if (_isSubscriptionExpired) {
                     Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted) {
-                        _showActivationKeyDialog();
-                      }
+                      if (mounted) _showActivationKeyDialog();
                     });
                   }
-                } catch (_) {
-                  // تجاوز أي متغير غير معرف لتفادي الأخطاء نهائياً
-                }
+                } catch (_) {}
               },
               child: const Text(
                 "تحقق",
@@ -589,69 +588,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     moxController.dispose();
     passwordController.dispose();
-  }
-
-  // ============================================================
-  // 🛡️ رسالة الرفض الفاخرة (السيادية) للمنتصف
-  // ============================================================
-
-  void _showLuxuryAccessDeniedDialog() {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.gpp_bad, color: Colors.red, size: 26),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  "عفواً، ليس لديك الصلاحيات",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            "عفواً ليس لديك الصلاحيات لدخول المتجر، رقم MOX أو كلمة السر غير مطابقة لبيانات الجلسة الحالية.",
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.6,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF33A1C9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                "حسناً",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
   // ============================================================
   // 🔑 التفعيل بعد انتهاء الاشتراك
@@ -2097,4 +2033,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ),
     );
   }
+
+  void _showLuxuryAccessDeniedDialog() {}
 }
