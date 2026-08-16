@@ -153,8 +153,6 @@ class _FinanceManagerTabState extends State<FinanceManagerTab> {
       case 1:
         return _buildCommissionsView();
       case 2:
-        return _buildCardRequestsView();
-      case 3:
         return _buildPointsView();
       default:
         return _buildCommissionsView();
@@ -183,7 +181,7 @@ class _FinanceManagerTabState extends State<FinanceManagerTab> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             subtitle: Text(
-              "رقم MOX: ${client["moxId"] ?? 'غير مسجل'} | عمولة: ${client["commission"] ?? '0'}",
+              "رقم MOX: ${client["guardianMoxId"]!.isNotEmpty ? client["guardianMoxId"] : 'غير مسجل'} | عمولة: ${client["commission"] ?? '0'}",
               style: const TextStyle(fontSize: 11),
             ),
             trailing: Row(
@@ -294,86 +292,6 @@ class _FinanceManagerTabState extends State<FinanceManagerTab> {
     );
   }
 
-  // 2. طلبيات والمنتجات
-  Widget _buildCardRequestsView() {
-    return ListView.builder(
-      itemCount: clientsData.length,
-      itemBuilder: (context, index) {
-        final client = clientsData[index];
-        String replyStatus = client["replyStatus"] ?? "قيد المراجعة";
-        bool isResponded = replyStatus == "تم الرد";
-
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        client["name"] ?? "طلب عميل",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "الطلب: ${client["cardRequest"] ?? 'بدون تفاصيل'}",
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isResponded ? Colors.green : Colors.orange,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                  ),
-                  onPressed: () async {
-                    setState(() {
-                      client["replyStatus"] = isResponded
-                          ? "قيد المراجعة"
-                          : "تم الرد";
-                    });
-                    await _saveFinanceData();
-                    if (!mounted) return;
-                    // ignore: use_build_context_synchronously
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          "🔄 تم تحديث حالة الطلب إلى: ${client["replyStatus"]}",
-                        ),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    replyStatus,
-                    style: const TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   // 3. النقاط
   Widget _buildPointsView() {
     return ListView.builder(
@@ -396,7 +314,7 @@ class _FinanceManagerTabState extends State<FinanceManagerTab> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             subtitle: Text(
-              "رقم MOX: ${client["moxId"] ?? 'غير مسجل'}",
+              "رقم MOX: ${client["guardianMoxId"]!.isNotEmpty ? client["guardianMoxId"] : 'غير مسجل'}",
               style: const TextStyle(fontSize: 11),
             ),
             trailing: Row(
