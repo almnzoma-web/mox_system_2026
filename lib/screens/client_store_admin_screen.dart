@@ -1,7 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
@@ -163,6 +166,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // نحتفظ بنسخة حية من المستخدم
   // حتى لا تظل المعاينة تعتمد على widget.user القديمة.
   late UserModel _liveUser;
+
+  String? get _scriptUrl => null;
 
   // ============================================================
   // 🚀 INIT
@@ -439,147 +444,438 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
+
   // ============================================================
   // 🔐 نافذة تسجيل الدخول
   // ============================================================
+  Future<UserModel?> _findOwnerFromCloud(String enteredMox) async {
+    try {
+      final String normalizedMox = enteredMox.trim().toUpperCase();
+
+      if (normalizedMox.isEmpty) {
+        return null;
+      }
+
+      final Uri uri = Uri.parse(
+        _scriptUrl!,
+      ).replace(queryParameters: {'action': 'getAll'});
+
+      debugPrint('☁️ [LOGIN] جاري جلب بيانات المالك من Google...');
+
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 12));
+
+      debugPrint('☁️ [LOGIN] Google HTTP: ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        debugPrint('❌ [LOGIN] Google returned ${response.statusCode}');
+        return null;
+      }
+
+      final dynamic decoded = json.decode(response.body);
+
+      if (decoded is! List) {
+        debugPrint('❌ [LOGIN] Google response ليس List');
+        return null;
+      }
+
+      for (final dynamic item in decoded) {
+        if (item is! Map) {
+          continue;
+        }
+
+        try {
+          final Map<String, dynamic> map = Map<String, dynamic>.from(item);
+
+          // --------------------------------------------
+          // دعم MOXID القديم
+          // --------------------------------------------
+
+          if ((map['moxId'] == null ||
+                  map['moxId'].toString().trim().isEmpty) &&
+              map['MOXID'] != null) {
+            map['moxId'] = map['MOXID'];
+          }
+
+          final String cloudMoxId = (map['moxId'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+          final String cloudGuardianMoxId = (map['guardianMoxId'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+          // --------------------------------------------
+          // مطابقة الهوية
+          // --------------------------------------------
+
+          final bool matched =
+              normalizedMox == cloudMoxId ||
+              normalizedMox == cloudGuardianMoxId;
+
+          if (!matched) {
+            continue;
+          }
+
+          final UserModel user = UserModel.fromJson(map);
+
+          debugPrint(
+            '✅ [LOGIN] تم العثور على المالك في Google: '
+            '${user.name}',
+          );
+
+          return user;
+        } catch (e) {
+          debugPrint('⚠️ [LOGIN] سجل Google غير صالح: $e');
+        }
+      }
+
+      debugPrint('⚠️ [LOGIN] لم يتم العثور على الهوية: $normalizedMox');
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ [LOGIN] Cloud lookup error: $e');
+
+      return null;
+    }
+  }
+
+  String _cleanValue(dynamic value) {
+    final String result = (value ?? '').toString().trim();
+
+    if (result.isEmpty) {
+      return '';
+    }
+
+    final String upper = result.toUpperCase();
+
+    if (upper == 'NULL' || upper == 'UNDEFINED' || upper == 'N/A') {
+      return '';
+    }
+
+    return result;
+  }
 
   Future<void> _showSecurityLoginDialog() async {
     final TextEditingController moxController = TextEditingController();
 
     final TextEditingController passwordController = TextEditingController();
 
-    if (!mounted) return;
+    bool isChecking = false;
+
+    if (!mounted) {
+      return;
+    }
 
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.verified_user, color: _primaryColor),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  "التحقق من مالك المتجر",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _darkColor,
-                    fontSize: 14,
-                  ),
-                ),
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "أدخل رقم MOX وكلمة السر الخاصة بالمالك.",
-                style: TextStyle(fontSize: 12, color: Colors.black87),
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: moxController,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: "رقم MOX",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.badge),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "كلمة السر",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                  isDense: true,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
 
-                if (!mounted) return;
-
-                Navigator.pop(context);
-              },
-              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-              onPressed: () {
-                final String enteredMox = moxController.text
-                    .trim()
-                    .toUpperCase();
-
-                final String enteredPassword = passwordController.text.trim();
-
-                final String userMox = _liveUser.guardianMoxId!
-                    .trim()
-                    .toUpperCase();
-
-                final String guardianMoxId = (_liveUser.guardianMoxId ?? '')
-                    .trim()
-                    .toUpperCase();
-
-                final bool moxMatched =
-                    enteredMox.isNotEmpty &&
-                    (enteredMox == userMox || enteredMox == guardianMoxId);
-
-                final bool passwordMatched =
-                    enteredPassword.isNotEmpty &&
-                    enteredPassword == _liveUser.password;
-
-                Navigator.pop(ctx);
-
-                if (!moxMatched || !passwordMatched) {
-                  _showLuxuryErrorDialog();
-                  return;
-                }
-
-                if (!mounted) return;
-
-                setState(() {
-                  _isAuthorized = true;
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "✅ تم التحقق بنجاح — مرحباً بك في إدارة المتجر.",
+              title: const Row(
+                children: [
+                  Icon(Icons.verified_user, color: _primaryColor),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'التحقق من مالك المتجر',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _darkColor,
+                        fontSize: 14,
+                      ),
                     ),
-                    backgroundColor: Colors.green,
                   ),
-                );
-
-                if (_isSubscriptionExpired) {
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    if (mounted) {
-                      _showActivationKeyDialog();
-                    }
-                  });
-                }
-              },
-              child: const Text(
-                "تحقق",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                ],
               ),
-            ),
-          ],
+
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'أدخل رقم MOX وكلمة السر الخاصة بالمالك.',
+                    style: TextStyle(fontSize: 12, color: Colors.black87),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  TextField(
+                    controller: moxController,
+                    enabled: !isChecking,
+                    textCapitalization: TextCapitalization.characters,
+
+                    decoration: const InputDecoration(
+                      labelText: 'رقم MOX',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.badge),
+                      isDense: true,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: passwordController,
+                    enabled: !isChecking,
+                    obscureText: true,
+
+                    decoration: const InputDecoration(
+                      labelText: 'كلمة السر',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock),
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+
+              actions: [
+                TextButton(
+                  onPressed: isChecking
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+
+                          if (!mounted) {
+                            return;
+                          }
+
+                          Navigator.pop(context);
+                        },
+
+                  child: const Text(
+                    'إلغاء',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                  ),
+
+                  onPressed: isChecking
+                      ? null
+                      : () async {
+                          final String enteredMox = moxController.text
+                              .trim()
+                              .toUpperCase();
+
+                          final String enteredPassword = passwordController.text
+                              .trim();
+
+                          // ------------------------------------
+                          // التحقق الأولي
+                          // ------------------------------------
+
+                          if (enteredMox.isEmpty || enteredPassword.isEmpty) {
+                            _showLoginMessage(
+                              '⚠️ أدخل رقم MOX وكلمة السر.',
+                              Colors.orange,
+                            );
+                            return;
+                          }
+
+                          // ------------------------------------
+                          // بدء التحقق
+                          // ------------------------------------
+
+                          setDialogState(() {
+                            isChecking = true;
+                          });
+
+                          UserModel? cloudUser;
+
+                          // ------------------------------------
+                          // 1️⃣ المصدر الرئيسي: Google
+                          // ------------------------------------
+
+                          cloudUser = await _findOwnerFromCloud(enteredMox);
+
+                          // ------------------------------------
+                          // 2️⃣ fallback إلى _liveUser
+                          // فقط إذا تعذر الوصول إلى Google
+                          // ------------------------------------
+
+                          // ignore: no_leading_underscores_for_local_identifiers, unused_local_variable
+                          UserModel? _liveUser;
+
+                          // ------------------------------------
+                          // إذا لا يوجد مستخدم
+                          // ------------------------------------
+
+                          if (cloudUser == null) {
+                            if (dialogContext.mounted) {
+                              setDialogState(() {
+                                isChecking = false;
+                              });
+                            }
+
+                            if (mounted) {
+                              _showLuxuryErrorDialog(
+                                message: 'تعذر العثور على بيانات مالك المتجر.',
+                              );
+                            }
+
+                            return;
+                          }
+
+                          // ------------------------------------
+                          // استخراج البيانات بأمان
+                          // ------------------------------------
+
+                          final String cloudMoxId = _cleanValue(
+                            cloudUser.moxId,
+                          ).toUpperCase();
+
+                          final String cloudGuardianMoxId = _cleanValue(
+                            cloudUser.guardianMoxId,
+                          ).toUpperCase();
+
+                          final String cloudPassword = _cleanValue(
+                            cloudUser.password,
+                          );
+
+                          // ------------------------------------
+                          // مطابقة MOX
+                          // ------------------------------------
+
+                          final bool moxMatched =
+                              enteredMox == cloudMoxId ||
+                              enteredMox == cloudGuardianMoxId;
+
+                          // ------------------------------------
+                          // مطابقة كلمة السر
+                          // ------------------------------------
+
+                          final bool passwordMatched =
+                              cloudPassword.isNotEmpty &&
+                              enteredPassword == cloudPassword;
+
+                          debugPrint('🔐 [LOGIN] MOX matched: $moxMatched');
+
+                          debugPrint(
+                            '🔐 [LOGIN] Password matched: '
+                            '$passwordMatched',
+                          );
+
+                          // ------------------------------------
+                          // فشل
+                          // ------------------------------------
+
+                          if (!moxMatched || !passwordMatched) {
+                            if (dialogContext.mounted) {
+                              setDialogState(() {
+                                isChecking = false;
+                              });
+                            }
+
+                            if (mounted) {
+                              Navigator.pop(ctx);
+
+                              _showLuxuryErrorDialog(
+                                message: 'رقم MOX أو كلمة السر غير صحيحة.',
+                              );
+                            }
+
+                            return;
+                          }
+
+                          // ------------------------------------
+                          // نجاح
+                          // ------------------------------------
+
+                          if (dialogContext.mounted) {
+                            Navigator.pop(ctx);
+                          }
+
+                          if (!mounted) {
+                            return;
+                          }
+
+                          // ------------------------------------
+                          // اعتماد المستخدم الحالي
+                          // ------------------------------------
+
+                          setState(() {
+                            _liveUser = cloudUser!;
+                            _isAuthorized = true;
+                          });
+
+                          // ------------------------------------
+                          // حفظ الجلسة محلياً
+                          // ------------------------------------
+
+                          try {
+                            await StorageService.updateUserPartial(cloudUser);
+                          } catch (e) {
+                            debugPrint(
+                              '⚠️ [LOGIN] لم يتم حفظ الجلسة محلياً: $e',
+                            );
+                          }
+
+                          // ------------------------------------
+                          // رسالة نجاح
+                          // ------------------------------------
+
+                          if (!mounted) {
+                            return;
+                          }
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                '✅ تم التحقق بنجاح — مرحباً بك في إدارة المتجر.',
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+
+                          // ------------------------------------
+                          // الاشتراك منتهي؟
+                          // ------------------------------------
+
+                          if (_isSubscriptionExpired) {
+                            Future.delayed(
+                              const Duration(milliseconds: 300),
+                              () {
+                                if (mounted) {
+                                  _showActivationKeyDialog();
+                                }
+                              },
+                            );
+                          }
+                        },
+
+                  child: isChecking
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'تحقق',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -591,8 +887,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ❌ خطأ التحقق
   // ============================================================
 
-  void _showLuxuryErrorDialog() {
-    if (!mounted) return;
+  void _showLuxuryErrorDialog({
+    String message = 'رقم MOX أو كلمة السر غير صحيحة.',
+  }) {
+    if (!mounted) {
+      return;
+    }
 
     showDialog(
       context: context,
@@ -602,13 +902,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+
           title: const Row(
             children: [
               Icon(Icons.gpp_bad, color: Colors.red),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  "فشل التحقق",
+                  'فشل التحقق',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
@@ -618,25 +919,31 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
             ],
           ),
-          content: const Text(
-            "رقم MOX أو كلمة السر غير صحيحة.",
-            style: TextStyle(
+
+          content: Text(
+            message,
+            style: const TextStyle(
               fontSize: 13,
               height: 1.5,
               fontWeight: FontWeight.bold,
             ),
           ),
+
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+
               onPressed: () {
                 Navigator.pop(ctx);
 
-                if (!mounted) return;
+                if (!mounted) {
+                  return;
+                }
 
                 Navigator.pop(context);
               },
-              child: const Text("حسناً", style: TextStyle(color: Colors.white)),
+
+              child: const Text('حسناً', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -2088,4 +2395,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ),
     );
   }
+
+  void _showLoginMessage(String s, MaterialColor orange) {}
 }
