@@ -155,10 +155,26 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ============================================================
 
   bool _isAuthorized = false;
+  DateTime? _authorizationTime;
 
   bool _isPublishing = false;
 
   bool _isSubscriptionExpired = false;
+
+  // ignore: unused_element
+  bool get _hasValidSession {
+    if (!_isAuthorized) {
+      return false;
+    }
+
+    if (_authorizationTime == null) {
+      return false;
+    }
+
+    final Duration age = DateTime.now().difference(_authorizationTime!);
+
+    return age < const Duration(hours: 8);
+  }
 
   // ignore: unused_field
   int _activationButtonState = 0;
@@ -193,6 +209,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       if (widget.isPublic) {
         setState(() {
           _isAuthorized = true;
+          _authorizationTime = DateTime.now();
         });
         return;
       }
