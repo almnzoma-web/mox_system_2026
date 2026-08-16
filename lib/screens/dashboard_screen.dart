@@ -197,7 +197,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               accountEmail: Text(
-                "هوية MOX: ${widget.user.moxId.isNotEmpty ? widget.user.moxId : 'غير مسجل'}",
+                "هوية MOX: ${widget.user.guardianMoxId!.isNotEmpty ? widget.user.guardianMoxId : 'حساب مجاني'}",
               ),
             ),
             // حصنّا زر شاشة المدير ليظهر حصرياً لعميل المدير أو من يمتلك صلاحية الإدارة
@@ -317,7 +317,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    "المنظومة أونلاين MOX",
+                    "المنظومة أونلاين موكس",
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
