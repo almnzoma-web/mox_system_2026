@@ -440,7 +440,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
   // ============================================================
-  // 🔐 نافذة تسجيل الدخول السيادية (المعدلة للعمل حصراً بالوصي)
+  // 🔐 نافذة تسجيل الدخول السيادية (محلي بالكامل ومقفل بالمسطرة)
   // ============================================================
 
   Future<void> _showSecurityLoginDialog() async {
@@ -517,18 +517,16 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 Navigator.pop(ctx);
 
                 // --------------------------------------------------
-                // الفحص السيادي: الاعتماد الحصري على guardianMoxId
+                // الفحص السيادي المحلي الحصري (بدون أي بحث خارجي أو قوقل)
                 // --------------------------------------------------
 
                 final UserModel currentUser = _liveUser;
 
-                // استخراج البيانات مع تنظيفها
                 final String sessionGuardianMoxId =
                     (currentUser.guardianMoxId ?? '').trim().toUpperCase();
                 final String sessionPassword = currentUser.password.trim();
 
-                // التحقق من المطابقة (الحصري للوصي)
-                // التأكد أن الحقل ليس فارغاً لمنع أي تطابق خاطئ
+                // المطابقة الحصرية لرقم الوصي وكلمة السر في الجلسة المحلية فقط
                 final bool isMoxMatched =
                     sessionGuardianMoxId.isNotEmpty &&
                     (enteredMox == sessionGuardianMoxId);
@@ -536,14 +534,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     sessionPassword.isNotEmpty &&
                     (enteredPassword == sessionPassword);
 
-                debugPrint(
-                  'DEBUG: Entered: $enteredMox, SessionGuardian: $sessionGuardianMoxId',
-                );
-                debugPrint(
-                  'DEBUG: IsMoxMatched: $isMoxMatched, IsPasswordMatched: $isPasswordMatched',
-                );
-
-                // إذا لم تتم المطابقة بدقة
+                // إذا لم تتطابق البيانات محلياً، تظهر رسالة الرفض الفاخرة فوراً دون أي تحويل للبحث
                 if (!isMoxMatched || !isPasswordMatched) {
                   _showLuxuryAccessDeniedDialog();
                   return;
@@ -551,7 +542,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
                 if (!mounted) return;
 
-                // إذا تمت المطابقة بنجاح
+                // نجاح التحقق بالكامل
                 setState(() {
                   _isAuthorized = true;
                 });
@@ -588,6 +579,69 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     moxController.dispose();
     passwordController.dispose();
+  }
+
+  // ============================================================
+  // 🛡️ رسالة الرفض الفاخرة (السيادية) مع زر إغلاق حصراً
+  // ============================================================
+
+  void _showLuxuryAccessDeniedDialog() {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.gpp_bad, color: Colors.red, size: 26),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "عفواً، ليس لديك الصلاحيات",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            "عفواً ليس لديك الصلاحيات لدخول المتجر، رقم MOX (الوصي) أو كلمة السر غير مطابقة لبيانات الجلسة المحلية.",
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.6,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[700],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                "إغلاق",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
   // ============================================================
   // 🔑 التفعيل بعد انتهاء الاشتراك
@@ -2033,6 +2087,4 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ),
     );
   }
-
-  void _showLuxuryAccessDeniedDialog() {}
 }
