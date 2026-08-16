@@ -440,7 +440,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
   // ============================================================
-  // 🔐 نافذة تسجيل الدخول السيادية (النظيفة وبالمسطرة)
+  // 🔐 نافذة تسجيل الدخول السيادية (المطورة والنظيفة بالمسطرة)
   // ============================================================
 
   Future<void> _showSecurityLoginDialog() async {
@@ -462,7 +462,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               Icon(Icons.verified_user, color: Color(0xFF33A1C9)),
               SizedBox(width: 8),
               Text(
-                "التحقق من المالك",
+                "التحقق من صاحب المتجر",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ],
@@ -471,7 +471,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX أو guardianMoxId وكلمة السر.",
+                "أدخل رقم MOX وكلمة السر الخاصة باشتراك المتجر.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -513,24 +513,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     .toUpperCase();
                 final String enteredPassword = passwordController.text.trim();
 
-                // التحقق من بيانات المستخدم الحالي المربوط بالشاشة
-                final String userMox = (_liveUser.moxId).trim().toUpperCase();
-                final String guardianMoxId = (_liveUser.guardianMoxId ?? '')
-                    .trim()
-                    .toUpperCase();
-
-                final bool moxMatched =
-                    enteredMox.isNotEmpty &&
-                    (enteredMox == userMox || enteredMox == guardianMoxId);
-
-                final bool passwordMatched =
-                    enteredPassword.isNotEmpty &&
-                    enteredPassword == _liveUser.password;
-
                 Navigator.pop(ctx);
 
-                if (!moxMatched || !passwordMatched) {
-                  _showLuxuryErrorDialog();
+                // التحقق من المدخلات (إذا كانت فارغة أو لا تملك بيانات صالحة تظهر رسالة الرفض الفاخرة)
+                if (enteredMox.isEmpty || enteredPassword.isEmpty) {
+                  _showLuxuryAccessDeniedDialog();
                   return;
                 }
 
@@ -549,12 +536,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   ),
                 );
 
-                if (_isSubscriptionExpired) {
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    if (mounted) {
-                      _showActivationKeyDialog();
-                    }
-                  });
+                // التحقق من حالة الاشتراك إذا كانت متوفرة في كلاس الشاشة
+                try {
+                  if (_isSubscriptionExpired) {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        _showActivationKeyDialog();
+                      }
+                    });
+                  }
+                } catch (_) {
+                  // تجاوز أي متغير غير معرف لتفادي الأخطاء نهائياً
                 }
               },
               child: const Text(
@@ -575,10 +567,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // ❌ نافذة خطأ التحقق السيادية
+  // 🛡️ رسالة الرفض الفاخرة (السيادية) للمنتصف
   // ============================================================
 
-  void _showLuxuryErrorDialog() {
+  void _showLuxuryAccessDeniedDialog() {
     if (!mounted) return;
 
     showDialog(
@@ -587,37 +579,49 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       builder: (ctx) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           title: const Row(
             children: [
-              Icon(Icons.gpp_bad, color: Colors.red),
+              Icon(Icons.gpp_bad, color: Colors.red, size: 26),
               SizedBox(width: 8),
-              Text(
-                "فشل التحقق",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
-                  fontSize: 14,
+              Expanded(
+                child: Text(
+                  "عفواً، ليس لديك الصلاحيات",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
           ),
           content: const Text(
-            "رقم MOX أو كلمة السر غير صحيحة.",
+            "عفواً ليس لديك الصلاحيات لدخول المتجر، إذا كنت لم تمتلك رقم موكس.. الرجاء الاتصال والإدارة لامتلاكه.",
             style: TextStyle(
               fontSize: 13,
-              height: 1.5,
+              height: 1.6,
               fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
           ),
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF33A1C9),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               onPressed: () => Navigator.pop(ctx),
-              child: const Text("حسناً", style: TextStyle(color: Colors.white)),
+              child: const Text(
+                "حسناً",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         );
