@@ -36,7 +36,7 @@ class _ClientsManagerState extends State<ClientsManager> {
           (u) =>
               u.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
               u.phone.contains(searchQuery) ||
-              u.moxId.contains(searchQuery),
+              u.guardianMoxId!.contains(searchQuery),
         )
         .toList();
 
@@ -113,7 +113,7 @@ class _ClientsManagerState extends State<ClientsManager> {
 
   void _showEditMoxPanel(UserModel user) {
     final TextEditingController moxController = TextEditingController(
-      text: user.moxId,
+      text: user.guardianMoxId,
     );
 
     showModalBottomSheet(
@@ -171,7 +171,7 @@ class _ClientsManagerState extends State<ClientsManager> {
                     backgroundColor: const Color(0xFF1B6B80),
                   ),
                   onPressed: () async {
-                    user.moxId = moxController.text.trim();
+                    user.guardianMoxId = moxController.text.trim();
 
                     // حفظ التعديلات في الذاكرة الدائمة ومعالجة آمنة لـ context
                     await _saveLocalData();

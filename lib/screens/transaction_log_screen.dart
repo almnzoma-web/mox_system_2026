@@ -31,7 +31,9 @@ class TransactionLogScreen extends StatelessWidget {
                           : Icons.swap_horiz,
                       color: const Color(0xFF33A1C9),
                     ),
-                    title: Text("من ${log.fromMoxId} إلى ${log.toMoxId}"),
+                    title: Text(
+                      "من ${log.fromguardianMoxId} إلى ${log.toguardianMoxId}",
+                    ),
                     subtitle: Text(
                       "المبلغ: ${log.amount.toStringAsFixed(2)} | ${log.timestamp.toString().substring(0, 16)}",
                     ),

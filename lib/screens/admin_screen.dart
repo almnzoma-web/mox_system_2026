@@ -537,7 +537,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
 
             subtitle: Text(
-              "رقم MOX: ${client.moxId} | الرصيد: ${client.balance}",
+              "رقم MOX: ${client.guardianMoxId} | الرصيد: ${client.balance}",
 
               style: const TextStyle(fontSize: 11, color: Colors.black54),
             ),
