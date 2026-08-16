@@ -196,6 +196,131 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     });
   }
 
+  Future<UserModel?> _findUserFromGoogle(String enteredMox) async {
+    final String normalized = enteredMox.trim().toUpperCase();
+
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    try {
+      return await StorageService.getUserByMoxId(normalized);
+    } catch (e) {
+      debugPrint('❌ [_findUserFromGoogle] $e');
+      return null;
+    }
+  }
+
+  Future<void> _showSecurityLoginDialog() async {
+    final TextEditingController securityController = TextEditingController();
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: _primaryColor),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "تأكيد هوية المالك",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _darkColor,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "أدخل رقم MOX الخاص بك أو رقم الوصي لتأكيد صلاحية الوصول.",
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: securityController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: "رقم MOX",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.badge),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () async {
+                final String entered = securityController.text
+                    .trim()
+                    .toUpperCase();
+                final String localMox = _liveUser.moxId.trim().toUpperCase();
+                final String guardianMox = (_liveUser.guardianMoxId ?? '')
+                    .trim()
+                    .toUpperCase();
+
+                Navigator.pop(ctx);
+
+                final bool matched =
+                    entered.isNotEmpty &&
+                    (entered == localMox || entered == guardianMox);
+
+                if (matched) {
+                  setState(() {
+                    _isAuthorized = true;
+                  });
+                  return;
+                }
+
+                final UserModel? remoteUser = await _findUserFromGoogle(
+                  entered,
+                );
+
+                if (remoteUser != null &&
+                    (remoteUser.moxId.trim().toUpperCase() == localMox ||
+                        (remoteUser.guardianMoxId ?? '').trim().toUpperCase() ==
+                            guardianMox)) {
+                  setState(() {
+                    _isAuthorized = true;
+                  });
+                  return;
+                }
+
+                _showLuxuryErrorDialog();
+              },
+              child: const Text(
+                "تأكيد",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    securityController.dispose();
+  }
+
   // ============================================================
   // 📝 تهيئة بيانات المتجر
   // ============================================================
@@ -440,12 +565,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
   // ============================================================
-  // 🔐 نافذة تسجيل الدخول السيادية (محلي بالكامل ومقفل بالمسطرة)
+  // 🔐 نافذة الفحص المنبثقة لـ guardianMoxId وإتمام النشر
   // ============================================================
 
-  Future<void> _showSecurityLoginDialog() async {
+  Future<void> _showStoreValidationDialog(
+    List<MarketingCard> updatedAssets,
+  ) async {
     final TextEditingController moxController = TextEditingController();
-    final TextEditingController passwordController = TextEditingController();
 
     if (!mounted) return;
 
@@ -459,11 +585,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ),
           title: const Row(
             children: [
-              Icon(Icons.verified_user, color: Color(0xFF33A1C9)),
+              Icon(Icons.verified_user, color: _primaryColor),
               SizedBox(width: 8),
-              Text(
-                "التحقق من صاحب المتجر",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              Expanded(
+                child: Text(
+                  "فحص هوية المتجر",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _darkColor,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ],
           ),
@@ -471,7 +603,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX (الوصي) وكلمة السر الخاصة باشتراك المتجر.",
+                "أدخل رقم MOX (أو رقم الوصي) للتأكد من ربطه بملفك ونشر المتجر.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -485,87 +617,44 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   isDense: true,
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "كلمة السر",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                  isDense: true,
-                ),
-              ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: () {
+                Navigator.pop(ctx);
+              },
               child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF33A1C9),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
               onPressed: () async {
                 final String enteredMox = moxController.text
                     .trim()
                     .toUpperCase();
-                final String enteredPassword = passwordController.text.trim();
 
-                // إغلاق نافذة الدخول أولاً
+                final String userMox = _liveUser.moxId.trim().toUpperCase();
+                final String guardianMox = (_liveUser.guardianMoxId ?? '')
+                    .trim()
+                    .toUpperCase();
+
+                // التأكد من أن الرقم المدخل متطابق محلياً مع ملف العميل
+                final bool moxMatched =
+                    enteredMox.isNotEmpty &&
+                    (enteredMox == userMox || enteredMox == guardianMox);
+
                 Navigator.pop(ctx);
 
-                // --------------------------------------------------
-                // الفحص السيادي المحلي الحصري (بدون أي بحث خارجي أو قوقل)
-                // --------------------------------------------------
-
-                final UserModel currentUser = _liveUser;
-
-                final String sessionGuardianMoxId =
-                    (currentUser.guardianMoxId ?? '').trim().toUpperCase();
-                final String sessionPassword = currentUser.password.trim();
-
-                // المطابقة الحصرية لرقم الوصي وكلمة السر في الجلسة المحلية فقط
-                final bool isMoxMatched =
-                    sessionGuardianMoxId.isNotEmpty &&
-                    (enteredMox == sessionGuardianMoxId);
-                final bool isPasswordMatched =
-                    sessionPassword.isNotEmpty &&
-                    (enteredPassword == sessionPassword);
-
-                // إذا لم تتطابق البيانات محلياً، تظهر رسالة الرفض الفاخرة فوراً دون أي تحويل للبحث
-                if (!isMoxMatched || !isPasswordMatched) {
-                  _showLuxuryAccessDeniedDialog();
+                if (!moxMatched) {
+                  _showLuxuryErrorDialog();
                   return;
                 }
 
-                if (!mounted) return;
-
-                // نجاح التحقق بالكامل
-                setState(() {
-                  _isAuthorized = true;
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "✅ تم التحقق بنجاح — مرحباً بك في إدارة المتجر.",
-                    ),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-
-                try {
-                  if (_isSubscriptionExpired) {
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted) _showActivationKeyDialog();
-                    });
-                  }
-                } catch (_) {}
+                // إذا تطابق الرقم بنجاح، نبدأ عملية النشر الفعلية
+                await _executeStorePublish(updatedAssets);
               },
               child: const Text(
-                "تحقق",
+                "فحص ونشر",
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -578,14 +667,82 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
 
     moxController.dispose();
-    passwordController.dispose();
   }
 
   // ============================================================
-  // 🛡️ رسالة الرفض الفاخرة (السيادية) مع زر إغلاق حصراً
+  // ⚡ التنفيذ الفعلي لحفظ ونشر المتجر بعد نجاح الفحص
   // ============================================================
 
-  void _showLuxuryAccessDeniedDialog() {
+  Future<void> _executeStorePublish(List<MarketingCard> updatedAssets) async {
+    setState(() {
+      _isPublishing = true;
+    });
+
+    try {
+      final String finalPublishTimestamp =
+          (widget.user.storePublishDate != null &&
+              widget.user.storePublishDate!.trim().isNotEmpty &&
+              !_checkIf365DaysExpired(widget.user.storePublishDate))
+          ? widget.user.storePublishDate!
+          : DateTime.now().toIso8601String();
+
+      final UserModel updatedUser = _liveUser.copyWith(
+        name: _storeNameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        address: _businessCategoryController.text.trim(),
+        storeDescription: _descriptionController.text.trim(),
+        myAssets: updatedAssets,
+        storePublishDate: finalPublishTimestamp,
+        role: 'reviewed_active',
+      );
+
+      await StorageService.updateUserPartial(updatedUser);
+
+      final UserModel? confirmedUser = await StorageService.getUserByMoxId(
+        updatedUser.moxId,
+      );
+
+      _liveUser = confirmedUser ?? updatedUser;
+
+      if (!mounted) return;
+
+      setState(() {
+        _isPublishing = false;
+        _isSubscriptionExpired = false;
+        _activationButtonState = 1;
+        _isAuthorized = true; // توثيق الجلسة بعد نجاح الفحص
+      });
+
+      _updateStoreLink();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isPublishing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ حدث خطأ أثناء نشر المتجر: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ============================================================
+  // ❌ خطأ الفحص
+  // ============================================================
+
+  void _showLuxuryErrorDialog() {
     if (!mounted) return;
 
     showDialog(
@@ -594,15 +751,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       builder: (ctx) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           title: const Row(
             children: [
-              Icon(Icons.gpp_bad, color: Colors.red, size: 26),
+              Icon(Icons.gpp_bad, color: Colors.red),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  "عفواً، ليس لديك الصلاحيات",
+                  "فشل الفحص",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
@@ -613,36 +770,27 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             ],
           ),
           content: const Text(
-            "عفواً ليس لديك الصلاحيات لدخول المتجر، رقم MOX (الوصي) أو كلمة السر غير مطابقة لبيانات الجلسة المحلية.",
+            "رقم MOX غير مطابق لبيانات هذا المتجر المحلي.",
             style: TextStyle(
               fontSize: 13,
-              height: 1.6,
+              height: 1.5,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
             ),
           ),
           actions: [
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[700],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                "إغلاق",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+              onPressed: () {
+                Navigator.pop(ctx);
+              },
+              child: const Text("حسناً", style: TextStyle(color: Colors.white)),
             ),
           ],
         );
       },
     );
   }
+
   // ============================================================
   // 🔑 التفعيل بعد انتهاء الاشتراك
   // ============================================================
@@ -984,14 +1132,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🚀 النشر والحفظ
+  // 🚀 النشر والحفظ - إطلاق نافذة الفحص المنبثقة
   // ============================================================
 
   Future<void> _publishStore() async {
-    if (!_isAuthorized) {
-      _showSecurityLoginDialog();
-      return;
-    }
     final bool hasSubscription =
         _liveUser.storePublishDate != null &&
         _liveUser.storePublishDate!.trim().isNotEmpty &&
@@ -1028,95 +1172,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
-    setState(() {
-      _isPublishing = true;
-    });
-
-    try {
-      /*
-     * إذا كان المتجر لديه تاريخ نشر صالح:
-     * نحافظ عليه ولا نبدأ 365 يوماً من جديد.
-     *
-     * إذا كان جديداً أو انتهت مدته:
-     * يبدأ تاريخ جديد.
-     */
-
-      final String finalPublishTimestamp =
-          (widget.user.storePublishDate != null &&
-              widget.user.storePublishDate!.trim().isNotEmpty &&
-              !_checkIf365DaysExpired(widget.user.storePublishDate))
-          ? widget.user.storePublishDate!
-          : DateTime.now().toIso8601String();
-
-      final UserModel updatedUser = _liveUser.copyWith(
-        name: _storeNameController.text.trim(),
-
-        phone: _phoneController.text.trim(),
-
-        address: _businessCategoryController.text.trim(),
-
-        storeDescription: _descriptionController.text.trim(),
-
-        myAssets: updatedAssets,
-
-        storePublishDate: finalPublishTimestamp,
-
-        role: 'reviewed_active',
-      );
-
-      /*
-     * الحفظ هنا يقوم بثلاثة أشياء:
-     *
-     * 1. SharedPreferences
-     * 2. registeredUsers
-     * 3. Google Sheets
-     */
-
-      await StorageService.updateUserPartial(updatedUser);
-
-      // ============================================================
-      // 🔄 إعادة قراءة النسخة المعتمدة
-      // ============================================================
-
-      final UserModel? confirmedUser = await StorageService.getUserByMoxId(
-        updatedUser.moxId,
-      );
-
-      _liveUser = confirmedUser ?? updatedUser;
-
-      if (!mounted) return;
-
-      setState(() {
-        _isPublishing = false;
-        _isSubscriptionExpired = false;
-        _activationButtonState = 1;
-      });
-
-      _updateStoreLink();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _isPublishing = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ حدث خطأ أثناء نشر المتجر: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    // إظهار نافذة الفحص المنبثقة لـ MOX قبل اتمام النشر نهائياً
+    _showStoreValidationDialog(updatedAssets);
   }
-
   // ============================================================
   // 📋 نسخ الرابط
   // ============================================================
