@@ -348,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Icons.folder_special,
                   "أصول العميل",
                   Colors.teal,
-                  () => _showClientAssetsScreen(context),
+                  () => _showClientStoreAdminScreen(context),
                 ),
                 _buildDashboardItem(
                   Icons.analytics,
@@ -1129,173 +1129,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📁 أصول العميل الرقمية ومتجره الإلكتروني
-  // الوظيفة الحالية: فتح لوحة إدارة ونشر المتجر فقط.
-  // البطاقات لم تعد تُدار من هنا.
-  void _showClientAssetsScreen(BuildContext context) {
-    // الهوية المعتمدة لرابط العميل:
-    // guardianMoxId هو المعرف اليدوي الذي يحدد رابط المتجر.
-    // moxId هو المعرف التلقائي ولا يُستخدم لبناء رابط المتجر.
-    final String directMoxId =
-        (widget.user.guardianMoxId?.trim().isNotEmpty == true)
-        ? widget.user.guardianMoxId!.trim()
-        : widget.user.moxId.trim();
+  // ============================================================
+  // 🚀 زر الانتقال الفاخر لإدارة المتجر من الصفحة الرئيسية
+  // ============================================================
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext ctxModal) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 15,
-                offset: Offset(0, -5),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // رأس النافذة
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.verified_rounded,
-                        color: Color(0xFF28A9CC),
-                        size: 22,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        "📁 بوابة أصول العميل الرقمية",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1B6B80),
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.grey),
-                    onPressed: () => Navigator.pop(ctxModal),
-                  ),
-                ],
-              ),
-
-              const Divider(height: 25, thickness: 1.2),
-
-              // بطاقة المتجر
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF28A9CC), Color(0xFF1B6B80)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF28A9CC).withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.storefront_rounded,
-                      color: Colors.white,
-                      size: 36,
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "مرحباً بك، ${widget.user.name}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            "من هنا يمكنك الدخول مباشرة إلى لوحة إعداد ونشر متجرك السيادي.",
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              // فتح لوحة إدارة المتجر
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF28A9CC),
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(ctxModal);
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ClientStoreAdminScreen(
-                          user: widget.user,
-
-                          // لم تعد أصول العميل مسؤولة عن البطاقات.
-                          // نرسل قائمة فارغة فقط للمحافظة على توافق
-                          // Constructor الحالي للصفحة A.
-                          clientCards: const [],
-
-                          // الرابط يعتمد على guardianMoxId أولاً.
-                          directMoxId: directMoxId,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.rocket_launch_rounded, size: 20),
-                  label: const Text(
-                    "فتح لوحة إعداد ونشر المتجر",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 15),
-            ],
+  // ignore: unused_element
+  Widget _buildStoreAdminEntryPoint() {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ClientStoreAdminScreen(
+              user: widget.user,
+            ), // تأكد من اسم شاشة إدارة المتجر لديك
           ),
         );
       },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF33A1C9),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.store, color: Colors.white),
+            SizedBox(width: 10),
+            Text(
+              "إدارة المتجر السيادي",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1597,6 +1476,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     );
   }
+
+  void _showClientStoreAdminScreen(BuildContext context) {}
 }
 
 class MoxAlertsCard extends StatefulWidget {
