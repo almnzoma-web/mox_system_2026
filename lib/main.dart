@@ -465,9 +465,7 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     }
 
     debugPrint(
-      '☁️ [CLOUD SEARCH] '
-      'البحث عن guardianMoxId: '
-      '$cleanGuardianMoxId',
+      '☁️ [CLOUD SEARCH] البحث المباشر عن العميل: $cleanGuardianMoxId',
     );
 
     // ========================================================
@@ -478,142 +476,78 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
         'https://script.google.com/macros/s/AKfycbwJCjg5WOUPCS4EgolxAhmX-BrbW7JCy32FM0Xht3GgesEuaJL0Cf5UyRfe8ZXnCITu/exec';
 
     // ========================================================
-    // جلب العملاء
+    // طلب عميل واحد فقط عبر تمرير المعرف في الـ queryParameters
     // ========================================================
 
-    final Uri uri = Uri.parse(
-      scriptUrl,
-    ).replace(queryParameters: {'action': 'getAll'});
+    final Uri uri = Uri.parse(scriptUrl).replace(
+      queryParameters: {
+        'action': 'getByGuardianMoxId', // الإجراء الخاص بجلب عميل مفرد
+        'guardianMoxId': cleanGuardianMoxId,
+      },
+    );
 
     final http.Response response = await http
         .get(uri)
         .timeout(const Duration(seconds: 12));
 
-    debugPrint(
-      '☁️ [CLOUD SEARCH] HTTP: '
-      '${response.statusCode}',
-    );
+    debugPrint('☁️ [CLOUD SEARCH] HTTP: ${response.statusCode}');
 
-    if (response.statusCode != 200) {
-      debugPrint(
-        '❌ [CLOUD SEARCH] HTTP ERROR '
-        '${response.statusCode}',
-      );
-
+    if (response.statusCode != 200 || response.body.isEmpty) {
+      debugPrint('❌ [CLOUD SEARCH] فشل الجلب أو الرد فارغ');
       return null;
     }
 
     // ========================================================
-    // JSON
+    // تحويل الـ JSON القادم للعميل المفرد
     // ========================================================
 
     final dynamic decoded = jsonDecode(response.body);
 
-    if (decoded is! List) {
-      debugPrint(
-        '❌ [CLOUD SEARCH] '
-        'الرد ليس List',
-      );
+    if (decoded is! Map) {
+      debugPrint('❌ [CLOUD SEARCH] الرد ليس خريطة بيانات صالحة للعميل');
+      return null;
+    }
 
+    final Map<String, dynamic> map = {};
+    decoded.forEach((key, value) {
+      map[key.toString()] = value;
+    });
+
+    final String rowGuardianMoxId =
+        map['guardianMoxId']?.toString().trim().toUpperCase() ?? '';
+
+    if (!_isValidGuardianMoxId(rowGuardianMoxId)) {
+      debugPrint('⚠️ [CLOUD SEARCH] المعرف المسترجع غير صالح');
       return null;
     }
 
     debugPrint(
-      '☁️ [CLOUD SEARCH] عدد السجلات: '
-      '${decoded.length}',
+      '✅ [CLOUD SEARCH] MATCH العميل: ${map['name']?.toString() ?? ''}',
     );
 
     // ========================================================
-    // البحث
+    // بناء نموذج المستخدم والتخزين المحلي
     // ========================================================
 
-    for (final dynamic item in decoded) {
-      try {
-        if (item is! Map) {
-          continue;
-        }
+    final UserModel user = UserModel.fromJson(map);
 
-        final Map<String, dynamic> map = Map<String, dynamic>.from(item);
+    final int index = StorageService.registeredUsers.indexWhere((u) {
+      final String localGuardian = (u.guardianMoxId ?? '').trim().toUpperCase();
 
-        // ====================================================
-        // guardianMoxId فقط
-        // ====================================================
+      return localGuardian == rowGuardianMoxId;
+    });
 
-        final String rowGuardianMoxId =
-            map['guardianMoxId']?.toString().trim().toUpperCase() ?? '';
-
-        if (!_isValidGuardianMoxId(rowGuardianMoxId)) {
-          continue;
-        }
-
-        // ====================================================
-        // المطابقة
-        // ====================================================
-
-        if (rowGuardianMoxId != cleanGuardianMoxId) {
-          continue;
-        }
-
-        debugPrint('✅ [CLOUD SEARCH] MATCH');
-
-        debugPrint(
-          '👤 [CLOUD SEARCH] العميل: '
-          '${map['name'] ?? ''}',
-        );
-
-        debugPrint(
-          '🆔 [CLOUD SEARCH] guardianMoxId: '
-          '$rowGuardianMoxId',
-        );
-
-        // ====================================================
-        // تحويل UserModel
-        // ====================================================
-
-        final UserModel user = UserModel.fromJson(map);
-
-        // ====================================================
-        // تحديث التخزين المحلي
-        //
-        // guardianMoxId هو المفتاح الوحيد
-        // في سياق المتجر العام.
-        // ====================================================
-
-        final int index = StorageService.registeredUsers.indexWhere((u) {
-          final String localGuardian = (u.guardianMoxId ?? '')
-              .trim()
-              .toUpperCase();
-
-          return localGuardian == rowGuardianMoxId;
-        });
-
-        if (index == -1) {
-          StorageService.registeredUsers.add(user);
-        } else {
-          StorageService.registeredUsers[index] = user;
-        }
-
-        debugPrint(
-          '💾 [CLOUD SEARCH] '
-          'تم تحديث النسخة المحلية',
-        );
-
-        return user;
-      } catch (e) {
-        debugPrint(
-          '⚠️ [CLOUD SEARCH] '
-          'سجل غير صالح: $e',
-        );
-      }
+    if (index == -1) {
+      StorageService.registeredUsers.add(user);
+    } else {
+      StorageService.registeredUsers[index] = user;
     }
 
-    debugPrint(
-      '⚠️ [CLOUD SEARCH] '
-      'لم يتم العثور على guardianMoxId: '
-      '$cleanGuardianMoxId',
-    );
+    debugPrint('💾 [CLOUD SEARCH] تم تحديث النسخة المحلية للعميل بنجاح');
+
+    return user;
   } catch (e) {
-    debugPrint('❌ [CLOUD SEARCH] $e');
+    debugPrint('❌ [CLOUD SEARCH ERROR] $e');
   }
 
   return null;
