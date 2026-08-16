@@ -440,7 +440,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
   }
   // ============================================================
-  // 🔐 نافذة تسجيل الدخول السيادية (المطورة والنظيفة بالمسطرة)
+  // 🔐 نافذة تسجيل الدخول السيادية (المطورة بدقة متناهية بالمسطرة)
   // ============================================================
 
   Future<void> _showSecurityLoginDialog() async {
@@ -471,7 +471,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX وكلمة السر الخاصة باشتراك المتجر.",
+                "أدخل رقم MOX (أو رقم الوصي) وكلمة السر الخاصة باشتراك المتجر.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -513,16 +513,41 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     .toUpperCase();
                 final String enteredPassword = passwordController.text.trim();
 
+                // إغلاق نافذة الدخول أولاً
                 Navigator.pop(ctx);
 
-                // التحقق من المدخلات (إذا كانت فارغة أو لا تملك بيانات صالحة تظهر رسالة الرفض الفاخرة)
-                if (enteredMox.isEmpty || enteredPassword.isEmpty) {
+                // --------------------------------------------------
+                // الفحص الدقيق والسيادي في الذاكرة الحالية (الجلسة)
+                // --------------------------------------------------
+
+                // بيانات الجلسة الحالية (نفترض أنك تخزنها في متغير مثل _liveUser أو widget.user)
+                final UserModel currentUser =
+                    _liveUser; // أو widget.user حسب هيكل شاشتك
+
+                final String sessionGuardianMoxId =
+                    (currentUser.guardianMoxId ?? '').trim().toUpperCase();
+                final String sessionPassword = currentUser.password.trim();
+
+                // التحقق من المطابقة الدقيقة بالمسطرة
+                final bool isMoxMatched =
+                    (enteredMox.isNotEmpty &&
+                    sessionGuardianMoxId.isNotEmpty &&
+                    enteredMox == sessionGuardianMoxId);
+
+                final bool isPasswordMatched =
+                    enteredPassword.isNotEmpty &&
+                    sessionPassword.isNotEmpty &&
+                    enteredPassword == sessionPassword;
+
+                // إذا لم تتم المطابقة بدقة، يتم إظهار رسالة الرفض الفاخرة ومنع الدخول فوراً
+                if (!isMoxMatched || !isPasswordMatched) {
                   _showLuxuryAccessDeniedDialog();
                   return;
                 }
 
                 if (!mounted) return;
 
+                // إذا تمت المطابقة بنجاح تام
                 setState(() {
                   _isAuthorized = true;
                 });
@@ -598,7 +623,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             ],
           ),
           content: const Text(
-            "عفواً ليس لديك الصلاحيات لدخول المتجر، إذا كنت لم تمتلك رقم موكس.. الرجاء الاتصال والإدارة لامتلاكه.",
+            "عفواً ليس لديك الصلاحيات لدخول المتجر، رقم MOX أو كلمة السر غير مطابقة لبيانات الجلسة الحالية.",
             style: TextStyle(
               fontSize: 13,
               height: 1.6,
@@ -628,7 +653,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       },
     );
   }
-
   // ============================================================
   // 🔑 التفعيل بعد انتهاء الاشتراك
   // ============================================================
