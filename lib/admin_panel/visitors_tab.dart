@@ -73,7 +73,7 @@ class _VisitorsTabState extends State<VisitorsTab> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
-                      "MOX: ${user.moxId} | الرصيد: ${user.balance} | النقاط: ${user.points}",
+                      "MOX: ${user.guardianMoxId!.isNotEmpty ? user.guardianMoxId : 'غير محدد'} | الرصيد: ${user.balance} | النقاط: ${user.points}",
                     ),
                     trailing: user.role != 'admin'
                         ? IconButton(

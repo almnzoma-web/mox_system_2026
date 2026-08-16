@@ -86,7 +86,7 @@ class _ClientsManagerState extends State<ClientsManager> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            "رقم MOX: ${user.moxId.isNotEmpty ? user.moxId : 'غير محدد'} | الهاتف: ${user.phone}",
+                            "رقم MOX: ${user.guardianMoxId!.isNotEmpty ? user.guardianMoxId : 'غير محدد'} | الهاتف: ${user.phone}",
                           ),
                           trailing: IconButton(
                             icon: const Icon(

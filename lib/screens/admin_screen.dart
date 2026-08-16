@@ -949,7 +949,7 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
 
             subtitle: Text(
-              "رقم MOX: ${client.moxId} | نظام النقاط السيادي",
+              "رقم MOX: ${client.guardianMoxId!.isNotEmpty ? client.guardianMoxId : 'غير محدد'} | نظام النقاط السيادي",
 
               style: const TextStyle(fontSize: 11, color: Colors.black54),
             ),

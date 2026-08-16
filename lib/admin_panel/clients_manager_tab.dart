@@ -82,7 +82,7 @@ class _ClientsManagerTabState extends State<ClientsManagerTab> {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            "MOX: ${user.moxId} | الهاتف: ${user.phone}",
+                            "MOX: ${user.guardianMoxId} | الهاتف: ${user.phone}",
                           ),
                           trailing: const Icon(
                             Icons.arrow_forward_ios,
@@ -126,7 +126,7 @@ class _ClientsManagerTabState extends State<ClientsManagerTab> {
             Text("رقم الهاتف: ${user.phone}"),
             const SizedBox(height: 8),
             Text(
-              "رقم MOX الحالي: ${user.moxId.isNotEmpty ? user.moxId : 'غير محدد'}",
+              "رقم MOX الحالي: ${user.guardianMoxId!.isNotEmpty ? user.guardianMoxId : 'غير محدد'}",
             ),
             const SizedBox(height: 20),
             Center(
