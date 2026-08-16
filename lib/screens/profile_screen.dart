@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
+import '../models/marketing_card.dart';
 import '../services/storage_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -13,38 +14,122 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final Color moxBlue = const Color(0xFF33A1C9);
-  late TextEditingController _nameController;
+
+  // وحدات التحكم بترتيب الحقول تماماً كما في UserModel
   late TextEditingController _phoneController;
+  late TextEditingController _passwordController;
+  late TextEditingController _nameController;
   late TextEditingController _addressController;
+  late TextEditingController _storeDescriptionController;
+  late TextEditingController _balanceController;
+  late TextEditingController _commissionController;
+  late TextEditingController _genderController;
+  late TextEditingController _accountTypeController;
+  late TextEditingController _moxIdController;
+  late TextEditingController _roleController;
+  late TextEditingController _customWhatsAppController;
   late TextEditingController _guardianMoxIdController;
   late TextEditingController _guardianMoxIdCustomerController;
+  late TextEditingController _storePublishDateController;
+  late TextEditingController _activationDateController;
+  late TextEditingController _pointsController;
+
+  // الهوية الرقمية للتوقيع
+  late TextEditingController _digitalPublicKeyController;
+  late TextEditingController _digitalSignatureAlgorithmController;
+  late TextEditingController _digitalSignatureCreatedAtController;
+  late TextEditingController _digitalSignatureKeyVersionController;
+
+  // قائمة الأصول القابلة للتعديل
+  late List<MarketingCard> _myAssets;
+  late List<dynamic> _signedDocuments;
+
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.user.name);
     _phoneController = TextEditingController(text: widget.user.phone);
+    _passwordController = TextEditingController(text: widget.user.password);
+    _nameController = TextEditingController(text: widget.user.name);
     _addressController = TextEditingController(text: widget.user.address);
+    _storeDescriptionController = TextEditingController(
+      text: widget.user.storeDescription,
+    );
+    _balanceController = TextEditingController(
+      text: widget.user.balance.toString(),
+    );
+    _commissionController = TextEditingController(
+      text: widget.user.commission.toString(),
+    );
+    _genderController = TextEditingController(text: widget.user.gender);
+    _accountTypeController = TextEditingController(
+      text: widget.user.accountType,
+    );
+    _moxIdController = TextEditingController(text: widget.user.moxId);
+    _roleController = TextEditingController(text: widget.user.role);
+    _customWhatsAppController = TextEditingController(
+      text: widget.user.customWhatsApp ?? '',
+    );
     _guardianMoxIdController = TextEditingController(
-      text: widget.user.guardianMoxId ?? "MOX249-xxxxxxxx",
+      text: widget.user.guardianMoxId ?? '',
     );
     _guardianMoxIdCustomerController = TextEditingController(
-      text: widget.user.guardianMoxIdCustomer ?? "MOX249-00010001",
+      text: widget.user.guardianMoxIdCustomer ?? '',
+    );
+    _storePublishDateController = TextEditingController(
+      text: widget.user.storePublishDate ?? '',
+    );
+    _activationDateController = TextEditingController(
+      text: widget.user.activationDate ?? '',
+    );
+    _pointsController = TextEditingController(
+      text: widget.user.points.toString(),
+    );
+
+    _myAssets = List.from(widget.user.myAssets);
+    _signedDocuments = List.from(widget.user.signedDocuments);
+
+    _digitalPublicKeyController = TextEditingController(
+      text: widget.user.digitalPublicKey ?? '',
+    );
+    _digitalSignatureAlgorithmController = TextEditingController(
+      text: widget.user.digitalSignatureAlgorithm,
+    );
+    _digitalSignatureCreatedAtController = TextEditingController(
+      text: widget.user.digitalSignatureCreatedAt ?? '',
+    );
+    _digitalSignatureKeyVersionController = TextEditingController(
+      text: widget.user.digitalSignatureKeyVersion.toString(),
     );
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
     _phoneController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
     _addressController.dispose();
+    _storeDescriptionController.dispose();
+    _balanceController.dispose();
+    _commissionController.dispose();
+    _genderController.dispose();
+    _accountTypeController.dispose();
+    _moxIdController.dispose();
+    _roleController.dispose();
+    _customWhatsAppController.dispose();
     _guardianMoxIdController.dispose();
     _guardianMoxIdCustomerController.dispose();
+    _storePublishDateController.dispose();
+    _activationDateController.dispose();
+    _pointsController.dispose();
+    _digitalPublicKeyController.dispose();
+    _digitalSignatureAlgorithmController.dispose();
+    _digitalSignatureCreatedAtController.dispose();
+    _digitalSignatureKeyVersionController.dispose();
     super.dispose();
   }
 
-  // دالة الواتساب النظيفة
   Future<void> _launchWhatsApp(String phone, String message) async {
     final Uri url = Uri.parse(
       "https://wa.me/${phone.replaceAll('+', '')}?text=${Uri.encodeComponent(message)}",
@@ -52,52 +137,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
-  // دالة حساب صلاحية المتجر (365 يوم من تاريخ التفعيل/التسجيل)
-  Map<String, dynamic> _calculateStoreSubscription() {
-    // نفترض أن UserModel يحتوي على حقل تاريخ التفعيل أو نستخدم تاريخ حالي افتراضي إذا لم يوجد
-    // يمكنك ربطها لاحقاً بـ widget.user.activationDate إذا أردت
-    DateTime activationDate;
-    try {
-      activationDate = widget.user.activationDate != null
-          ? DateTime.parse(widget.user.activationDate!)
-          : DateTime.now();
-    } catch (_) {
-      activationDate = DateTime.now();
-    }
-
-    DateTime expiryDate = activationDate.add(const Duration(days: 365));
-    int remainingDays = expiryDate.difference(DateTime.now()).inDays;
-    bool isExpired = remainingDays <= 0;
-
-    return {
-      'expiryDate':
-          "${expiryDate.year}-${expiryDate.month.toString().padLeft(2, '0')}-${expiryDate.day.toString().padLeft(2, '0')}",
-      'remainingDays': isExpired ? 0 : remainingDays,
-      'isExpired': isExpired,
-    };
+  void _addNewAsset() {
+    setState(() {
+      _myAssets.add(
+        MarketingCard(
+          title: "بطاقة تسويقية جديدة",
+          description: "وصف الأصل الرقمي",
+          whatsapp: _phoneController.text,
+          facebookUrl: "",
+          category: 'بطاقة',
+          iconKey: 'store',
+          price: 0.0,
+          isApproved: true,
+        ),
+      );
+    });
   }
 
-  // دالة الحفظ السيادية (تحديث محلي + رفع فوري لشيت قوقل)
   Future<void> _saveChanges() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // 1. تحديث بيانات الكائن بالقيم الجديدة بالمسطرة
-      widget.user.name = _nameController.text.trim();
       widget.user.phone = _phoneController.text.trim();
+      widget.user.password = _passwordController.text.trim();
+      widget.user.name = _nameController.text.trim();
       widget.user.address = _addressController.text.trim();
+      widget.user.storeDescription = _storeDescriptionController.text.trim();
+      widget.user.balance =
+          double.tryParse(_balanceController.text.trim()) ?? 0.0;
+      widget.user.commission =
+          double.tryParse(_commissionController.text.trim()) ?? 0.0;
+      widget.user.gender = _genderController.text.trim();
+      widget.user.accountType = _accountTypeController.text.trim();
+      widget.user.moxId = _moxIdController.text.trim();
+      widget.user.role = _roleController.text.trim();
+      widget.user.customWhatsApp = _customWhatsAppController.text.trim().isEmpty
+          ? null
+          : _customWhatsAppController.text.trim();
       widget.user.guardianMoxId = _guardianMoxIdController.text.trim();
+      widget.user.guardianMoxIdCustomer = _guardianMoxIdCustomerController.text
+          .trim();
+      widget.user.storePublishDate =
+          _storePublishDateController.text.trim().isEmpty
+          ? null
+          : _storePublishDateController.text.trim();
+      widget.user.activationDate = _activationDateController.text.trim().isEmpty
+          ? null
+          : _activationDateController.text.trim();
+      widget.user.points = int.tryParse(_pointsController.text.trim()) ?? 0;
+      widget.user.myAssets = List.from(_myAssets);
+      widget.user.signedDocuments = List.from(_signedDocuments);
+      widget.user.digitalPublicKey =
+          _digitalPublicKeyController.text.trim().isEmpty
+          ? null
+          : _digitalPublicKeyController.text.trim();
+      widget.user.digitalSignatureAlgorithm =
+          _digitalSignatureAlgorithmController.text.trim();
+      widget.user.digitalSignatureCreatedAt =
+          _digitalSignatureCreatedAtController.text.trim().isEmpty
+          ? null
+          : _digitalSignatureCreatedAtController.text.trim();
+      widget.user.digitalSignatureKeyVersion =
+          int.tryParse(_digitalSignatureKeyVersionController.text.trim()) ?? 1;
 
-      // 2. إرسال البيانات للمنظومة (المحلي + السحابي في شيت Users)
       await StorageService.addUser(widget.user);
       await StorageService.saveUser(widget.user);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("تم حفظ التغييرات ورفعها لشيت قوقل بنجاح بالمسطرة!"),
+            content: Text("تم حفظ جميع حقول UserModel بدقة متناهية بالمسطرة!"),
             backgroundColor: Colors.green,
           ),
         );
@@ -122,17 +233,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String accountType = widget.user.accountType;
-    bool isFree = accountType == 'مجاني';
-    bool isAgent = accountType == 'وكيل';
-
-    // فحص فترة الـ 365 يوم للمتجر
-    final subInfo = _calculateStoreSubscription();
+    bool isFree = widget.user.accountType == 'مجاني';
+    bool isAgent = widget.user.accountType == 'وكيل';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "الملف الشخصي السيادي",
+          "الملف الشخصي السيادي - UserModel",
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: moxBlue,
@@ -141,153 +248,320 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // بطاقة المعلومات السيادية للمواطن
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(15),
-                child: ListTile(
-                  title: Text(
-                    widget.user.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 5),
-                      Text("الهوية: ${widget.user.moxId}"),
-                      Text("نوع الحساب: $accountType"),
-                      const SizedBox(height: 5),
-                      Text(
-                        "الرصيد: ${widget.user.balance} | النقاط: ${widget.user.points}",
-                        style: const TextStyle(
-                          color: Color(0xFF28A9CC),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  leading: CircleAvatar(
-                    backgroundColor: moxBlue,
-                    radius: 30,
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 35,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            // بطاقة فحص فترة صلاحية المتجر (365 يوم)
-            Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: subInfo['isExpired']
-                    ? Colors.red.withValues(alpha: 0.1)
-                    : Colors.teal.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: subInfo['isExpired'] ? Colors.red : Colors.teal,
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    subInfo['isExpired']
-                        ? Icons.warning_amber_rounded
-                        : Icons.verified,
-                    color: subInfo['isExpired'] ? Colors.red : Colors.teal,
-                    size: 32,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "صلاحية المتجر الرقمي (فترة 365 يوم)",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subInfo['isExpired']
-                              ? "⚠️ انتهت صلاحية المتجر! يرجى التجديد."
-                              : "الأيام المتبقية: ${subInfo['remainingDays']} يوماً (ينتهي في ${subInfo['expiryDate']})",
-                          style: TextStyle(
-                            color: subInfo['isExpired']
-                                ? Colors.red
-                                : Colors.teal.shade800,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // حقول التعديل بالمسطرة
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: "الاسم الكامل",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-            ),
-            const SizedBox(height: 15),
+            // 1. phone
             TextField(
               controller: _phoneController,
               decoration: const InputDecoration(
-                labelText: "الهاتف",
+                labelText: "phone",
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.phone_android),
-              ),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: "العنوان",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.location_on_outlined),
+                prefixIcon: Icon(Icons.phone),
               ),
             ),
             const SizedBox(height: 15),
 
-            // بطاقة رقم الوصي
+            // 2. password
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "password",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 3. name
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: "name",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 4. address
+            TextField(
+              controller: _addressController,
+              decoration: const InputDecoration(
+                labelText: "address",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_on),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 5. storeDescription
+            TextField(
+              controller: _storeDescriptionController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: "storeDescription",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.store),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 6. balance
+            TextField(
+              controller: _balanceController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "balance",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.account_balance_wallet),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 7. commission
+            TextField(
+              controller: _commissionController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "commission",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.trending_up),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 8. gender
+            TextField(
+              controller: _genderController,
+              decoration: const InputDecoration(
+                labelText: "gender",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.wc),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 9. accountType
+            TextField(
+              controller: _accountTypeController,
+              decoration: const InputDecoration(
+                labelText: "accountType",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.card_membership),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 10. moxId
+            TextField(
+              controller: _moxIdController,
+              decoration: const InputDecoration(
+                labelText: "moxId",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.fingerprint),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 11. role
+            TextField(
+              controller: _roleController,
+              decoration: const InputDecoration(
+                labelText: "role",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.security),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 12. customWhatsApp
+            TextField(
+              controller: _customWhatsAppController,
+              decoration: const InputDecoration(
+                labelText: "customWhatsApp",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.chat),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 13. guardianMoxId
             TextField(
               controller: _guardianMoxIdController,
               decoration: const InputDecoration(
-                labelText: "رقم MOX للوصي (المرشد)",
-                hintText: "MOX249-XXXXXXXX",
+                labelText: "guardianMoxId",
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(
-                  Icons.supervised_user_circle,
-                  color: Color(0xFF28A9CC),
-                ),
+                prefixIcon: Icon(Icons.supervised_user_circle),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 14. guardianMoxIdCustomer
+            TextField(
+              controller: _guardianMoxIdCustomerController,
+              decoration: const InputDecoration(
+                labelText: "guardianMoxIdCustomer",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.group),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 15. storePublishDate
+            TextField(
+              controller: _storePublishDateController,
+              decoration: const InputDecoration(
+                labelText: "storePublishDate",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.date_range),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 16. activationDate
+            TextField(
+              controller: _activationDateController,
+              decoration: const InputDecoration(
+                labelText: "activationDate",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.event_available),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 17. points
+            TextField(
+              controller: _pointsController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "points",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.star),
               ),
             ),
             const SizedBox(height: 20),
 
-            // توجيه الأزرار بناءً على نوع الحساب
+            // 18. myAssets
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "myAssets (MarketingCards)",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF33A1C9),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _addNewAsset,
+                  icon: const Icon(Icons.add_circle, color: Colors.green),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            _myAssets.isEmpty
+                ? const Text(
+                    "لا توجد أصول مضافة حالياً",
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _myAssets.length,
+                    itemBuilder: (context, index) {
+                      final asset = _myAssets[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        child: ListTile(
+                          leading: Text(
+                            asset.iconSymbol,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                          title: Text(
+                            asset.title.isEmpty ? "بدون عنوان" : asset.title,
+                          ),
+                          subtitle: Text("السعر: ${asset.price}"),
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.delete,
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _myAssets.removeAt(index);
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+            const SizedBox(height: 20),
+
+            // 19. signedDocuments
+            const Text(
+              "signedDocuments",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF33A1C9),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              "عدد المستندات الموقعة: ${_signedDocuments.length}",
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 20),
+
+            // 20. digitalPublicKey
+            TextField(
+              controller: _digitalPublicKeyController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: "digitalPublicKey",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.vpn_key),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 21. digitalSignatureAlgorithm
+            TextField(
+              controller: _digitalSignatureAlgorithmController,
+              decoration: const InputDecoration(
+                labelText: "digitalSignatureAlgorithm",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.code),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 22. digitalSignatureCreatedAt
+            TextField(
+              controller: _digitalSignatureCreatedAtController,
+              decoration: const InputDecoration(
+                labelText: "digitalSignatureCreatedAt",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.access_time),
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            // 23. digitalSignatureKeyVersion
+            TextField(
+              controller: _digitalSignatureKeyVersionController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "digitalSignatureKeyVersion",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.numbers),
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // أزرار التوجيه
             if (isAgent) ...[
               Container(
                 padding: const EdgeInsets.all(10),
@@ -297,7 +571,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   border: Border.all(color: Colors.green),
                 ),
                 child: const Text(
-                  "حساب وكيل معتمد - صلاحيات سيادية كاملة بالمنظومة",
+                  "حساب وكيل معتمد بالمنظومة",
                   style: TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.bold,
@@ -309,7 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton.icon(
                 onPressed: () => _launchWhatsApp(
                   "249115855164",
-                  "مرحباً.. أريد الاستفسار عن خدمات الحساب المحترف وتجديد متجر MOX",
+                  "استفسار بخصوص الحساب المحترف",
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: moxBlue,
@@ -317,7 +591,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 icon: const Icon(Icons.chat, color: Colors.white),
                 label: const Text(
-                  "الانتقال للواتساب الخاص بالمحترفين",
+                  "واتساب المحترفين",
                   style: TextStyle(color: Colors.white),
                 ),
               ),
@@ -325,14 +599,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 onPressed: () => _launchWhatsApp(
                   "249115855164",
-                  "أريد ترقية حسابي وتفعيل متجري لمدة 365 يوم في بنك MOX",
+                  "أريد ترقية حسابي في بنك MOX",
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.amber[700],
                   minimumSize: const Size(double.infinity, 50),
                 ),
                 child: const Text(
-                  "ترقية الحساب وتفعيل المتجر الآن",
+                  "ترقية الحساب الآن",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -344,7 +618,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 30),
 
-            // زر الحفظ الفعلي المربوط بالمنظومة والسحابة
+            // زر الحفظ النهائي
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton(
@@ -354,7 +628,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       minimumSize: const Size(double.infinity, 50),
                     ),
                     child: const Text(
-                      "حفظ التغييرات",
+                      "حفظ التغييرات بالمسطرة",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
