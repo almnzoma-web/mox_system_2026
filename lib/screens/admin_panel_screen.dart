@@ -21,13 +21,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   List<UserModel> _clients = [];
   bool _isLoading = true;
-
-  // حالة التفويض المحلية الخاصة بالدخول (افتراضياً غير مسموح حتى يتم التحقق)
   // ignore: unused_field
   bool _isAuthorized = false;
 
   // ============================================================
-  // ☁️ Google Apps Script
+  // ☁️ Google Apps Script (للعرض والترحيل فقط - ليس للتحقق)
   // ============================================================
 
   static const String _scriptUrl =
@@ -47,7 +45,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
 
     final String encodedGuardianMoxId = Uri.encodeComponent(guardianMoxId);
-
     return 'https://mox-2026.vercel.app/store/$encodedGuardianMoxId';
   }
 
@@ -80,7 +77,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   // ============================================================
-  // 🔐 نافذة تسجيل الدخول السيادية (محلي بالكامل ومقفل بالمسطرة)
+  // 🔐 نافذة تسجيل الدخول السيادية (محلي 100% بدون أي قوقل)
   // ============================================================
 
   Future<void> _showSecurityLoginDialog(UserModel targetUser) async {
@@ -153,18 +150,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     .toUpperCase();
                 final String enteredPassword = passwordController.text.trim();
 
-                // إغلاق نافذة الدخول أولاً
                 Navigator.pop(ctx);
 
                 // --------------------------------------------------
-                // الفحص السيادي المحلي الحصري (بدون أي اتصال أو بحث خارجي بـ Google)
+                // الفحص المحلي الصارم بالمسطرة على الكائن الحالي مباشرة
                 // --------------------------------------------------
-
                 final String sessionGuardianMoxId =
                     (targetUser.guardianMoxId ?? '').trim().toUpperCase();
-                final String sessionPassword = targetUser.password.trim();
+                final String sessionPassword = (targetUser.password).trim();
 
-                // مطابقة حصرياً لرقم الوصي وكلمة السر لبيانات هذا العميل في الجلسة المحلية
+                // طباعة تتبع في الكونسول لمعرفة القيم والمقارنة بدقة
+                debugPrint('--- فحص تسجيل الدخل السيادي ---');
+                debugPrint(
+                  'المدخل (الوصي): "$enteredMox" | المخزن: "$sessionGuardianMoxId"',
+                );
+                debugPrint(
+                  'المدخل (السر): "$enteredPassword" | المخزن: "$sessionPassword"',
+                );
+
                 final bool isMoxMatched =
                     sessionGuardianMoxId.isNotEmpty &&
                     (enteredMox == sessionGuardianMoxId);
@@ -172,7 +175,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     sessionPassword.isNotEmpty &&
                     (enteredPassword == sessionPassword);
 
-                // إذا لم تتطابق البيانات محلياً، تظهر رسالة الرفض الفاخرة فوراً
+                // إذا فشلت المطابقة، إظهار رسالة الرفض الفاخرة فوراً
                 if (!isMoxMatched || !isPasswordMatched) {
                   _showLuxuryAccessDeniedDialog();
                   return;
@@ -180,7 +183,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                 if (!mounted) return;
 
-                // نجاح التحقق بالكامل
                 setState(() {
                   _isAuthorized = true;
                 });
@@ -194,7 +196,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   ),
                 );
 
-                // فتح لوحة التعديل أو المتابعة بعد النجاح
+                // فتح لوحة التعديل بعد النجاح الموثوق
                 _showEditClientDialog(targetUser);
               },
               child: const Text(
@@ -278,7 +280,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   // ============================================================
-  // ☁️ جلب العملاء من Google Sheets
+  // ☁️ جلب العملاء من Google Sheets (للعرض فقط)
   // ============================================================
 
   Future<void> _fetchFromCloud() async {
@@ -356,11 +358,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   // ============================================================
-  // ☁️ حفظ العميل
+  // ☁️ حفظ العميل (مباشرة دون جلب قديم يعيق المطابقة)
   // ============================================================
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
+      // الحفظ يتم محلياً مباشرة وتحديث السحابة بناءً على الكائن الحالي دون استعلامات مقيدة تعرقل العمل
       await StorageService.updateUserPartial(user);
 
       if (!mounted) return;
