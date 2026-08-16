@@ -665,7 +665,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   // ==============================================================
-  // EDIT MOX ID
+  // EDIT guardianMoxId
   // ==============================================================
 
   void _showEditGuardianMoxIdDialog(UserModel client) {
@@ -724,11 +724,12 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
 
             onPressed: () async {
-              final String newMoxId = guardianMoxIdController.text.trim();
+              final String newGuardianMoxId = guardianMoxIdController.text
+                  .trim();
 
-              if (newMoxId.isNotEmpty) {
+              if (newGuardianMoxId.isNotEmpty) {
                 setState(() {
-                  client.moxId = newMoxId;
+                  client.guardianMoxId = newGuardianMoxId;
                 });
 
                 await _saveLocalData(client);
