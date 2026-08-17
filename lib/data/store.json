@@ -11,35 +11,40 @@
           "description": "استشارات برمجية وتطوير واجهات Flutter وتصميم الأنظمة الموزعة بأعلى معايير الجودة.",
           "price": 50000.0,
           "whatsapp": "249912345678",
-          "facebook": "https://facebook.com"
+          "facebook": "https://facebook.com",
+          "category": "بطاقة"
         },
         {
           "title": "خدمة نشر التطبيقات السحابية",
           "description": "إعداد وربط منصات Vercel وضبط مسارات الاستضافة لضمان عمل التطبيقات بلا انقطاع.",
           "price": 75000.0,
           "whatsapp": "249912345678",
-          "facebook": "https://facebook.com"
+          "facebook": "https://facebook.com",
+          "category": "بطاقة"
         },
         {
           "title": "تطوير قواعد البيانات المركزية",
           "description": "تصميم وتجنيب قواعد البيانات وإدارة السجلات الرقمية للعملاء والمنظومات الكبرى.",
           "price": 100000.0,
           "whatsapp": "249912345678",
-          "facebook": "https://facebook.com"
+          "facebook": "https://facebook.com",
+          "category": "قسم"
         },
         {
           "title": "بناء واجهات الـ Web والـ Mobile",
           "description": "برمجة تطبيقات متوافقة مع كافة الأجهزة ببروتوكولات أمان عالية وتصميم عصري فاخر.",
           "price": 120000.0,
           "whatsapp": "249912345678",
-          "facebook": "https://facebook.com"
+          "facebook": "https://facebook.com",
+          "category": "رف"
         },
         {
           "title": "الدعم الفني والصيانة السيادية",
           "description": "متابعة دورية وتحديثات مستمرة لحالة الأنظمة وحل المشاكل التقنية فور حدوثها.",
           "price": 30000.0,
           "whatsapp": "249912345678",
-          "facebook": "https://facebook.com"
+          "facebook": "https://facebook.com",
+          "category": "بطاقة"
         }
       ]
     },
@@ -54,35 +59,40 @@
           "description": "منتجات وخدمات رقمية معتمدة ومجهزة للعرض الفوري للزوار عبر الرابط المباشر.",
           "price": 15000.0,
           "whatsapp": "249115855164",
-          "facebook": ""
+          "facebook": "",
+          "category": "بطاقة"
         },
         {
           "title": "بطاقة الخدمات التجارية المباشرة",
           "description": "إمكانية طلب الخدمة مباشرة عبر واتساب بكل سهولة ويسر.",
           "price": 2500000.0,
           "whatsapp": "249115855164",
-          "facebook": ""
+          "facebook": "",
+          "category": "بطاقة"
         },
         {
           "title": "الدعم والتواصل السريع",
           "description": "فريق خدمة عملاء جاهز للرد على الاستفسارات وتلبية الطلبات على مدار الساعة.",
           "price": 10000.0,
           "whatsapp": "249115855164",
-          "facebook": ""
+          "facebook": "",
+          "category": "خدمة عملاء"
         },
         {
           "title": "العروض الترويجية الحصرية",
           "description": "باقة مميزة من العروض الاقتصادية المصممة خصيصاً لتلبية احتياجات السوق الرقمي.",
           "price": 400000.0,
           "whatsapp": "249115855164",
-          "facebook": ""
+          "facebook": "",
+          "category": "عرض"
         },
         {
           "title": "الاعتماد السيادي الموثق",
           "description": "بطاقة موثقة بهوية رقمية فريدة تضمن حقوق الطرفين وتؤكد جودة الخدمة.",
           "price": 60000.0,
           "whatsapp": "249115855164",
-          "facebook": ""
+          "facebook": "",
+          "category": "بطاقة"
         }
       ]
     }

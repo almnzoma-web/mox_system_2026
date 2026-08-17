@@ -84,6 +84,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     {"name": "خدمة عملاء", "icon": Icons.headset_mic},
   ];
 
+  // ignore: unused_element
+  static IconData getIconData(String iconName) {
+    // نبحث في القائمة عن الاسم المطابق
+    final item = _availableIcons.firstWhere(
+      (element) => element['name'] == iconName,
+      orElse: () => {"icon": Icons.star}, // القيمة الافتراضية إذا فشل العثور
+    );
+    return item['icon'];
+  }
   // ============================================================
   // 🧱 البطاقات الخمس
   // ============================================================
