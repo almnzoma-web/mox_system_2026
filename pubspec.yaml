@@ -133,3 +133,7 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/mox_app_icon.ico"
+
+    flutter:
+  assets:
+    - assets/data/store.json
