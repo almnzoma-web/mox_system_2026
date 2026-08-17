@@ -269,7 +269,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم MOX الخاص بك أو رقم الوصي لتأكيد صلاحية الوصول.",
+                "أدخل رقم موكس الخاص بك  لتأكيد صلاحية الوصول.",
                 style: TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 15),
@@ -636,7 +636,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 controller: moxController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
-                  labelText: "رقم MOX (الوصي)",
+                  labelText: "رقم MOX (حسابك الرقمي)",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.badge),
                   isDense: true,

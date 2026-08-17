@@ -135,7 +135,7 @@ class StorePreviewWidget extends StatelessWidget {
 
     // لا يوجد تاريخ اشتراك محدد.
     if (remainingDays < 0) {
-      return 'نشط';
+      return 'لم يمتلك رقم موكس';
     }
 
     return 'متبقي $remainingDays يوم';
