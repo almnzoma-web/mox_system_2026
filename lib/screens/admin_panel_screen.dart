@@ -219,9 +219,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       // 1. الاستدعاء من قوقل شيت أولاً لجلب أحدث قيم (guardianMoxId و password)
       // --------------------------------------------------------
       try {
-        final Uri uri = Uri.parse(
-          _scriptUrl,
-        ).replace(queryParameters: {'action': 'getAll'});
+        // استخدام مسار الـ API الجديد على Vercel لجلب البيانات بأمان تام وبدون مشاكل CORS
+        final Uri uri = Uri.parse('/api/store').replace(
+          queryParameters: {
+            'action': 'getAll',
+            'guardianMoxId': user.guardianMoxId!.isNotEmpty
+                ? user.guardianMoxId
+                : user.moxId,
+          },
+        );
         final http.Response cloudResponse = await http
             .get(uri)
             .timeout(const Duration(seconds: 10));
