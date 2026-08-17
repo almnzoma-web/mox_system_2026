@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:convert';
 
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
@@ -19,6 +20,8 @@ class StorePreviewWidget extends StatelessWidget {
     this.activeStatus = const {},
     this.isPublicView = false,
   });
+
+  Null get guardianMoxId => null;
 
   // ============================================================
   // STORE PUBLISH DATE
@@ -206,15 +209,67 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // CARD ICON
-  //
-  // أيقونات المنتجات/الخدمات تعتمد على MarketingCard.
+  // CARD ICON - الدالة السيادية المعدلة
   // ============================================================
 
   Widget _buildCardIcon(MarketingCard card) {
-    final key = MarketingCard.normalizeIconKey(card.iconKey);
+    // 1. استخراج القيمة القادمة سواء كانت category أو iconKey
+    final String rawValue =
+        (card.category.isNotEmpty ? card.category : card.iconKey).trim();
 
-    final symbol = MarketingCard.iconSymbols[key] ?? '⭐';
+    // 2. جسر مطابقة النصوص العربية أو المفاتيح الإنجليزية مع الخرائط المعتمدة
+    String resolvedKey = 'other';
+
+    // مطابقة الأسماء العربية (إذا كانت مخزنة كعربي في الشيت)
+    switch (rawValue) {
+      case 'حقيبة تسوق':
+      case 'shopping_bag':
+        resolvedKey = 'shopping_bag';
+        break;
+      case 'متجر':
+      case 'متجر وتجارة':
+      case 'store':
+        resolvedKey = 'store';
+        break;
+      case 'توصيل':
+      case 'local_shipping':
+        resolvedKey = 'local_shipping';
+        break;
+      case 'هدية':
+      case 'card_giftcard':
+        resolvedKey = 'card_giftcard';
+        break;
+      case 'نجمة':
+      case 'star':
+        resolvedKey = 'star';
+        break;
+      case 'بطاقة':
+      case 'credit_card':
+        resolvedKey = 'credit_card';
+        break;
+      case 'عرض':
+      case 'local_offer':
+        resolvedKey = 'local_offer';
+        break;
+      case 'خدمة عملاء':
+      case 'headset_mic':
+        resolvedKey = 'headset_mic';
+        break;
+      case 'قسم':
+      case 'service':
+        resolvedKey = 'service';
+        break;
+      default:
+        // إذا كان المفتاح الإنجليزي موجوداً أصلاً في الخريطة
+        if (MarketingCard.iconSymbols.containsKey(rawValue)) {
+          resolvedKey = rawValue;
+        } else {
+          resolvedKey = 'other';
+        }
+    }
+
+    // 3. جلب الرمز الإيموجي من القاموس المعتمد لديك
+    final symbol = MarketingCard.iconSymbols[resolvedKey] ?? '⭐';
 
     return Container(
       width: 48,
@@ -230,7 +285,6 @@ class StorePreviewWidget extends StatelessWidget {
       child: Text(symbol, style: const TextStyle(fontSize: 25)),
     );
   }
-
   // ============================================================
   // STORE CONTENT
   // ============================================================
@@ -471,29 +525,80 @@ class StorePreviewWidget extends StatelessWidget {
               ),
 
             // ==================================================
-            // NO CARDS
+            // CARDS DISPLAY SECTION (WITH LOCAL JSON FALLBACK)
             // ==================================================
-            if (publicCards.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(30),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.storefront_outlined,
-                      size: 48,
-                      color: Colors.grey,
-                    ),
+            if (publicCards.isEmpty) ...[
+              // 🚀 بدلاً من الشاشة الفارغة، نقوم بعرض البطاقات الافتراضية من ملف الـ JSON المحلي
+              FutureBuilder<String>(
+                future: DefaultAssetBundle.of(
+                  context,
+                ).loadString('web/data/store.json'),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                    SizedBox(height: 10),
+                  if (snapshot.hasError || !snapshot.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.all(30),
+                      child: Text(
+                        'لا توجد منتجات أو خدمات منشورة حالياً.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    );
+                  }
 
-                    Text(
-                      'لا توجد منتجات أو خدمات منشورة حالياً.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                    ),
-                  ],
-                ),
-              )
+                  try {
+                    // تفكيك الـ JSON المحلي
+                    final data =
+                        jsonDecode(snapshot.data!) as Map<String, dynamic>;
+                    final stores = data['stores'] as List<dynamic>? ?? [];
+
+                    // 🚀 البحث المباشر دون استخدام widget. إذا كان المتغير معرفاً في الـ StatelessWidget
+                    final defaultStore = stores.firstWhere(
+                      (s) => s['guardianMoxId'] == guardianMoxId,
+                      orElse: () => stores.isNotEmpty ? stores[0] : {},
+                    );
+
+                    final rawCards =
+                        defaultStore['cards'] as List<dynamic>? ?? [];
+
+                    if (rawCards.isEmpty) {
+                      return const Text('لا توجد بطاقات في الملف المحلي.');
+                    }
+
+                    // عرض البطاقات المحلية بنفس التصميم السيادي
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: rawCards.length,
+                      itemBuilder: (context, index) {
+                        final cardData = rawCards[index];
+                        // بناء عنصر البطاقة مباشرة من الـ JSON المحلي
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 16,
+                          ),
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                            ), // أو دالة الأيقونات التي ضبطناها
+                            title: Text(cardData['title'] ?? ''),
+                            subtitle: Text(cardData['description'] ?? ''),
+                            trailing: Text('${cardData['price']}'),
+                          ),
+                        );
+                      },
+                    );
+                  } catch (e) {
+                    return Text('خطأ في تحميل البيانات المحلية: $e');
+                  }
+                },
+              ),
+            ]
             // ==================================================
             // CARDS
             // ==================================================
