@@ -1,6 +1,6 @@
 export default async function handler(request) {
   try {
-    const url = new URL(request.url);
+    const url = new URL(request.url, `https://${request.headers.host}`);
 
     const guardianMoxId =
       (url.searchParams.get('guardianMoxId') || '')
@@ -16,7 +16,8 @@ export default async function handler(request) {
         {
           status: 400,
           headers: {
-            'Content-Type': 'application/json; charset=UTF-8'
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Access-Control-Allow-Origin': '*'
           }
         }
       );
@@ -29,7 +30,6 @@ export default async function handler(request) {
       `${scriptUrl}?action=getByGuardianMoxId&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
 
     const response = await fetch(googleUrl);
-
     const text = await response.text();
 
     let data;
@@ -43,12 +43,14 @@ export default async function handler(request) {
       return new Response(
         JSON.stringify({
           success: false,
-          message: 'Google Apps Script returned invalid JSON'
+          message: 'Google Apps Script returned invalid JSON',
+          raw: text.substring(0, 100)
         }),
         {
           status: 502,
           headers: {
-            'Content-Type': 'application/json; charset=UTF-8'
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Access-Control-Allow-Origin': '*'
           }
         }
       );
@@ -60,7 +62,8 @@ export default async function handler(request) {
         status: 200,
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
-          'Cache-Control': 'no-store'
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*'
         }
       }
     );
@@ -71,12 +74,14 @@ export default async function handler(request) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: 'Store API error'
+        message: 'Store API error',
+        error: error.message
       }),
       {
         status: 500,
         headers: {
-          'Content-Type': 'application/json; charset=UTF-8'
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Access-Control-Allow-Origin': '*'
         }
       }
     );
