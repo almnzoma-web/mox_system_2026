@@ -61,7 +61,32 @@ class MarketingCard {
       return key;
     }
 
-    return 'other';
+    // مطبوعات وتطبيع القيم العربية القادمة من القائمة المنسدلة
+    switch (key) {
+      case 'متجر وتجارة':
+      case 'store':
+        return 'store';
+      case 'مطاعم وأطعمة':
+      case 'food':
+        return 'food';
+      case 'خدمات':
+      case 'service':
+        return 'service';
+      case 'تعليم':
+      case 'education':
+        return 'education';
+      case 'صحة':
+      case 'health':
+        return 'health';
+      case 'تقنية':
+      case 'technology':
+        return 'technology';
+      case 'أزياء':
+      case 'fashion':
+        return 'fashion';
+      default:
+        return 'other';
+    }
   }
 
   // ============================================================
