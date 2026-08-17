@@ -1,8 +1,10 @@
+// ignore: unused_import
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+// ignore: unused_import
 import 'package:http/http.dart' as http;
 
 import 'models/user_model.dart';
@@ -457,67 +459,32 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     );
 
     // ========================================================
-    // Google Apps Script
+    // الاعتماد على StorageService المعتمدة لجلب وتدقيق العميل
     // ========================================================
 
-    const String scriptUrl =
-        'https://script.google.com/macros/s/AKfycbwr2cnnxQ8cUA6A7tsFJvUZdzE9xL5nADKBx5P6gJh5Z13NBkq7PIyptu3vYGqkCPzE/exec';
-
-    // ========================================================
-    // طلب عميل واحد فقط عبر تمرير المعرف في الـ queryParameters
-    // ========================================================
-
-    final Uri uri = Uri.parse(scriptUrl).replace(
-      queryParameters: {
-        'action': 'getByGuardianMoxId', // الإجراء الخاص بجلب عميل مفرد
-        'guardianMoxId': cleanGuardianMoxId,
-      },
+    final UserModel? user = await StorageService.getUserByMoxId(
+      cleanGuardianMoxId,
     );
 
-    final http.Response response = await http
-        .get(uri)
-        .timeout(const Duration(seconds: 12));
-
-    debugPrint('☁️ [CLOUD SEARCH] HTTP: ${response.statusCode}');
-
-    if (response.statusCode != 200 || response.body.isEmpty) {
-      debugPrint('❌ [CLOUD SEARCH] فشل الجلب أو الرد فارغ');
+    if (user == null) {
+      debugPrint('❌ [CLOUD SEARCH] فشل الجلب أو العميل غير موجود');
       return null;
     }
 
-    // ========================================================
-    // تحويل الـ JSON القادم للعميل المفرد
-    // ========================================================
-
-    final dynamic decoded = jsonDecode(response.body);
-
-    if (decoded is! Map) {
-      debugPrint('❌ [CLOUD SEARCH] الرد ليس خريطة بيانات صالحة للعميل');
-      return null;
-    }
-
-    final Map<String, dynamic> map = {};
-    decoded.forEach((key, value) {
-      map[key.toString()] = value;
-    });
-
-    final String rowGuardianMoxId =
-        map['guardianMoxId']?.toString().trim().toUpperCase() ?? '';
+    final String rowGuardianMoxId = (user.guardianMoxId ?? '')
+        .trim()
+        .toUpperCase();
 
     if (!_isValidGuardianMoxId(rowGuardianMoxId)) {
       debugPrint('⚠️ [CLOUD SEARCH] المعرف المسترجع غير صالح');
       return null;
     }
 
-    debugPrint(
-      '✅ [CLOUD SEARCH] MATCH العميل: ${map['name']?.toString() ?? ''}',
-    );
+    debugPrint('✅ [CLOUD SEARCH] MATCH العميل: ${user.name}');
 
     // ========================================================
-    // بناء نموذج المستخدم والتخزين المحلي
+    // تحديث النسخة المحلية للتخزين المؤقت
     // ========================================================
-
-    final UserModel user = UserModel.fromJson(map);
 
     final int index = StorageService.registeredUsers.indexWhere((u) {
       final String localGuardian = (u.guardianMoxId ?? '').trim().toUpperCase();
