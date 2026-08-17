@@ -1,10 +1,12 @@
 {
-  "stores": [
+  "store": [
     {
       "guardianMoxId": "MOX249-00010001",
-      "phone": "0912345678",
       "name": "المنظومة السيادية الرئيسية",
       "address": "الخرطوم، السودان",
+      "storeDescription": "المحال المركزي الرئيسي - المركز الرئيسي لمنصة MOX الرقمية",
+      "storePublishDate": "2026-08-17",
+      "updatedAt": "2026-08-17T00:00:00Z",
       "cards": [
         {
           "title": "بطاقة الاستشارات الهندسية المتقدمة",
@@ -12,7 +14,8 @@
           "price": 50000.0,
           "whatsapp": "249912345678",
           "facebook": "https://facebook.com",
-          "category": "بطاقة"
+          "category": "بطاقة",
+          "iconKey": "service"
         },
         {
           "title": "خدمة نشر التطبيقات السحابية",
@@ -20,15 +23,17 @@
           "price": 75000.0,
           "whatsapp": "249912345678",
           "facebook": "https://facebook.com",
-          "category": "بطاقة"
+          "category": "بطاقة",
+          "iconKey": "technology"
         },
         {
           "title": "تطوير قواعد البيانات المركزية",
-          "description": "تصميم وتجنيب قواعد البيانات وإدارة السجلات الرقمية للعملاء والمنظومات الكبرى.",
+          "description": "تصميم وتجهيز قواعد البيانات وإدارة السجلات الرقمية للعملاء والمنظومات الكبرى.",
           "price": 100000.0,
           "whatsapp": "249912345678",
           "facebook": "https://facebook.com",
-          "category": "قسم"
+          "category": "قسم",
+          "iconKey": "technology"
         },
         {
           "title": "بناء واجهات الـ Web والـ Mobile",
@@ -36,7 +41,8 @@
           "price": 120000.0,
           "whatsapp": "249912345678",
           "facebook": "https://facebook.com",
-          "category": "رف"
+          "category": "رف",
+          "iconKey": "technology"
         },
         {
           "title": "الدعم الفني والصيانة السيادية",
@@ -44,15 +50,18 @@
           "price": 30000.0,
           "whatsapp": "249912345678",
           "facebook": "https://facebook.com",
-          "category": "بطاقة"
+          "category": "بطاقة",
+          "iconKey": "service"
         }
       ]
     },
     {
       "guardianMoxId": "MOX249-00010002",
-      "phone": "0115855164",
       "name": "متجر العميل الرقمي الأول",
       "address": "أمدرمان، السودان",
+      "storeDescription": "متجر رقمي لعرض المنتجات والخدمات والتواصل المباشر مع العملاء.",
+      "storePublishDate": "2026-08-17",
+      "updatedAt": "2026-08-17T00:00:00Z",
       "cards": [
         {
           "title": "بطاقة المتجر الافتراضي الأولى",
@@ -60,7 +69,8 @@
           "price": 15000.0,
           "whatsapp": "249115855164",
           "facebook": "",
-          "category": "بطاقة"
+          "category": "بطاقة",
+          "iconKey": "store"
         },
         {
           "title": "بطاقة الخدمات التجارية المباشرة",
@@ -68,7 +78,8 @@
           "price": 2500000.0,
           "whatsapp": "249115855164",
           "facebook": "",
-          "category": "بطاقة"
+          "category": "بطاقة",
+          "iconKey": "service"
         },
         {
           "title": "الدعم والتواصل السريع",
@@ -76,7 +87,8 @@
           "price": 10000.0,
           "whatsapp": "249115855164",
           "facebook": "",
-          "category": "خدمة عملاء"
+          "category": "خدمة عملاء",
+          "iconKey": "headset_mic"
         },
         {
           "title": "العروض الترويجية الحصرية",
@@ -84,7 +96,8 @@
           "price": 400000.0,
           "whatsapp": "249115855164",
           "facebook": "",
-          "category": "عرض"
+          "category": "عرض",
+          "iconKey": "local_offer"
         },
         {
           "title": "الاعتماد السيادي الموثق",
@@ -92,7 +105,8 @@
           "price": 60000.0,
           "whatsapp": "249115855164",
           "facebook": "",
-          "category": "بطاقة"
+          "category": "بطاقة",
+          "iconKey": "credit_card"
         }
       ]
     }
