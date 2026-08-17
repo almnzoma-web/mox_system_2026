@@ -263,6 +263,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       cloudPassword != 'undefined') {
                     user.password = cloudPassword;
                   }
+
+                  // جلب وتحديث تاريخ النشر من الشيت إذا وجد
+                  final String cloudPublishDate =
+                      (map['storePublishDate'] ?? '').toString().trim();
+                  if (cloudPublishDate.isNotEmpty &&
+                      cloudPublishDate != 'null' &&
+                      cloudPublishDate != 'undefined') {
+                    user.storePublishDate = cloudPublishDate;
+                  }
                   break;
                 }
               }
