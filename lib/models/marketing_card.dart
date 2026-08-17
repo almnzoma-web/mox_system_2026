@@ -29,7 +29,15 @@ class MarketingCard {
   // ============================================================
 
   static const Map<String, String> iconLabels = {
+    'shopping_bag': 'حقيبة تسوق',
     'store': 'متجر وتجارة',
+    'local_shipping': 'توصيل',
+    'card_giftcard': 'هدية',
+    'star': 'نجمة',
+    'credit_card': 'بطاقة',
+    'local_offer': 'عرض',
+    'headset_mic': 'خدمة عملاء',
+
     'food': 'مطاعم وأطعمة',
     'service': 'خدمات',
     'education': 'تعليم',
@@ -40,7 +48,16 @@ class MarketingCard {
   };
 
   static const Map<String, String> iconSymbols = {
+    'shopping_bag': '🛍️',
     'store': '🏪',
+    'local_shipping': '🚚',
+    'card_giftcard': '🎁',
+    'star': '⭐',
+    'credit_card': '💳',
+    'local_offer': '🏷️',
+    'headset_mic': '🎧',
+
+    // الأيقونات القديمة
     'food': '🍔',
     'service': '🛠️',
     'education': '🎓',
@@ -56,31 +73,95 @@ class MarketingCard {
 
   static String normalizeIconKey(dynamic value) {
     if (value == null) return 'other';
+
     final String key = value.toString().trim();
 
-    // جسر الربط مع قائمة الأيقونات الجديدة
     switch (key) {
+      // ========================================================
+      // المفاتيح الرسمية الجديدة
+      // ========================================================
+
+      case 'shopping_bag':
+        return 'shopping_bag';
+
+      case 'store':
+        return 'store';
+
+      case 'local_shipping':
+        return 'local_shipping';
+
+      case 'card_giftcard':
+        return 'card_giftcard';
+
+      case 'star':
+        return 'star';
+
+      case 'credit_card':
+        return 'credit_card';
+
+      case 'local_offer':
+        return 'local_offer';
+
+      case 'headset_mic':
+        return 'headset_mic';
+
+      // ========================================================
+      // المفاتيح القديمة / العربية
+      // ========================================================
+
       case 'حقيبة تسوق':
         return 'shopping_bag';
+
       case 'متجر':
         return 'store';
+
       case 'توصيل':
         return 'local_shipping';
+
       case 'هدية':
         return 'card_giftcard';
+
       case 'نجمة':
         return 'star';
+
       case 'بطاقة':
         return 'credit_card';
+
       case 'عرض':
         return 'local_offer';
+
       case 'خدمة عملاء':
         return 'headset_mic';
+
+      // ========================================================
+      // الأيقونات الرسمية القديمة
+      // ========================================================
+
+      case 'food':
+        return 'food';
+
+      case 'service':
+        return 'service';
+
+      case 'education':
+        return 'education';
+
+      case 'health':
+        return 'health';
+
+      case 'technology':
+        return 'technology';
+
+      case 'fashion':
+        return 'fashion';
+
+      case 'other':
+        return 'other';
+
       default:
         return 'other';
     }
   }
-
   // ============================================================
   // ICON SYMBOL
   // ============================================================
