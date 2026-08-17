@@ -55,38 +55,24 @@ class MarketingCard {
   // ============================================================
 
   static String normalizeIconKey(dynamic value) {
-    final key = value?.toString().trim().toLowerCase() ?? '';
+    if (value == null) return 'other';
+    final String key = value.toString().trim();
 
-    if (iconSymbols.containsKey(key)) {
-      return key;
+    // 1. فحص مباشر للمفاتيح الإنجليزية
+    if (iconSymbols.containsKey(key.toLowerCase())) {
+      return key.toLowerCase();
     }
 
-    // مطبوعات وتطبيع القيم العربية القادمة من القائمة المنسدلة
-    switch (key) {
-      case 'متجر وتجارة':
-      case 'store':
-        return 'store';
-      case 'مطاعم وأطعمة':
-      case 'food':
-        return 'food';
-      case 'خدمات':
-      case 'service':
-        return 'service';
-      case 'تعليم':
-      case 'education':
-        return 'education';
-      case 'صحة':
-      case 'health':
-        return 'health';
-      case 'تقنية':
-      case 'technology':
-        return 'technology';
-      case 'أزياء':
-      case 'fashion':
-        return 'fashion';
-      default:
-        return 'other';
-    }
+    // 2. فحص ذكي للنصوص العربية (نستخدم contains لضمان التطابق حتى لو كان هناك مسافات)
+    if (key.contains('متجر')) return 'store';
+    if (key.contains('مطاعم')) return 'food';
+    if (key.contains('خدمات')) return 'service';
+    if (key.contains('تعليم')) return 'education';
+    if (key.contains('صحة')) return 'health';
+    if (key.contains('تقنية')) return 'technology';
+    if (key.contains('أزياء')) return 'fashion';
+
+    return 'other';
   }
 
   // ============================================================
