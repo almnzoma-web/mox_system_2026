@@ -29,19 +29,11 @@ import 'widgets/store_preview_widget.dart';
 // phone
 // guardianMoxIdCustomer
 //
-// ============================================================
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ==========================================================
   // WEB URL STRATEGY
-  //
-  // يحول:
-  //
-  // /store/MOX249-00010001
-  //
-  // إلى مسار نظيف بدون #
   // ==========================================================
 
   if (kIsWeb) {
@@ -49,18 +41,31 @@ void main() async {
   }
 
   // ==========================================================
-  // تحميل المستخدمين المحليين
+  // اقرأ الرابط فورًا
+  //
+  // مهم:
+  // لا ننتظر Google Sheets ولا SharedPreferences
+  // قبل معرفة هل نحن داخل /store/
   // ==========================================================
 
-  try {
-    await StorageService.loadUsers();
+  String? publicGuardianMoxId;
 
-    debugPrint(
-      '✅ [MAIN] تم تحميل المستخدمين المحليين: '
-      '${StorageService.registeredUsers.length}',
-    );
-  } catch (e) {
-    debugPrint('❌ [MAIN] خطأ في تحميل المستخدمين: $e');
+  if (kIsWeb) {
+    try {
+      final Uri uri = Uri.base;
+
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('🌐 [BOOT] URI      : ${uri.toString()}');
+      debugPrint('🌐 [BOOT] PATH     : ${uri.path}');
+      debugPrint('🌐 [BOOT] SEGMENTS : ${uri.pathSegments}');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      publicGuardianMoxId = _getPublicGuardianMoxIdFromUrl();
+
+      debugPrint('🏪 [BOOT] GUARDIAN : $publicGuardianMoxId');
+    } catch (e) {
+      debugPrint('❌ [BOOT URL] $e');
+    }
   }
 
   // ==========================================================
@@ -70,112 +75,96 @@ void main() async {
   Widget initialScreen = const WelcomeScreen();
 
   // ==========================================================
-  // WEB
+  // PUBLIC STORE
+  //
+  // نعالج المتجر العام أولاً.
   // ==========================================================
 
-  if (kIsWeb) {
+  if (publicGuardianMoxId != null && publicGuardianMoxId.isNotEmpty) {
     try {
-      // ========================================================
-      // استخراج guardianMoxId من الرابط
-      // ========================================================
+      final String guardianMoxId = publicGuardianMoxId;
 
-      final String? guardianMoxId = _getPublicGuardianMoxIdFromUrl();
+      debugPrint('🏪 [PUBLIC STORE] بدء تحميل المتجر: $guardianMoxId');
 
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      debugPrint('🌐 [MAIN] URL      : ${Uri.base}');
-      debugPrint('🌐 [MAIN] PATH     : ${Uri.base.path}');
-      debugPrint('🌐 [MAIN] GUARDIAN : $guardianMoxId');
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      // ------------------------------------------------------
+      // 1. تحميل Local
+      // ------------------------------------------------------
 
-      // ========================================================
-      // PUBLIC STORE
-      // ========================================================
+      try {
+        await StorageService.loadUsers();
 
-      if (guardianMoxId != null && guardianMoxId.isNotEmpty) {
         debugPrint(
-          '🏪 [PUBLIC STORE] البحث عن guardianMoxId: '
+          '✅ [PUBLIC STORE] Local users loaded: '
+          '${StorageService.registeredUsers.length}',
+        );
+      } catch (e) {
+        debugPrint('⚠️ [PUBLIC STORE] Local load error: $e');
+      }
+
+      // ------------------------------------------------------
+      // 2. البحث المحلي
+      // ------------------------------------------------------
+
+      UserModel? foundUser = _findPublicUserLocally(guardianMoxId);
+
+      // ------------------------------------------------------
+      // 3. البحث السحابي
+      // ------------------------------------------------------
+
+      foundUser ??= await _findPublicUserFromCloud(guardianMoxId);
+
+      // ------------------------------------------------------
+      // 4. النتيجة
+      // ------------------------------------------------------
+
+      if (foundUser != null) {
+        debugPrint('✅ [PUBLIC STORE] المتجر موجود');
+
+        debugPrint('👤 [PUBLIC STORE] الاسم: ${foundUser.name}');
+
+        debugPrint(
+          '🆔 [PUBLIC STORE] guardianMoxId: '
+          '${foundUser.guardianMoxId}',
+        );
+
+        initialScreen = _buildPublicStoreScreen(foundUser);
+      } else {
+        debugPrint(
+          '⚠️ [PUBLIC STORE] المتجر غير موجود: '
           '$guardianMoxId',
         );
 
-        // ======================================================
-        // 1️⃣ البحث المحلي
-        // ======================================================
-
-        UserModel? foundUser = _findPublicUserLocally(guardianMoxId);
-
-        // ======================================================
-        // 2️⃣ البحث في Google Sheets
-        // ======================================================
-
-        foundUser ??= await _findPublicUserFromCloud(guardianMoxId);
-
-        // ======================================================
-        // 3️⃣ وجدنا العميل
-        // ======================================================
-
-        if (foundUser != null) {
-          debugPrint('✅ [PUBLIC STORE] تم العثور على المتجر');
-
-          debugPrint(
-            '👤 [PUBLIC STORE] الاسم: '
-            '${foundUser.name}',
-          );
-
-          debugPrint(
-            '🆔 [PUBLIC STORE] guardianMoxId: '
-            '${foundUser.guardianMoxId}',
-          );
-
-          // ====================================================
-          // مهم:
-          //
-          // لا نحتاج setState هنا.
-          //
-          // لأن runApp لم يحدث بعد.
-          //
-          // initialScreen سيتم تمريره مباشرة إلى MyApp.
-          // ====================================================
-
-          initialScreen = _buildPublicStoreScreen(foundUser);
-        } else {
-          debugPrint(
-            '⚠️ [PUBLIC STORE] '
-            'لم يتم العثور على guardianMoxId: '
-            '$guardianMoxId',
-          );
-
-          // ==================================================
-          // لا يوجد متجر
-          // ==================================================
-
-          initialScreen = _buildStoreNotFoundScreen(guardianMoxId);
-        }
+        initialScreen = _buildStoreNotFoundScreen(guardianMoxId);
       }
-      // ========================================================
-      // لا يوجد /store/
-      //
-      // نفحص جلسة تسجيل الدخول
-      // ========================================================
-      else {
-        debugPrint('ℹ️ [MAIN] لا يوجد رابط متجر عام');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [PUBLIC STORE ERROR] $e');
 
-        final UserModel? savedUser = await StorageService.getUser();
+      debugPrint('$stackTrace');
 
-        if (savedUser != null) {
-          debugPrint(
-            '🔐 [REMEMBER LOGIN] '
-            'جلسة محفوظة موجودة',
-          );
+      initialScreen = const WelcomeScreen();
+    }
+  }
+  // ==========================================================
+  // NORMAL APPLICATION
+  //
+  // فقط إذا لم يكن الرابط /store/
+  // ==========================================================
+  else {
+    try {
+      debugPrint('ℹ️ [MAIN] لا يوجد رابط متجر عام');
 
-          initialScreen = DashboardScreen(user: savedUser);
-        } else {
-          debugPrint(
-            '🔓 [REMEMBER LOGIN] '
-            'لا توجد جلسة محفوظة',
-          );
+      await StorageService.loadUsers();
 
-          initialScreen = const WelcomeScreen();
-        }
+      final UserModel? savedUser = await StorageService.getUser();
+
+      if (savedUser != null) {
+        debugPrint('🔐 [REMEMBER LOGIN] جلسة محفوظة موجودة');
+
+        initialScreen = DashboardScreen(user: savedUser);
+      } else {
+        debugPrint('🔓 [REMEMBER LOGIN] لا توجد جلسة محفوظة');
+
+        initialScreen = const WelcomeScreen();
       }
     } catch (e, stackTrace) {
       debugPrint('❌ [MAIN ERROR] $e');
@@ -187,19 +176,18 @@ void main() async {
   }
 
   // ==========================================================
-  // تشغيل التطبيق
-  //
-  // مهم جداً:
-  //
-  // هنا فقط يبدأ Flutter في بناء الواجهة.
-  //
-  // لذلك initialScreen التي جهزناها فوق
-  // ستدخل مباشرة إلى MaterialApp.
+  // RUN APP
   // ==========================================================
+
+  debugPrint('🚀 [BOOT] تشغيل التطبيق...');
+
+  debugPrint(
+    '🚀 [BOOT] initialScreen: '
+    '${initialScreen.runtimeType}',
+  );
 
   runApp(MyApp(initialScreen: initialScreen));
 }
-
 // ============================================================
 // 🏪 بناء شاشة المتجر العام
 // ============================================================
