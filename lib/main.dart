@@ -460,6 +460,7 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
 
     // ========================================================
     // الاعتماد على StorageService المعتمدة لجلب وتدقيق العميل
+    // مع الحماية الكاملة ضد استجابات HTML (مثل 404 أو خطأ التوجيه)
     // ========================================================
 
     final UserModel? user = await StorageService.getUserByMoxId(
@@ -467,7 +468,9 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     );
 
     if (user == null) {
-      debugPrint('❌ [CLOUD SEARCH] فشل الجلب أو العميل غير موجود');
+      debugPrint(
+        '❌ [CLOUD SEARCH] فشل الجلب، العميل غير موجود، أو الاستجابة كانت صفحة خطأ HTML',
+      );
       return null;
     }
 
@@ -507,7 +510,6 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
 
   return null;
 }
-
 // ============================================================
 // MY APP
 // ============================================================
