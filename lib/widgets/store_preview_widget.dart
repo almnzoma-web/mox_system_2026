@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 
@@ -525,20 +526,24 @@ class StorePreviewWidget extends StatelessWidget {
               ),
 
             // ==================================================
-            // CARDS DISPLAY SECTION (WITH LOCAL JSON FALLBACK)
+            // CARDS DISPLAY SECTION (WITH VERCEL API PROXY)
             // ==================================================
             if (publicCards.isEmpty) ...[
-              // 🚀 بدلاً من الشاشة الفارغة، نقوم بعرض البطاقات الافتراضية من ملف الـ JSON المحلي
-              FutureBuilder<String>(
-                future: DefaultAssetBundle.of(
-                  context,
-                ).loadString('web/data/store.json'),
+              // 🚀 جلب بيانات المتجر مباشرة من الـ API الجديد على Vercel
+              FutureBuilder<http.Response>(
+                future: http.get(
+                  Uri.parse(
+                    '/api/store',
+                  ).replace(queryParameters: {'guardianMoxId': guardianMoxId}),
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (snapshot.hasError || !snapshot.hasData) {
+                  if (snapshot.hasError ||
+                      !snapshot.hasData ||
+                      snapshot.data!.statusCode != 200) {
                     return const Padding(
                       padding: EdgeInsets.all(30),
                       child: Text(
@@ -550,32 +555,39 @@ class StorePreviewWidget extends StatelessWidget {
                   }
 
                   try {
-                    // تفكيك الـ JSON المحلي
-                    final data =
-                        jsonDecode(snapshot.data!) as Map<String, dynamic>;
-                    final stores = data['stores'] as List<dynamic>? ?? [];
+                    // تفكيك الـ JSON القادم من الـ API
+                    final dynamic decoded = jsonDecode(snapshot.data!.body);
 
-                    // 🚀 البحث المباشر دون استخدام widget. إذا كان المتغير معرفاً في الـ StatelessWidget
-                    final defaultStore = stores.firstWhere(
-                      (s) => s['guardianMoxId'] == guardianMoxId,
-                      orElse: () => stores.isNotEmpty ? stores[0] : {},
-                    );
-
-                    final rawCards =
-                        defaultStore['cards'] as List<dynamic>? ?? [];
-
-                    if (rawCards.isEmpty) {
-                      return const Text('لا توجد بطاقات في الملف المحلي.');
+                    // استخراج البطاقات بناءً على هيكلة الاستجابة
+                    List<dynamic> rawCards = [];
+                    if (decoded is Map<String, dynamic>) {
+                      rawCards =
+                          decoded['cards'] as List<dynamic>? ??
+                          decoded['data'] as List<dynamic>? ??
+                          [];
+                    } else if (decoded is List) {
+                      rawCards = decoded;
                     }
 
-                    // عرض البطاقات المحلية بنفس التصميم السيادي
+                    if (rawCards.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          'لا توجد بطاقات متاحة لهذا المتجر حالياً.',
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+
+                    // عرض البطاقات بنفس التصميم السيادي
                     return ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: rawCards.length,
                       itemBuilder: (context, index) {
-                        final cardData = rawCards[index];
-                        // بناء عنصر البطاقة مباشرة من الـ JSON المحلي
+                        final cardData = rawCards[index] is Map
+                            ? rawCards[index]
+                            : {};
                         return Card(
                           margin: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -585,16 +597,18 @@ class StorePreviewWidget extends StatelessWidget {
                             leading: const Icon(
                               Icons.star,
                               color: Colors.amber,
-                            ), // أو دالة الأيقونات التي ضبطناها
-                            title: Text(cardData['title'] ?? ''),
+                            ),
+                            title: Text(
+                              cardData['title'] ?? cardData['name'] ?? '',
+                            ),
                             subtitle: Text(cardData['description'] ?? ''),
-                            trailing: Text('${cardData['price']}'),
+                            trailing: Text('${cardData['price'] ?? ''}'),
                           ),
                         );
                       },
                     );
                   } catch (e) {
-                    return Text('خطأ في تحميل البيانات المحلية: $e');
+                    return Text('خطأ في معالجة بيانات المتجر: $e');
                   }
                 },
               ),
