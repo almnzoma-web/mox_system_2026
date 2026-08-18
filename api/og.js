@@ -1,285 +1,420 @@
-// api/og.js
+// ============================================================
+// MOX DIGITAL
+// PUBLIC STORE API
+//
+// Vercel -> Google Apps Script -> Google Sheets
+//
+// الرابط العام:
+// /api/store?guardianMoxId=MOX249-00010001
+// ============================================================
 
 export default async function handler(request) {
-  try {
-    const requestUrl = new URL(request.url);
 
-    // ============================================================
-    // نقرأ guardianMoxId فقط
-    // ============================================================
+  // ==========================================================
+  // CORS
+  // ==========================================================
+
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+
+  // ==========================================================
+  // OPTIONS
+  // ==========================================================
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    });
+  }
+
+  // ==========================================================
+  // GET ONLY
+  // ==========================================================
+
+  if (request.method !== "GET") {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Method not allowed",
+      }),
+      {
+        status: 405,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+      }
+    );
+  }
+
+  try {
+
+    // ========================================================
+    // READ URL
+    // ========================================================
+
+    const url = new URL(
+      request.url,
+      `https://${request.headers.get("host") || "mox-2026.vercel.app"}`
+    );
 
     const guardianMoxId =
-      requestUrl.searchParams.get('guardianMoxId')?.trim().toUpperCase() || '';
+      (url.searchParams.get("guardianMoxId") || "")
+        .trim()
+        .toUpperCase();
 
-    // ============================================================
-    // إذا لم توجد هوية MOX
-    // ============================================================
+    console.log(
+      "[MOX STORE] guardianMoxId:",
+      guardianMoxId
+    );
+
+    // ========================================================
+    // VALIDATE ID
+    // ========================================================
 
     if (!guardianMoxId) {
+
       return new Response(
-        `
-        <!DOCTYPE html>
-        <html lang="ar" dir="rtl">
-        <head>
-          <meta charset="UTF-8">
-          <title>MOX Digital App</title>
-          <meta
-            name="description"
-            content="المنظومة أونلاين - MOX Digital App"
-          >
-        </head>
-        <body>
-          <h1>MOX Digital App</h1>
-        </body>
-        </html>
-        `,
+        JSON.stringify({
+          success: false,
+          message: "guardianMoxId is required",
+        }),
         {
-          status: 200,
+          status: 400,
           headers: {
-            'Content-Type': 'text/html; charset=UTF-8',
-            'Cache-Control': 'no-store',
+            ...corsHeaders,
+            "Content-Type":
+              "application/json; charset=UTF-8",
           },
-        },
+        }
       );
     }
 
-    // ============================================================
-    // رابط المتجر الحقيقي
-    // ============================================================
+    // ========================================================
+    // BASIC GUARDIAN ID VALIDATION
+    //
+    // مثال:
+    // MOX249-00010001
+    // ========================================================
 
-    const storeUrl =
-      `https://mox-2026.vercel.app/store/${encodeURIComponent(guardianMoxId)}`;
+    if (!/^MOX\d+-\d+$/.test(guardianMoxId)) {
 
-    // ============================================================
-    // القيم الافتراضية
-    // ============================================================
-
-    let storeName = 'MOX Digital App';
-
-    let storeDesc =
-      'المنظومة أونلاين - الحل الرقمي لإدارة متجرك.';
-
-    let storeImage =
-      'https://mox-2026.vercel.app/default-logo.png';
-
-    // ============================================================
-    // Google Apps Script
-    // ============================================================
-
-    const scriptUrl =
-      'https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec';
-
-    // ============================================================
-    // جلب كل العملاء
-    // ثم البحث عن guardianMoxId
-    // ============================================================
-
-    try {
-      const cloudUrl =
-        `${scriptUrl}?action=getAll`;
-
-      const response = await fetch(cloudUrl, {
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        if (Array.isArray(data)) {
-          for (const item of data) {
-            if (!item || typeof item !== 'object') {
-              continue;
-            }
-
-            const rowGuardianMoxId =
-              String(item.guardianMoxId || '')
-                .trim()
-                .toUpperCase();
-
-            // ======================================================
-            // المطابقة تكون مع guardianMoxId فقط
-            // ======================================================
-
-            if (rowGuardianMoxId !== guardianMoxId) {
-              continue;
-            }
-
-            // ======================================================
-            // اسم المتجر
-            // ======================================================
-
-            storeName =
-              String(
-                item.storeName ||
-                item.shopName ||
-                item.businessName ||
-                item.name ||
-                'MOX Digital App',
-              ).trim();
-
-            // ======================================================
-            // وصف المتجر
-            // ======================================================
-
-            storeDesc =
-              String(
-                item.storeDesc ||
-                item.storeDescription ||
-                item.description ||
-                'متجر رقمي يعمل عبر منظومة موكس.',
-              ).trim();
-
-            // ======================================================
-            // صورة المتجر
-            // ======================================================
-
-            storeImage =
-              String(
-                item.storeImage ||
-                item.logoUrl ||
-                item.logo ||
-                'https://mox-2026.vercel.app/default-logo.png',
-              ).trim();
-
-            break;
-          }
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Invalid guardianMoxId",
+        }),
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type":
+              "application/json; charset=UTF-8",
+          },
         }
-      }
-    } catch (error) {
-      console.error('[MOX OG] Cloud error:', error);
+      );
     }
 
-    // ============================================================
-    // حماية HTML من بعض الأحرف الخاصة
-    // ============================================================
+    // ========================================================
+    // GOOGLE APPS SCRIPT
+    // ========================================================
 
-    const escapeHtml = (value) =>
-      String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+    const scriptUrl =
+      "https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec";
 
-    const safeStoreName = escapeHtml(storeName);
-    const safeStoreDesc = escapeHtml(storeDesc);
-    const safeStoreImage = escapeHtml(storeImage);
-    const safeStoreUrl = escapeHtml(storeUrl);
+    const googleUrl =
+      `${scriptUrl}` +
+      `?action=getByGuardianMoxId` +
+      `&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
 
-    // ============================================================
-    // HTML الخاص بالـ Meta
-    // ============================================================
+    console.log(
+      "[MOX STORE] Google URL:",
+      googleUrl
+    );
 
-    const html = `
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
+    // ========================================================
+    // TIMEOUT
+    //
+    // لا نسمح للمتجر بالبقاء في جاري التحميل بلا نهاية.
+    // ========================================================
 
-  <meta charset="UTF-8">
+    const controller =
+      new AbortController();
 
-  <title>${safeStoreName} | MOX Digital App</title>
+    const timeout =
+      setTimeout(() => {
+        controller.abort();
+      }, 8000);
 
-  <meta
-    name="description"
-    content="${safeStoreDesc}"
-  >
+    let response;
 
-  <!-- ==========================================================
-       Open Graph
-       ========================================================== -->
+    try {
 
-  <meta property="og:type" content="website">
+      response = await fetch(
+        googleUrl,
+        {
+          method: "GET",
 
-  <meta
-    property="og:url"
-    content="${safeStoreUrl}"
-  >
+          redirect: "follow",
 
-  <meta
-    property="og:title"
-    content="${safeStoreName}"
-  >
+          cache: "no-store",
 
-  <meta
-    property="og:description"
-    content="${safeStoreDesc}"
-  >
+          headers: {
+            "Accept": "application/json",
+          },
 
-  <meta
-    property="og:image"
-    content="${safeStoreImage}"
-  >
+          signal: controller.signal,
+        }
+      );
 
-  <meta
-    property="og:site_name"
-    content="MOX Digital App - المنظومة أونلاين"
-  >
+    } finally {
 
-  <meta
-    property="og:locale"
-    content="ar_AR"
-  >
+      clearTimeout(timeout);
 
-  <!-- ==========================================================
-       Twitter / WhatsApp-style crawlers
-       ========================================================== -->
+    }
 
-  <meta
-    name="twitter:card"
-    content="summary_large_image"
-  >
+    // ========================================================
+    // GOOGLE HTTP STATUS
+    // ========================================================
 
-  <meta
-    name="twitter:title"
-    content="${safeStoreName}"
-  >
+    console.log(
+      "[MOX STORE] Google status:",
+      response.status
+    );
 
-  <meta
-    name="twitter:description"
-    content="${safeStoreDesc}"
-  >
+    if (!response.ok) {
 
-  <meta
-    name="twitter:image"
-    content="${safeStoreImage}"
-  >
+      const errorText =
+        await response.text();
 
-  <meta
-    name="twitter:url"
-    content="${safeStoreUrl}"
-  >
+      console.error(
+        "[MOX STORE] Google HTTP ERROR:",
+        errorText.substring(0, 500)
+      );
 
-</head>
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            "Google Apps Script request failed",
 
-<body>
-  <h1>${safeStoreName}</h1>
-  <p>${safeStoreDesc}</p>
-</body>
+          googleStatus:
+            response.status,
 
-</html>
-`;
+          raw:
+            errorText.substring(0, 200),
+        }),
+        {
+          status: 502,
 
-    return new Response(html, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=UTF-8',
+          headers: {
+            ...corsHeaders,
 
-        // لا نريد أن تحفظ Meta نسخة قديمة أثناء الاختبار
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-      },
-    });
-  } catch (error) {
-    console.error('[MOX OG] Fatal error:', error);
+            "Content-Type":
+              "application/json; charset=UTF-8",
+
+            "Cache-Control":
+              "no-store",
+          },
+        }
+      );
+    }
+
+    // ========================================================
+    // READ RESPONSE
+    // ========================================================
+
+    const text =
+      await response.text();
+
+    console.log(
+      "[MOX STORE] Google response:",
+      text.substring(0, 300)
+    );
+
+    // ========================================================
+    // EMPTY RESPONSE
+    // ========================================================
+
+    if (!text || !text.trim()) {
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            "Google Apps Script returned empty response",
+        }),
+        {
+          status: 502,
+
+          headers: {
+            ...corsHeaders,
+
+            "Content-Type":
+              "application/json; charset=UTF-8",
+
+            "Cache-Control":
+              "no-store",
+          },
+        }
+      );
+    }
+
+    // ========================================================
+    // JSON PARSE
+    // ========================================================
+
+    let data;
+
+    try {
+
+      data =
+        JSON.parse(text);
+
+    } catch (error) {
+
+      console.error(
+        "[MOX STORE] Invalid JSON from Google"
+      );
+
+      console.error(
+        "[MOX STORE] Raw response:",
+        text.substring(0, 500)
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+
+          message:
+            "Google Apps Script returned invalid JSON",
+
+          raw:
+            text.substring(0, 200),
+        }),
+        {
+          status: 502,
+
+          headers: {
+            ...corsHeaders,
+
+            "Content-Type":
+              "application/json; charset=UTF-8",
+
+            "Cache-Control":
+              "no-store",
+          },
+        }
+      );
+    }
+
+    // ========================================================
+    // SUCCESS
+    // ========================================================
+
+    console.log(
+      "[MOX STORE] SUCCESS:",
+      guardianMoxId
+    );
 
     return new Response(
-      '<html><head><title>MOX Digital App</title></head><body>MOX Digital App</body></html>',
+      JSON.stringify(data),
       {
         status: 200,
+
         headers: {
-          'Content-Type': 'text/html; charset=UTF-8',
+          ...corsHeaders,
+
+          "Content-Type":
+            "application/json; charset=UTF-8",
+
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate",
+
+          "Pragma":
+            "no-cache",
         },
-      },
+      }
+    );
+
+  } catch (error) {
+
+    // ========================================================
+    // TIMEOUT
+    // ========================================================
+
+    if (
+      error &&
+      error.name === "AbortError"
+    ) {
+
+      console.error(
+        "[MOX STORE] Google request TIMEOUT"
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+
+          message:
+            "Google Apps Script request timeout",
+
+          timeout:
+            true,
+        }),
+        {
+          status: 504,
+
+          headers: {
+            ...corsHeaders,
+
+            "Content-Type":
+              "application/json; charset=UTF-8",
+
+            "Cache-Control":
+              "no-store",
+          },
+        }
+      );
+    }
+
+    // ========================================================
+    // GENERAL ERROR
+    // ========================================================
+
+    console.error(
+      "[MOX STORE] API ERROR:",
+      error
+    );
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+
+        message:
+          "Store API error",
+
+        error:
+          error?.message ||
+          String(error),
+      }),
+      {
+        status: 500,
+
+        headers: {
+          ...corsHeaders,
+
+          "Content-Type":
+            "application/json; charset=UTF-8",
+
+          "Cache-Control":
+            "no-store",
+        },
+      }
     );
   }
 }
