@@ -24,7 +24,7 @@ if (!guardianMoxId) {
 }  
 
 
-    const scriptUrl = 'https://script.google.com/macros/s/AKfycbwgBxg1wYqfhpANaKpLZAP5051SKpbQ_Te65-RWtD8NnBIAEQFl3ahzCyf6u2Gv350g/exec';
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec';
     const googleUrl = `${scriptUrl}?action=getByGuardianMoxId&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
 
     const response = await fetch(googleUrl);  
