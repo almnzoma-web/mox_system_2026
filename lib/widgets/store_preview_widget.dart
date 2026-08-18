@@ -22,7 +22,8 @@ class StorePreviewWidget extends StatelessWidget {
     this.isPublicView = false,
   });
 
-  Null get guardianMoxId => null;
+  // 🚀 التعديل الصحيح: جلب معرف الموكس الحقيقي من بيانات المستخدم بدلاً من القيمة الوهمية الفارغة
+  String get guardianMoxId => user.guardianMoxId?.trim() ?? '';
 
   // ============================================================
   // STORE PUBLISH DATE
@@ -286,6 +287,7 @@ class StorePreviewWidget extends StatelessWidget {
       child: Text(symbol, style: const TextStyle(fontSize: 25)),
     );
   }
+
   // ============================================================
   // STORE CONTENT
   // ============================================================
@@ -529,89 +531,101 @@ class StorePreviewWidget extends StatelessWidget {
             // CARDS DISPLAY SECTION (WITH VERCEL API PROXY)
             // ==================================================
             if (publicCards.isEmpty) ...[
-              // 🚀 جلب بيانات المتجر مباشرة من الـ API الجديد على Vercel
-              FutureBuilder<http.Response>(
-                future: http.get(
-                  Uri.parse(
-                    '/api/store',
-                  ).replace(queryParameters: {'guardianMoxId': guardianMoxId}),
+              // 🚀 حماية: عدم إرسال الطلب أبداً إذا كان الـ guardianMoxId فارغاً لمنع خطأ الـ Timeout
+              if (guardianMoxId.isEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.all(30),
+                  child: Text(
+                    '⚠️ رقم معرف المتجر غير متوفر.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.orange, fontSize: 13),
+                  ),
                 ),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError ||
-                      !snapshot.hasData ||
-                      snapshot.data!.statusCode != 200) {
-                    return const Padding(
-                      padding: EdgeInsets.all(30),
-                      child: Text(
-                        'لا توجد منتجات أو خدمات منشورة حالياً.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                    );
-                  }
-
-                  try {
-                    // تفكيك الـ JSON القادم من الـ API
-                    final dynamic decoded = jsonDecode(snapshot.data!.body);
-
-                    // استخراج البطاقات بناءً على هيكلة الاستجابة
-                    List<dynamic> rawCards = [];
-                    if (decoded is Map<String, dynamic>) {
-                      rawCards =
-                          decoded['cards'] as List<dynamic>? ??
-                          decoded['data'] as List<dynamic>? ??
-                          [];
-                    } else if (decoded is List) {
-                      rawCards = decoded;
+              ] else ...[
+                // 🚀 جلب بيانات المتجر مباشرة من الـ API الجديد على Vercel
+                FutureBuilder<http.Response>(
+                  future: http.get(
+                    Uri.parse('/api/store').replace(
+                      queryParameters: {'guardianMoxId': guardianMoxId},
+                    ),
+                  ),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
                     }
 
-                    if (rawCards.isEmpty) {
+                    if (snapshot.hasError ||
+                        !snapshot.hasData ||
+                        snapshot.data!.statusCode != 200) {
                       return const Padding(
-                        padding: EdgeInsets.all(20),
+                        padding: EdgeInsets.all(30),
                         child: Text(
-                          'لا توجد بطاقات متاحة لهذا المتجر حالياً.',
+                          'لا توجد منتجات أو خدمات منشورة حالياً.',
                           textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
                         ),
                       );
                     }
 
-                    // عرض البطاقات بنفس التصميم السيادي
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: rawCards.length,
-                      itemBuilder: (context, index) {
-                        final cardData = rawCards[index] is Map
-                            ? rawCards[index]
-                            : {};
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            vertical: 8,
-                            horizontal: 16,
-                          ),
-                          child: ListTile(
-                            leading: const Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                            ),
-                            title: Text(
-                              cardData['title'] ?? cardData['name'] ?? '',
-                            ),
-                            subtitle: Text(cardData['description'] ?? ''),
-                            trailing: Text('${cardData['price'] ?? ''}'),
+                    try {
+                      // تفكيك الـ JSON القادم من الـ API
+                      final dynamic decoded = jsonDecode(snapshot.data!.body);
+
+                      // استخراج البطاقات بناءً على هيكلة الاستجابة
+                      List<dynamic> rawCards = [];
+                      if (decoded is Map<String, dynamic>) {
+                        rawCards =
+                            decoded['cards'] as List<dynamic>? ??
+                            decoded['data'] as List<dynamic>? ??
+                            [];
+                      } else if (decoded is List) {
+                        rawCards = decoded;
+                      }
+
+                      if (rawCards.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text(
+                            'لا توجد بطاقات متاحة لهذا المتجر حالياً.',
+                            textAlign: TextAlign.center,
                           ),
                         );
-                      },
-                    );
-                  } catch (e) {
-                    return Text('خطأ في معالجة بيانات المتجر: $e');
-                  }
-                },
-              ),
+                      }
+
+                      // عرض البطاقات بنفس التصميم السيادي
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: rawCards.length,
+                        itemBuilder: (context, index) {
+                          final cardData = rawCards[index] is Map
+                              ? rawCards[index]
+                              : {};
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 16,
+                            ),
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                              ),
+                              title: Text(
+                                cardData['title'] ?? cardData['name'] ?? '',
+                              ),
+                              subtitle: Text(cardData['description'] ?? ''),
+                              trailing: Text('${cardData['price'] ?? ''}'),
+                            ),
+                          );
+                        },
+                      );
+                    } catch (e) {
+                      return Text('خطأ في معالجة بيانات المتجر: $e');
+                    }
+                  },
+                ),
+              ],
             ]
             // ==================================================
             // CARDS
