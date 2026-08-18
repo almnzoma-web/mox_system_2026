@@ -1,594 +1,154 @@
-// ============================================================
-// MOX DIGITAL
-// PUBLIC STORE API
-//
-// Vercel
-//    ↓
-// Google Apps Script
-//    ↓
-// Google Sheets
-//
-// IMPORTANT:
-// Google Apps Script may return HTTP redirects.
-// We therefore handle redirects manually.
-// ============================================================
-
-
-// ============================================================
-// GOOGLE APPS SCRIPT
-// ============================================================
-
-const GOOGLE_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec";
-
-
-// ============================================================
-// TIMEOUT
-// ============================================================
-
-const REQUEST_TIMEOUT_MS = 7000;
-
-
-// ============================================================
-// MAX REDIRECTS
-// ============================================================
-
-const MAX_REDIRECTS = 5;
-
-
-// ============================================================
-// CORS HEADERS
-// ============================================================
-
-const CORS_HEADERS = {
-
-  "Access-Control-Allow-Origin": "*",
-
-  "Access-Control-Allow-Methods":
-    "GET, OPTIONS",
-
-  "Access-Control-Allow-Headers":
-    "Content-Type",
-
-};
-
-
-// ============================================================
-// JSON RESPONSE
-// ============================================================
-
-function jsonResponse(
-  data,
-  status = 200
-) {
-
-  return new Response(
-    JSON.stringify(data),
-
-    {
-      status,
-
-      headers: {
-
-        ...CORS_HEADERS,
-
-        "Content-Type":
-          "application/json; charset=UTF-8",
-
-        "Cache-Control":
-          "no-store, no-cache, must-revalidate",
-
-        "Pragma":
-          "no-cache",
-
-      },
-
-    }
-  );
-}
-
-
-// ============================================================
-// FETCH WITH TIMEOUT
-// ============================================================
-
-async function fetchWithTimeout(
-  targetUrl
-) {
-
-  const controller =
-    new AbortController();
-
-  const timeout =
-    setTimeout(
-      () => controller.abort(),
-      REQUEST_TIMEOUT_MS
-    );
+export default async function handler(request) {
+  const start = Date.now();
 
   try {
-
-    return await fetch(
-      targetUrl,
-      {
-
-        method: "GET",
-
-        redirect: "manual",
-
-        cache: "no-store",
-
-        headers: {
-
-          "Accept":
-            "application/json",
-
-        },
-
-        signal:
-          controller.signal,
-
-      }
+    const url = new URL(
+      request.url,
+      `https://${request.headers.host}`
     );
 
-  } finally {
+    const guardianMoxId = (
+      url.searchParams.get("guardianMoxId") || ""
+    )
+      .trim()
+      .toUpperCase();
 
-    clearTimeout(timeout);
-
-  }
-}
-
-
-// ============================================================
-// READ GOOGLE RESPONSE
-//
-// Handles:
-// 301
-// 302
-// 303
-// 307
-// 308
-// ============================================================
-
-async function fetchGoogleJson(
-  firstUrl
-) {
-
-  let currentUrl =
-    firstUrl;
-
-
-  for (
-    let redirectCount = 0;
-    redirectCount <= MAX_REDIRECTS;
-    redirectCount++
-  ) {
-
-    console.log(
-      "[MOX GOOGLE] Request:",
-      redirectCount,
-      currentUrl
-    );
-
-
-    let response;
-
-
-    try {
-
-      response =
-        await fetchWithTimeout(
-          currentUrl
-        );
-
-    } catch (error) {
-
-      if (
-        error?.name ===
-        "AbortError"
-      ) {
-
-        throw new Error(
-          `Google request timeout after ${REQUEST_TIMEOUT_MS}ms`
-        );
-
-      }
-
-      throw error;
+    if (!guardianMoxId) {
+      return json({
+        success: false,
+        status: "error",
+        message: "guardianMoxId is required"
+      }, 400);
     }
 
-
-    console.log(
-      "[MOX GOOGLE] Status:",
-      response.status
-    );
-
-
-    // ======================================================
-    // REDIRECT
-    // ======================================================
-
-    if (
-      response.status === 301 ||
-      response.status === 302 ||
-      response.status === 303 ||
-      response.status === 307 ||
-      response.status === 308
-    ) {
-
-      const location =
-        response.headers.get(
-          "location"
-        );
-
-
-      console.log(
-        "[MOX GOOGLE] Redirect:",
-        location
-      );
-
-
-      if (!location) {
-
-        throw new Error(
-          "Google returned redirect without Location header"
-        );
-
-      }
-
-
-      currentUrl =
-        new URL(
-          location,
-          currentUrl
-        ).toString();
-
-
-      continue;
-    }
-
-
-    // ======================================================
-    // HTTP ERROR
-    // ======================================================
-
-    if (!response.ok) {
-
-      const errorText =
-        await response.text();
-
-
-      throw new Error(
-        `Google HTTP ${response.status}: ${errorText.substring(0, 300)}`
-      );
-
-    }
-
-
-    // ======================================================
-    // FINAL RESPONSE
-    // ======================================================
-
-    const text =
-      await response.text();
-
-
-    console.log(
-      "[MOX GOOGLE] Final response length:",
-      text.length
-    );
-
-
-    if (
-      !text ||
-      !text.trim()
-    ) {
-
-      throw new Error(
-        "Google returned empty response"
-      );
-
-    }
-
-
-    // ======================================================
-    // JSON
-    // ======================================================
-
-    try {
-
-      return JSON.parse(
-        text
-      );
-
-    } catch (error) {
-
-      console.error(
-        "[MOX GOOGLE] Invalid JSON:"
-      );
-
-      console.error(
-        text.substring(
-          0,
-          500
-        )
-      );
-
-
-      throw new Error(
-        "Google returned invalid JSON"
-      );
-
-    }
-
-  }
-
-
-  throw new Error(
-    `Too many Google redirects. Maximum allowed: ${MAX_REDIRECTS}`
-  );
-}
-
-
-// ============================================================
-// MAIN HANDLER
-// ============================================================
-
-export default async function handler(
-  request
-) {
-
-  const startedAt =
-    Date.now();
-
-
-  try {
-
-    // ========================================================
-    // OPTIONS
-    // ========================================================
-
-    if (
-      request.method ===
-      "OPTIONS"
-    ) {
-
-      return new Response(
-        null,
-        {
-          status: 204,
-          headers:
-            CORS_HEADERS,
-        }
-      );
-
-    }
-
-
-    // ========================================================
-    // ONLY GET
-    // ========================================================
-
-    if (
-      request.method !==
-      "GET"
-    ) {
-
-      return jsonResponse(
-        {
-          success: false,
-
-          message:
-            "Method not allowed",
-        },
-        405
-      );
-
-    }
-
-
-    // ========================================================
-    // READ URL
-    // ========================================================
-
-    const url =
-      new URL(
-        request.url,
-        `https://${request.headers.get("host") || "mox-2026.vercel.app"}`
-      );
-
-
-    // ========================================================
-    // GUARDIAN MOX ID
-    // ========================================================
-
-    const guardianMoxId =
-      (
-        url.searchParams.get(
-          "guardianMoxId"
-        ) || ""
-      )
-        .trim()
-        .toUpperCase();
-
-
-    console.log(
-      "[MOX STORE] Guardian:",
-      guardianMoxId
-    );
-
-
-    // ========================================================
-    // REQUIRED
-    // ========================================================
-
-    if (
-      !guardianMoxId
-    ) {
-
-      return jsonResponse(
-        {
-          success: false,
-
-          message:
-            "guardianMoxId is required",
-        },
-        400
-      );
-
-    }
-
-
-    // ========================================================
-    // VALIDATE
-    // ========================================================
-
-    if (
-      !/^MOX\d+-\d+$/.test(
-        guardianMoxId
-      )
-    ) {
-
-      return jsonResponse(
-        {
-          success: false,
-
-          message:
-            "Invalid guardianMoxId",
-
-          guardianMoxId,
-        },
-        400
-      );
-
-    }
-
-
-    // ========================================================
-    // BUILD GOOGLE URL
-    // ========================================================
+    const scriptUrl =
+      "https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec";
 
     const googleUrl =
-      `${GOOGLE_SCRIPT_URL}` +
-      `?action=getByGuardianMoxId` +
-      `&guardianMoxId=${encodeURIComponent(
+      `${scriptUrl}?action=getByGuardianMoxId&guardianMoxId=${encodeURIComponent(
         guardianMoxId
       )}`;
 
+    console.log("[MOX VERCEL] START");
+    console.log("[MOX VERCEL] ID:", guardianMoxId);
+
+    // --------------------------------------------------
+    // TIMEOUT داخلي
+    // --------------------------------------------------
+
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 8000);
+
+    let response;
+
+    try {
+      response = await fetch(googleUrl, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        signal: controller.signal,
+        redirect: "follow",
+        cache: "no-store"
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const elapsed = Date.now() - start;
 
     console.log(
-      "[MOX STORE] Calling Google..."
+      "[MOX VERCEL] GOOGLE RESPONSE:",
+      response.status,
+      elapsed + "ms"
     );
 
-
-    // ========================================================
-    // CALL GOOGLE
-    // ========================================================
-
-    const data =
-      await fetchGoogleJson(
-        googleUrl
-      );
-
-
-    // ========================================================
-    // SUCCESS
-    // ========================================================
-
-    const elapsedMs =
-      Date.now() -
-      startedAt;
-
+    const text = await response.text();
 
     console.log(
-      "[MOX STORE] SUCCESS in",
-      elapsedMs,
-      "ms"
+      "[MOX VERCEL] RESPONSE LENGTH:",
+      text.length
     );
 
+    if (!response.ok) {
+      return json({
+        success: false,
+        status: "google_error",
+        googleStatus: response.status,
+        elapsedMs: elapsed,
+        message: "Google Apps Script returned an error",
+        raw: text.substring(0, 500)
+      }, 502);
+    }
 
-    return jsonResponse(
-      {
-        ...data,
+    let data;
 
-        guardianMoxId,
+    try {
+      data = JSON.parse(text);
+    } catch (error) {
+      return json({
+        success: false,
+        status: "invalid_json",
+        elapsedMs: elapsed,
+        message: "Google Apps Script returned invalid JSON",
+        raw: text.substring(0, 500)
+      }, 502);
+    }
 
-        elapsedMs,
-      },
-      200
-    );
-
+    return json({
+      ...data,
+      vercel: {
+        success: true,
+        elapsedMs: Date.now() - start
+      }
+    }, 200);
 
   } catch (error) {
 
-    // ========================================================
-    // ERROR
-    // ========================================================
-
-    const elapsedMs =
-      Date.now() -
-      startedAt;
-
+    const elapsed = Date.now() - start;
 
     console.error(
-      "[MOX STORE] ERROR:",
+      "[MOX VERCEL ERROR]",
       error
     );
 
-
-    // ========================================================
-    // TIMEOUT
-    // ========================================================
-
-    if (
-      String(
-        error?.message || ""
-      ).toLowerCase()
-        .includes(
-          "timeout"
-        )
-    ) {
-
-      return jsonResponse(
-        {
-          success: false,
-
-          status:
-            "google_timeout",
-
-          message:
-            "Google Apps Script request timed out",
-
-          elapsedMs,
-        },
-        504
-      );
-
+    if (error.name === "AbortError") {
+      return json({
+        success: false,
+        status: "timeout",
+        elapsedMs: elapsed,
+        message:
+          "Vercel could not receive a response from Google within 8 seconds"
+      }, 504);
     }
 
-
-    // ========================================================
-    // GENERAL ERROR
-    // ========================================================
-
-    return jsonResponse(
-      {
-        success: false,
-
-        status:
-          "store_api_error",
-
-        message:
-          "Store API error",
-
-        error:
-          error?.message ||
-          String(error),
-
-        elapsedMs,
-      },
-      502
-    );
-
+    return json({
+      success: false,
+      status: "vercel_error",
+      elapsedMs: elapsed,
+      message: error.message || "Vercel Store API error"
+    }, 500);
   }
+}
 
+
+function json(data, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        "Content-Type":
+          "application/json; charset=UTF-8",
+
+        "Access-Control-Allow-Origin": "*",
+
+        "Cache-Control":
+          "no-store, no-cache, must-revalidate"
+      }
+    }
+  );
 }
