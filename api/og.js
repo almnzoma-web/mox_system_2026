@@ -67,7 +67,7 @@ export default async function handler(request) {
     // ============================================================
 
     const scriptUrl =
-      'https://script.google.com/macros/s/AKfycbwr2cnnxQ8cUA6A7tsFJvUZdzE9xL5nADKBx5P6gJh5Z13NBkq7PIyptu3vYGqkCPzE/exec';
+      'https://script.google.com/macros/s/AKfycbykqj8mRpibT8S2aCVAOwM5DFFrp8VKHnbYtc-ITTh9pv4jVWlYjRsewNQYumsJTcfK/exec';
 
     // ============================================================
     // جلب كل العملاء
