@@ -1,7 +1,21 @@
 export default async function handler(request) {
   try {
     const url = new URL(request.url, `https://${request.headers.host}`);
-    const guardianMoxId = (url.searchParams.get('guardianMoxId') || '').trim().toUpperCase();
+    
+    // 1. محاولة التقاط الـ guardianMoxId من الـ Query Parameters
+    let guardianMoxId = (url.searchParams.get('guardianMoxId') || '').trim();
+
+    // 2. إذا لم يوجد، نقوم باستخراجه من الـ Path (مثلاً /api/store/MOX249-00010001)
+    if (!guardianMoxId) {
+      const segments = url.pathname.split('/').filter(Boolean);
+      // إذا كان المسار يحتوي على قيمة بعد كلمة store
+      const storeIndex = segments.indexOf('store');
+      if (storeIndex !== -1 && segments.length > storeIndex + 1) {
+        guardianMoxId = segments[storeIndex + 1].trim();
+      }
+    }
+
+    guardianMoxId = guardianMoxId.toUpperCase();
 
     if (!guardianMoxId) {
       return new Response(
@@ -21,7 +35,7 @@ export default async function handler(request) {
       data = JSON.parse(text);
     } catch (e) {
       return new Response(
-        JSON.stringify({ success: false, message: 'Google Apps Script returned invalid JSON' }),
+        JSON.stringify({ success: false, message: 'Google Apps Script returned invalid JSON', raw: text }),
         { status: 502, headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Access-Control-Allow-Origin': '*' } }
       );
     }
