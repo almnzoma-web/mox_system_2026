@@ -24,10 +24,35 @@ export default async function handler(request) {
       );
     }
 
-    const scriptUrl = 'https://script.google.com/macros/s/AKfycbykqj8mRpibT8S2aCVAOwM5DFFrp8VKHnbYtc-ITTh9pv4jVWlYjRsewNQYumsJTcfK/exec';
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbwgBxg1wYqfhpANaKpLZAP5051SKpbQ_Te65-RWtD8NnBIAEQFl3ahzCyf6u2Gv350g/exec';
     const googleUrl = `${scriptUrl}?action=getByGuardianMoxId&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
 
-    const response = await fetch(googleUrl);
+    const controller = new AbortController();
+
+const timeout = setTimeout(() => {
+  controller.abort();
+}, 8000);
+
+let response;
+
+try {
+
+  response = await fetch(
+    googleUrl,
+    {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json'
+      }
+    }
+  );
+
+} finally {
+
+  clearTimeout(timeout);
+}
     const text = await response.text();
 
     let data;

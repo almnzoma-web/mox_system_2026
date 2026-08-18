@@ -28,7 +28,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbykqj8mRpibT8S2aCVAOwM5DFFrp8VKHnbYtc-ITTh9pv4jVWlYjRsewNQYumsJTcfK/exec';
+      'https://script.google.com/macros/s/AKfycbwgBxg1wYqfhpANaKpLZAP5051SKpbQ_Te65-RWtD8NnBIAEQFl3ahzCyf6u2Gv350g/exec';
 
   // ============================================================
   // 🔗 رابط العميل العام
