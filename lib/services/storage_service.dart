@@ -16,9 +16,6 @@ class StorageService {
 
   static const String savedUsersKey = 'saved_users';
 
-  // إصدار ذاكرة العملاء.
-  //
-  // عند رفع هذه النسخة سيتم تنظيف الذاكرة القديمة مرة واحدة.
   static const String localUsersVersionKey = 'mox_local_users_version';
 
   static const int currentLocalUsersVersion = 2;
@@ -38,14 +35,21 @@ class StorageService {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbykqj8mRpibT8S2aCVAOwM5DFFrp8VKHnbYtc-ITTh9pv4jVWlYjRsewNQYumsJTcfK/exec';
+      'https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec';
 
   // ============================================================
-  // 🛡️ HTML RESPONSE GUARD (حماية قاطعة ضد استجابات HTML)
+  // VERCEL STORE API
+  // ============================================================
+
+  static const String _vercelStoreUrl = 'https://mox-2026.vercel.app/api/store';
+
+  // ============================================================
+  // HTML GUARD
   // ============================================================
 
   static bool _isHtmlResponse(String body) {
     final String trimmed = body.trim().toLowerCase();
+
     return trimmed.startsWith('<') ||
         trimmed.startsWith('<!doctype') ||
         trimmed.contains('<html');
@@ -91,6 +95,21 @@ class StorageService {
   }
 
   // ============================================================
+  // GUARDIAN VALIDATION
+  // ============================================================
+
+  // ignore: unused_element
+  static bool _isValidGuardianMoxId(String? value) {
+    final String id = _clean(value).toUpperCase();
+
+    return id.isNotEmpty &&
+        id != 'NULL' &&
+        id != 'UNDEFINED' &&
+        id != 'N/A' &&
+        id != 'لم يحدد';
+  }
+
+  // ============================================================
   // ADMIN ID CHECK
   // ============================================================
 
@@ -108,6 +127,11 @@ class StorageService {
 
   // ============================================================
   // LOAD USERS
+  //
+  // مهم:
+  // لا يوجد getAll هنا.
+  //
+  // المتجر العام Silver لا يحتاج تحميل كل العملاء.
   // ============================================================
 
   static Future<void> loadUsers() async {
@@ -158,15 +182,20 @@ class StorageService {
 
       _isLoaded = true;
 
-      _syncFromCloudInBackground();
+      // ========================================================
+      // لا تعمل مزامنة getAll تلقائياً هنا.
+      // ========================================================
+
+      debugPrint(
+        '✅ [BOOT] Local users loaded: '
+        '${registeredUsers.length}',
+      );
     } catch (e) {
       debugPrint('❌ [Hybrid Local] خطأ في التحميل المحلي: $e');
 
       registeredUsers = [adminUser];
 
       _isLoaded = true;
-
-      _syncFromCloudInBackground();
     }
   }
 
@@ -212,8 +241,12 @@ class StorageService {
 
   // ============================================================
   // CLOUD SYNC
+  //
+  // هذه الوظيفة أصبحت اختيارية.
+  // لا يتم تشغيلها أثناء فتح المتجر العام.
   // ============================================================
 
+  // ignore: unused_element
   static Future<void> _syncFromCloudInBackground() async {
     if (_cloudSyncRunning) {
       return;
@@ -262,40 +295,61 @@ class StorageService {
   }
 
   // ============================================================
-  // FETCH ALL USERS FROM CLOUD
+  // FETCH ALL USERS
+  //
+  // يستخدم فقط للعمليات التي تحتاج كل العملاء.
+  // ليس للمتجر العام.
   // ============================================================
 
   static Future<List<UserModel>?> _fetchAllUsersFromCloud() async {
     try {
-      final http.Response response = await http
-          .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 12));
+      final Uri uri = Uri.parse(
+        _vercelStoreUrl,
+      ).replace(queryParameters: {'action': 'getAll'});
 
-      debugPrint('☁️ [Cloud GetAll] HTTP ${response.statusCode}');
+      final http.Response response = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('☁️ [Vercel GetAll] HTTP ${response.statusCode}');
 
       if (response.statusCode != 200) {
+        debugPrint('❌ [Vercel GetAll] HTTP Error: ${response.body}');
+
         return null;
       }
 
-      // 🛡️ الحماية القاطعة ضد استجابات الـ HTML
       if (_isHtmlResponse(response.body)) {
-        debugPrint(
-          '❌ [Cloud GetAll] تحذير: السيرفر أعاد استجابة HTML وليست JSON!',
-        );
+        debugPrint('❌ [Vercel GetAll] السيرفر أعاد HTML وليس JSON.');
+
         return null;
       }
 
       final dynamic decoded = json.decode(response.body);
 
-      if (decoded is! List) {
-        debugPrint('❌ [Cloud GetAll] الاستجابة ليست List.');
+      List<dynamic> rawUsers = [];
+
+      // ----------------------------------------------------------
+      // Vercel يرجع users عندما تكون الاستجابة List من Google
+      // ----------------------------------------------------------
+
+      if (decoded is Map && decoded['users'] is List) {
+        rawUsers = List<dynamic>.from(decoded['users']);
+      }
+      // ----------------------------------------------------------
+      // احتياط إذا أعاد API قائمة مباشرة
+      // ----------------------------------------------------------
+      else if (decoded is List) {
+        rawUsers = List<dynamic>.from(decoded);
+      } else {
+        debugPrint('❌ [Vercel GetAll] الاستجابة لا تحتوي على قائمة مستخدمين.');
 
         return null;
       }
 
       final List<UserModel> cloudUsers = [];
 
-      for (final dynamic item in decoded) {
+      for (final dynamic item in rawUsers) {
         if (item is! Map) {
           continue;
         }
@@ -325,14 +379,15 @@ class StorageService {
         }
       }
 
+      debugPrint('✅ [Vercel GetAll] تم تحليل ${cloudUsers.length} مستخدم.');
+
       return cloudUsers;
     } catch (e) {
-      debugPrint('❌ [Cloud GetAll Exception] $e');
+      debugPrint('❌ [Vercel GetAll Exception] $e');
 
       return null;
     }
   }
-
   // ============================================================
   // ENSURE LOADED
   // ============================================================
@@ -425,6 +480,7 @@ class StorageService {
 
     if (!_isValidMoxId(newUser.moxId)) {
       debugPrint('❌ محاولة حفظ مستخدم بدون MoxId تم رفضها.');
+
       return;
     }
 
@@ -519,11 +575,13 @@ class StorageService {
 
       if (response.statusCode != 200) {
         debugPrint('❌ [Cloud Save] HTTP Error: ${response.body}');
+
         return false;
       }
 
       if (_isHtmlResponse(response.body)) {
-        debugPrint('❌ [Cloud Save] تحذير: الاستجابة عبارة عن HTML!');
+        debugPrint('❌ [Cloud Save] الاستجابة HTML.');
+
         return false;
       }
 
@@ -536,6 +594,7 @@ class StorageService {
 
           if (status == 'error' || status == 'failed' || status == 'failure') {
             debugPrint('❌ [Cloud Save] Apps Script رفض الحفظ: $decoded');
+
             return false;
           }
         }
@@ -544,6 +603,7 @@ class StorageService {
       return true;
     } catch (e) {
       debugPrint('❌ [Cloud Save Exception] $e');
+
       return false;
     }
   }
@@ -589,6 +649,7 @@ class StorageService {
       return user;
     } catch (e) {
       debugPrint('❌ [Get User] $e');
+
       return null;
     }
   }
@@ -708,9 +769,6 @@ class StorageService {
       }
 
       if (_isHtmlResponse(response.body)) {
-        debugPrint(
-          '❌ [Cloud Login] تحذير: استجابة تسجيل الدخول عبارة عن HTML!',
-        );
         return null;
       }
 
@@ -790,6 +848,7 @@ class StorageService {
       return cloudUser;
     } catch (e) {
       debugPrint('❌ [Cloud Login] $e');
+
       return null;
     }
   }
@@ -824,77 +883,95 @@ class StorageService {
   }
 
   // ============================================================
-  // GET USER BY PUBLIC IDENTIFIER
+  // PUBLIC USER
+  //
+  // مهم جداً:
+  //
+  // لا تستخدم getAll.
+  //
+  // تستخدم Vercel:
+  //
+  // /api/store?guardianMoxId=...
+  //
   // ============================================================
 
   static Future<UserModel?> getUserByMoxId(String identifier) async {
-    final String cleanIdentifier = identifier.trim();
+    final String cleanIdentifier = identifier.trim().toUpperCase();
 
     if (cleanIdentifier.isEmpty) {
       return null;
     }
 
+    // ============================================================
+    // 1. إذا كان لدينا Guardian MOX ID
+    //    استخدم Vercel مباشرة
+    // ============================================================
+
     try {
       final Uri uri = Uri.parse(
-        _scriptUrl,
-      ).replace(queryParameters: {'action': 'getAll'});
+        _vercelStoreUrl,
+      ).replace(queryParameters: {'guardianMoxId': cleanIdentifier});
+
+      debugPrint('🌐 [Public Store] GET $uri');
 
       final http.Response response = await http
-          .get(uri)
-          .timeout(const Duration(seconds: 12));
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('🌐 [Public Store] HTTP ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        // 🛡️ الحماية القاطعة ضد استجابات الـ HTML
         if (_isHtmlResponse(response.body)) {
-          debugPrint(
-            '⚠️ [Cloud User Fetch] تحذير: السيرفر أعاد استجابة HTML، سيتم التخطي إلى Local Fallback',
-          );
+          debugPrint('⚠️ [Public Store] الاستجابة HTML.');
         } else {
           final dynamic decoded = json.decode(response.body);
 
-          if (decoded is List) {
-            for (final dynamic item in decoded) {
-              if (item is! Map) {
-                continue;
+          if (decoded is Map) {
+            final Map<String, dynamic> data = Map<String, dynamic>.from(
+              decoded,
+            );
+
+            Map<String, dynamic>? rawUser;
+
+            // ------------------------------------------------------
+            // الشكل:
+            // { user: {...} }
+            // ------------------------------------------------------
+
+            if (data['user'] is Map) {
+              rawUser = Map<String, dynamic>.from(data['user']);
+            }
+            // ------------------------------------------------------
+            // الشكل:
+            // { data: {...} }
+            // ------------------------------------------------------
+            else if (data['data'] is Map) {
+              rawUser = Map<String, dynamic>.from(data['data']);
+            }
+            // ------------------------------------------------------
+            // الشكل:
+            // user مباشرة داخل response
+            // ------------------------------------------------------
+            else if (data.containsKey('phone') ||
+                data.containsKey('moxId') ||
+                data.containsKey('MOXID')) {
+              rawUser = data;
+            }
+
+            if (rawUser != null) {
+              final Map<String, dynamic> userMap = Map<String, dynamic>.from(
+                rawUser,
+              );
+
+              if ((!userMap.containsKey('moxId') ||
+                      _clean(userMap['moxId']?.toString()).isEmpty) &&
+                  userMap.containsKey('MOXID')) {
+                userMap['moxId'] = userMap['MOXID'];
               }
 
-              try {
-                final Map<String, dynamic> mapItem = Map<String, dynamic>.from(
-                  item,
-                );
+              final UserModel cloudUser = UserModel.fromJson(userMap);
 
-                if ((!mapItem.containsKey('moxId') ||
-                        _clean(mapItem['moxId']?.toString()).isEmpty) &&
-                    mapItem.containsKey('MOXID')) {
-                  mapItem['moxId'] = mapItem['MOXID'];
-                }
-
-                final UserModel cloudUser = UserModel.fromJson(mapItem);
-
-                final String cloudMoxId = cloudUser.moxId.trim();
-
-                final String cloudPhone = cloudUser.phone.trim();
-
-                final String cloudGuardian = _clean(cloudUser.guardianMoxId);
-
-                final String cloudGuardianCustomer = _clean(
-                  cloudUser.guardianMoxIdCustomer,
-                );
-
-                final bool matched =
-                    cloudMoxId == cleanIdentifier ||
-                    cloudPhone == cleanIdentifier ||
-                    cloudGuardian == cleanIdentifier ||
-                    cloudGuardianCustomer == cleanIdentifier;
-
-                if (!matched) {
-                  continue;
-                }
-
-                if (!_isValidMoxId(cloudUser.moxId)) {
-                  continue;
-                }
-
+              if (_isValidMoxId(cloudUser.moxId)) {
                 if (!_isAdminUser(cloudUser)) {
                   final int index = registeredUsers.indexWhere(
                     (u) =>
@@ -914,28 +991,40 @@ class StorageService {
                 }
 
                 return cloudUser;
-              } catch (e) {
-                debugPrint('⚠️ [Cloud User Parse] $e');
               }
             }
+
+            // ------------------------------------------------------
+            // إذا كان API أعاد success=false
+            // ------------------------------------------------------
+
+            debugPrint('⚠️ [Public Store] لم يتم العثور على المستخدم: $data');
           }
         }
       }
     } catch (e) {
-      debugPrint('⚠️ [Cloud User Fetch] $e');
+      debugPrint('⚠️ [Public Store Exception] $e');
     }
+
+    // ============================================================
+    // 2. Local Fallback
+    // ============================================================
 
     try {
       await ensureLoaded();
 
       for (final UserModel user in registeredUsers) {
-        final String moxId = user.moxId.trim();
+        final String moxId = user.moxId.trim().toUpperCase();
 
-        final String phone = user.phone.trim();
+        final String phone = user.phone.trim().toUpperCase();
 
-        final String guardianMoxId = _clean(user.guardianMoxId);
+        final String guardianMoxId = _clean(
+          user.guardianMoxId,
+        ).trim().toUpperCase();
 
-        final String guardianMoxIdCustomer = _clean(user.guardianMoxIdCustomer);
+        final String guardianMoxIdCustomer = _clean(
+          user.guardianMoxIdCustomer,
+        ).trim().toUpperCase();
 
         if (moxId == cleanIdentifier ||
             phone == cleanIdentifier ||
@@ -950,19 +1039,12 @@ class StorageService {
 
     return null;
   }
-
   // ============================================================
   // GET USER BY GUARDIAN MOX ID
   // ============================================================
 
   static Future<UserModel?> getUserByGuardianMoxId(String guardianMoxId) async {
-    final String cleanId = guardianMoxId.trim();
-
-    if (cleanId.isEmpty) {
-      return null;
-    }
-
-    return getUserByMoxId(cleanId);
+    return getUserByMoxId(guardianMoxId);
   }
 
   // ============================================================
@@ -987,6 +1069,8 @@ class StorageService {
 
   // ============================================================
   // FORCE CLOUD REFRESH
+  //
+  // هذه وظيفة إدارية فقط.
   // ============================================================
 
   static Future<bool> refreshUsersFromCloud() async {
@@ -1024,6 +1108,7 @@ class StorageService {
       return true;
     } catch (e) {
       debugPrint('❌ [Force Cloud Refresh] $e');
+
       return false;
     } finally {
       _cloudSyncRunning = false;
