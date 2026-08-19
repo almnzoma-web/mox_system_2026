@@ -28,7 +28,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec';
+      'https://script.google.com/macros/s/AKfycbwr2cnnxQ8cUA6A7tsFJvUZdzE9xL5nADKBx5P6gJh5Z13NBkq7PIyptu3vYGqkCPzE/exec';
 
   // ============================================================
   // 🔗 رابط العميل العام
@@ -123,7 +123,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       final http.Response response = await http
           .get(uri)
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 12));
 
       debugPrint('☁️ [Admin Cloud] HTTP: ${response.statusCode}');
 
@@ -230,7 +230,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         );
         final http.Response cloudResponse = await http
             .get(uri)
-            .timeout(const Duration(seconds: 30));
+            .timeout(const Duration(seconds: 10));
 
         if (cloudResponse.statusCode == 200) {
           final dynamic decoded = json.decode(cloudResponse.body);

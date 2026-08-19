@@ -38,7 +38,7 @@ class StorageService {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbys7rhJQx5mY4lSpyAvDBZOHhexQO-vW7Y4pfVurAVJIZvb8gXI8_RXcvGPep8iU6Q/exec';
+      'https://script.google.com/macros/s/AKfycbykqj8mRpibT8S2aCVAOwM5DFFrp8VKHnbYtc-ITTh9pv4jVWlYjRsewNQYumsJTcfK/exec';
 
   // ============================================================
   // 🛡️ HTML RESPONSE GUARD (حماية قاطعة ضد استجابات HTML)
@@ -269,7 +269,7 @@ class StorageService {
     try {
       final http.Response response = await http
           .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 12));
 
       debugPrint('☁️ [Cloud GetAll] HTTP ${response.statusCode}');
 
@@ -841,7 +841,7 @@ class StorageService {
 
       final http.Response response = await http
           .get(uri)
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         // 🛡️ الحماية القاطعة ضد استجابات الـ HTML
