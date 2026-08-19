@@ -123,7 +123,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       final http.Response response = await http
           .get(uri)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 30));
 
       debugPrint('☁️ [Admin Cloud] HTTP: ${response.statusCode}');
 
@@ -230,7 +230,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         );
         final http.Response cloudResponse = await http
             .get(uri)
-            .timeout(const Duration(seconds: 10));
+            .timeout(const Duration(seconds: 30));
 
         if (cloudResponse.statusCode == 200) {
           final dynamic decoded = json.decode(cloudResponse.body);

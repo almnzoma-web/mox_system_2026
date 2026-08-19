@@ -269,7 +269,7 @@ class StorageService {
     try {
       final http.Response response = await http
           .get(Uri.parse('$_scriptUrl?action=getAll'))
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 30));
 
       debugPrint('☁️ [Cloud GetAll] HTTP ${response.statusCode}');
 
@@ -841,7 +841,7 @@ class StorageService {
 
       final http.Response response = await http
           .get(uri)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         // 🛡️ الحماية القاطعة ضد استجابات الـ HTML
