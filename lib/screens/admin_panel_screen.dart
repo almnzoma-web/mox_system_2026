@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:mox_digital_app/models/marketing_card.dart';
 
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
@@ -269,7 +270,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       debugPrint('☁️ [Vercel Store] HTTP Status: ${cloudResponse.statusCode}');
 
-      // طباعة كامل النص القادم من السيرفر لمعرفة ما الذي يحدث حقاً!
       debugPrint('☁️ [Vercel Store] Raw Body: ${cloudResponse.body}');
 
       if (cloudResponse.statusCode != 200) {
@@ -302,7 +302,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
 
-      // استخراج الـ user بكل الاحتمالات
       Map<String, dynamic>? cloudUser;
       if (data['user'] is Map) {
         cloudUser = Map<String, dynamic>.from(data['user']);
@@ -319,7 +318,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         return;
       }
 
-      // تحديث البيانات بأمان تام
       final String cloudPhone = (cloudUser['phone'] ?? cloudUser['PHONE'] ?? '')
           .toString()
           .trim();
@@ -354,8 +352,38 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         user.storePublishDate = cloudPublishDate;
       }
 
+      // ========================================================
+      // التعديل الحاسم: معالجة واستخراج myAssets بدقة تامة
+      // ========================================================
+      final dynamic rawAssets = cloudUser['myAssets'] ?? cloudUser['myassets'];
+      if (rawAssets != null) {
+        if (rawAssets is List) {
+          user.myAssets = rawAssets
+              .map((e) => e.toString())
+              .cast<MarketingCard>()
+              .toList();
+        } else if (rawAssets is String && rawAssets.trim().isNotEmpty) {
+          try {
+            final parsedList = json.decode(rawAssets);
+            if (parsedList is List) {
+              user.myAssets = parsedList
+                  .map((e) => e.toString())
+                  .cast<MarketingCard>()
+                  .toList();
+            }
+          } catch (_) {
+            // لو نص عادي مفصول بفواصل أو غيره
+            user.myAssets = rawAssets
+                .split(',')
+                .map((e) => e.trim())
+                .cast<MarketingCard>()
+                .toList();
+          }
+        }
+      }
+
       debugPrint(
-        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام للمستخدم: ${user.name}',
+        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام للمستخدم: ${user.name} (عدد الأصول: ${user.myAssets.length})',
       );
     } catch (e, stackTrace) {
       debugPrint(
@@ -364,7 +392,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       debugPrint('📍 StackTrace: $stackTrace');
     }
   }
-
   // ============================================================
   // ☁️ حفظ العميل
   // ============================================================
