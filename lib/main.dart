@@ -490,6 +490,19 @@ UserModel? _findPublicUserLocally(String guardianMoxId) {
 //
 // ============================================================
 
+// ============================================================
+// ☁️ البحث السحابي للمتجر العام
+//
+// مهم:
+//
+// لا نستخدم getUserByMoxId هنا.
+//
+// الرابط العام يعتمد على guardianMoxId فقط.
+//
+// Flutter → Vercel API → Google Apps Script
+//
+// ============================================================
+
 Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
   try {
     final String cleanGuardianMoxId = guardianMoxId.trim().toUpperCase();
@@ -658,10 +671,14 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     }
 
     // ========================================================
-    // بناء UserModel
+    // بناء UserModel (التعديل الحاسم لاستخراج بيانات user الفرعية)
     // ========================================================
 
-    final UserModel user = UserModel.fromJson(map);
+    final Map<String, dynamic> userMap = map['user'] is Map
+        ? Map<String, dynamic>.from(map['user'])
+        : map;
+
+    final UserModel user = UserModel.fromJson(userMap);
 
     debugPrint(
       '✅ [CLOUD SEARCH] MATCH العميل: '
@@ -713,7 +730,6 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     return null;
   }
 }
-
 // ============================================================
 // MY APP
 // ============================================================
