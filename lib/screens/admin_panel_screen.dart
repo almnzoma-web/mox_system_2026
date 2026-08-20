@@ -254,7 +254,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         debugPrint(
           '⚠️ [Vercel Store] لا يوجد guardianMoxId للعميل ${user.name}',
         );
-
         return;
       }
 
@@ -268,206 +267,101 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           .get(uri, headers: {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 10));
 
-      debugPrint('☁️ [Vercel Store] HTTP ${cloudResponse.statusCode}');
+      debugPrint('☁️ [Vercel Store] HTTP Status: ${cloudResponse.statusCode}');
 
-      // --------------------------------------------------------
-      // HTTP ERROR
-      // --------------------------------------------------------
+      // طباعة كامل النص القادم من السيرفر لمعرفة ما الذي يحدث حقاً!
+      debugPrint('☁️ [Vercel Store] Raw Body: ${cloudResponse.body}');
 
       if (cloudResponse.statusCode != 200) {
         debugPrint(
-          '⚠️ [Vercel Store] HTTP Error: '
-          '${cloudResponse.statusCode}',
+          '⚠️ [Vercel Store] السيرفر رفض الطلب برمز: ${cloudResponse.statusCode}',
         );
-
-        debugPrint(
-          '⚠️ [Vercel Store] Body: '
-          '${cloudResponse.body.substring(0, cloudResponse.body.length > 500 ? 500 : cloudResponse.body.length)}',
-        );
-
         return;
       }
-
-      // --------------------------------------------------------
-      // حماية HTML
-      // --------------------------------------------------------
 
       final String body = cloudResponse.body.trim();
 
+      if (body.isEmpty) {
+        debugPrint('❌ [Vercel Store] الاستجابة فارغة تماماً!');
+        return;
+      }
+
       if (body.startsWith('<') || body.toLowerCase().contains('<html')) {
-        debugPrint('❌ [Vercel Store] السيرفر أعاد HTML بدل JSON');
-
+        debugPrint(
+          '❌ [Vercel Store] كارثة: السيرفر أعاد صفحة HTML (خطأ في مسار الـ Vercel أو API غير موجود)',
+        );
         return;
       }
 
-      // --------------------------------------------------------
-      // JSON
-      // --------------------------------------------------------
+      final dynamic decoded = json.decode(body);
 
-      dynamic decoded;
-      try {
-        decoded = json.decode(body);
-      } catch (e) {
-        debugPrint('❌ [Vercel Store] فشل تحليل JSON: $e');
+      if (decoded is! Map) {
+        debugPrint('❌ [Vercel Store] الاستجابة ليست خريطة (Map): $decoded');
         return;
       }
 
-      if (decoded is! Map<String, dynamic>) {
-        // محاولة التحويل الآمن إذا كانت Map عادية
-        try {
-          decoded = Map<String, dynamic>.from(decoded as Map);
-        } catch (_) {
-          debugPrint('❌ [Vercel Store] الاستجابة ليست Map صالحة');
-          return;
-        }
-      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
 
-      final Map<String, dynamic> data = decoded;
-
-      // --------------------------------------------------------
-      // التحقق من النجاح (بمرونة كاملة)
-      // --------------------------------------------------------
-
-      final dynamic successField =
-          data['success'] ?? data['status'] ?? data['ok'];
-      final bool success =
-          successField == true ||
-          successField.toString().toLowerCase() == 'true' ||
-          successField.toString().toLowerCase() == 'success';
-
-      if (!success && data.containsKey('success')) {
-        debugPrint('⚠️ [Vercel Store] الاستجابة لم تكن ناجحة: $data');
-        // لن نقوم بـ return فوراً هنا، بل سنحاول البحث عن المستخدم احتياطياً إن وجد في البيانات المباشرة
-      }
-
-      // --------------------------------------------------------
-      // استخراج user (مع دعم عدة مفاتيح محتملة)
-      // --------------------------------------------------------
-
+      // استخراج الـ user بكل الاحتمالات
       Map<String, dynamic>? cloudUser;
-
-      final possibleUserKeys = ['user', 'data', 'client', 'result', 'item'];
-      for (final key in possibleUserKeys) {
-        if (data[key] is Map) {
-          cloudUser = Map<String, dynamic>.from(data[key]);
-          break;
-        }
-      }
-
-      // إذا لم نجد كائن داخل مفتاح، ربما تكون الاستجابة نفسها هي بيانات المستخدم مباشرة
-      if (cloudUser == null &&
-          (data.containsKey('moxId') ||
-              data.containsKey('phone') ||
-              data.containsKey('MOXID'))) {
+      if (data['user'] is Map) {
+        cloudUser = Map<String, dynamic>.from(data['user']);
+      } else if (data['data'] is Map) {
+        cloudUser = Map<String, dynamic>.from(data['data']);
+      } else if (data.containsKey('moxId') || data.containsKey('phone')) {
         cloudUser = data;
       }
 
       if (cloudUser == null) {
-        debugPrint('⚠️ [Vercel Store] لم توجد بيانات مستخدم داخل الاستجابة');
+        debugPrint(
+          '⚠️ [Vercel Store] لم يتم العثور على بيانات المستخدم داخل ماب الاستجابة: $data',
+        );
         return;
       }
 
-      // --------------------------------------------------------
-      // قراءة الهوية الأساسية (مع دعم الحروف الكبيرة والصغيرة)
-      // --------------------------------------------------------
-
-      final String cloudPhone =
-          (cloudUser['phone'] ??
-                  cloudUser['PHONE'] ??
-                  cloudUser['mobile'] ??
-                  '')
-              .toString()
-              .trim();
-
-      final String cloudMoxId =
-          (cloudUser['moxId'] ?? cloudUser['MOXID'] ?? cloudUser['moxid'] ?? '')
-              .toString()
-              .trim();
-
-      // --------------------------------------------------------
-      // مطابقة العميل (مع تفعيل مطابقة مرنة لتفادي الفوارق البسيطة)
-      // --------------------------------------------------------
-
-      final bool hasLocalPhone = user.phone.isNotEmpty;
-      final bool hasCloudPhone = cloudPhone.isNotEmpty;
-      final bool hasLocalMox = user.moxId.isNotEmpty;
-      final bool hasCloudMox = cloudMoxId.isNotEmpty;
-
-      final bool phoneMatched =
-          hasLocalPhone &&
-          hasCloudPhone &&
-          (cloudPhone == user.phone ||
-              cloudPhone.contains(user.phone) ||
-              user.phone.contains(cloudPhone));
-      final bool moxMatched =
-          hasLocalMox &&
-          hasCloudMox &&
-          (cloudMoxId.toUpperCase() == user.moxId.toUpperCase());
-
-      // إذا لم يتوفر هاتف أو موكس كافي للمطابقة الحرفية، نسمح بالمرور إذا كانت البيانات مستهدفة خصيصاً بهذا الـ Guardian
-      final bool matched =
-          phoneMatched || moxMatched || (!hasLocalPhone && !hasLocalMox);
-
-      if (!matched) {
-        debugPrint('⚠️ [Vercel Store] البيانات لا تطابق العميل الحالي');
-        debugPrint('   Local phone: ${user.phone} | Cloud phone: $cloudPhone');
-        debugPrint('   Local moxId: ${user.moxId} | Cloud moxId: $cloudMoxId');
-        return;
-      }
-      // --------------------------------------------------------
-      // guardianMoxId
-      // --------------------------------------------------------
-
-      final String cloudGuardian = (cloudUser['guardianMoxId'] ?? '')
+      // تحديث البيانات بأمان تام
+      final String cloudPhone = (cloudUser['phone'] ?? cloudUser['PHONE'] ?? '')
+          .toString()
+          .trim();
+      final String cloudMoxId = (cloudUser['moxId'] ?? cloudUser['MOXID'] ?? '')
           .toString()
           .trim();
 
-      if (cloudGuardian.isNotEmpty &&
-          cloudGuardian.toLowerCase() != 'null' &&
-          cloudGuardian.toLowerCase() != 'undefined') {
+      if (cloudPhone.isNotEmpty) user.phone = cloudPhone;
+      if (cloudMoxId.isNotEmpty) user.moxId = cloudMoxId.toUpperCase();
+
+      final String cloudGuardian =
+          (cloudUser['guardianMoxId'] ?? cloudUser['GUARDIANMOXID'] ?? '')
+              .toString()
+              .trim();
+      if (cloudGuardian.isNotEmpty && cloudGuardian.toLowerCase() != 'null') {
         user.guardianMoxId = cloudGuardian.toUpperCase();
       }
-
-      // --------------------------------------------------------
-      // password
-      // --------------------------------------------------------
 
       final String cloudPassword = (cloudUser['password'] ?? '')
           .toString()
           .trim();
-
-      if (cloudPassword.isNotEmpty &&
-          cloudPassword.toLowerCase() != 'null' &&
-          cloudPassword.toLowerCase() != 'undefined') {
+      if (cloudPassword.isNotEmpty && cloudPassword.toLowerCase() != 'null') {
         user.password = cloudPassword;
       }
 
-      // --------------------------------------------------------
-      // storePublishDate
-      // --------------------------------------------------------
-
-      final String cloudPublishDate = (cloudUser['storePublishDate'] ?? '')
-          .toString()
-          .trim();
-
+      final String cloudPublishDate =
+          (cloudUser['storePublishDate'] ?? cloudUser['storepublishdate'] ?? '')
+              .toString()
+              .trim();
       if (cloudPublishDate.isNotEmpty &&
-          cloudPublishDate.toLowerCase() != 'null' &&
-          cloudPublishDate.toLowerCase() != 'undefined') {
+          cloudPublishDate.toLowerCase() != 'null') {
         user.storePublishDate = cloudPublishDate;
       }
 
-      debugPrint('✅ [Vercel Store] تم تحديث بيانات ${user.name}');
-    } catch (e) {
       debugPrint(
-        '⚠️ [Vercel Store Warning] '
-        'فشل جلب أحدث بيانات العميل: $e',
+        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام للمستخدم: ${user.name}',
       );
-
-      // مهم:
-      // لا نرمي الخطأ هنا.
-      //
-      // لأن فشل Vercel لا يجب أن يمنع
-      // حفظ البيانات الموجودة لدى التطبيق.
+    } catch (e, stackTrace) {
+      debugPrint(
+        '❌ [Vercel Store Exception] حدث استثناء خطير أثناء جلب بيانات العميل: $e',
+      );
+      debugPrint('📍 StackTrace: $stackTrace');
     }
   }
 
