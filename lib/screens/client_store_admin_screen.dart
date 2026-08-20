@@ -86,15 +86,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   // ignore: unused_element
   static IconData getIconData(String iconName) {
-    // نبحث في القائمة عن الاسم المطابق
     final item = _availableIcons.firstWhere(
       (element) => element['name'] == iconName,
-      orElse: () => {"icon": Icons.star}, // القيمة الافتراضية إذا فشل العثور
+      orElse: () => {"icon": Icons.star},
     );
     return item['icon'];
   }
+
   // ============================================================
-  // 🧱 البطاقات الخمس
+  // 🧱 البطاقات الخمس الأساسية
   // ============================================================
 
   final List<Map<String, dynamic>> _resolvedCards = [
@@ -134,120 +134,368 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   ];
 
   // ============================================================
-  // ⚙️ حالة البطاقات
+  // ⚙️ حالة البطاقات والتحكم
   // ============================================================
 
   final Map<String, bool> _cardActivationStatus = {};
-
   final Map<String, String> _cardCategories = {};
-
   final Map<String, IconData> _cardSelectedIcons = {};
 
-  // ============================================================
-  // 🎛️ Controllers الخاصة بالبطاقات
-  // ============================================================
-
   final Map<String, TextEditingController> _cardTitleControllers = {};
-
   final Map<String, TextEditingController> _cardDescControllers = {};
-
   final Map<String, TextEditingController> _cardPriceControllers = {};
-
   final Map<String, TextEditingController> _cardWhatsappControllers = {};
-
   final Map<String, TextEditingController> _cardDetailsLinkControllers = {};
 
   // ============================================================
-  // 🔐 الحالة
+  // 🔐 الحالة ومتغيرات المتجر العام الجديد
   // ============================================================
 
   bool _isAuthorized = false;
-
   bool _isPublishing = false;
-
   bool _isSubscriptionExpired = false;
-
   // ignore: unused_field
   int _activationButtonState = 0;
 
-  // نحتفظ بنسخة حية من المستخدم
-  // حتى لا تظل المعاينة تعتمد على widget.user القديمة.
+  bool _storeLoading = false;
+  String? _publicGuardianMoxId;
+  UserModel? _publicUser;
+  bool _publicLoadFinished = false;
+
   late UserModel _liveUser;
 
   // ============================================================
-  // 🚀 INIT
+  // 🚀 INIT & التهيئة الذكية
   // ============================================================
 
   @override
   void initState() {
     super.initState();
-
     _liveUser = widget.user;
 
-    _initializeControllers();
+    _publicGuardianMoxId =
+        widget.directMoxId?.trim().toUpperCase() ??
+        StoreUrlHelper.extractGuardianMoxId()?.trim().toUpperCase() ??
+        widget.user.guardianMoxId?.trim().toUpperCase();
 
-    _initializeCards();
+    _initializeStore();
+  }
 
-    _initializeSubscription();
+  Future<void> _initializeStore() async {
+    if (widget.isPublic) {
+      await _loadPublicStore();
+      return;
+    }
 
-    _updateStoreLink();
+    await _loadPrivateStore();
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+  // ============================================================
+  // 🌐 تحميل المتجر العام من Vercel / Cloud مباشرة
+  // ============================================================
+
+  Future<void> _loadPublicStore() async {
+    if (_publicLoadFinished) return;
+
+    final String guardianId = (_publicGuardianMoxId ?? '').trim().toUpperCase();
+
+    if (guardianId.isEmpty) {
+      setState(() {
+        _publicLoadFinished = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _storeLoading = true;
+    });
+
+    try {
+      // الاعتماد المطلق على Vercel و StorageService عبر guardianMoxId
+      final UserModel? user = await StorageService.getUserByGuardianMoxId(
+        guardianId,
+      );
+
       if (!mounted) return;
 
-      if (widget.isPublic) {
+      if (user == null) {
+        debugPrint('❌ [STORE PUBLIC] لم يتم العثور على المتجر: $guardianId');
         setState(() {
-          _isAuthorized = true;
+          _publicUser = null;
+          _publicLoadFinished = true;
+          _storeLoading = false;
         });
-
-        // 🚀 استدعاء الهوية والجلب من المساعد الخارجي بكل سهولة ونظافة
-        final String? urlGuardian = StoreUrlHelper.extractGuardianMoxId();
-
-        String? targetId;
-        if (urlGuardian != null && urlGuardian.isNotEmpty) {
-          targetId = urlGuardian;
-        } else if (widget.directMoxId != null &&
-            widget.directMoxId!.isNotEmpty) {
-          targetId = widget.directMoxId!;
-        }
-
-        if (targetId != null) {
-          final UserModel? updatedUser =
-              await StoreUrlHelper.fetchStoreFromCloud(targetId);
-          if (updatedUser != null && mounted) {
-            setState(() {
-              _liveUser = updatedUser;
-              _initializeControllers();
-              _initializeCards();
-            });
-          }
-        }
-
         return;
       }
 
+      debugPrint('✅ [STORE PUBLIC] تم تحميل: ${user.name}');
+      setState(() {
+        _publicUser = user;
+        _liveUser = user;
+        _publicLoadFinished = true;
+        _storeLoading = false;
+      });
+
+      _initializeControllers();
+      _loadUserAssetsFromUser(user);
+    } catch (e) {
+      debugPrint('❌ [STORE PUBLIC] $e');
+      if (!mounted) return;
+      setState(() {
+        _publicUser = null;
+        _publicLoadFinished = true;
+        _storeLoading = false;
+      });
+    }
+  }
+
+  // ============================================================
+  // 🔒 تحميل المتجر الخاص (الإدارة)
+  // ============================================================
+
+  Future<void> _loadPrivateStore() async {
+    setState(() {
+      _storeLoading = true;
+    });
+
+    try {
+      final UserModel? user = await StorageService.getUser();
+      if (!mounted) return;
+
+      if (user != null) {
+        setState(() {
+          _liveUser = user;
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ [STORE PRIVATE] $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _storeLoading = false;
+        });
+      }
+    }
+
+    _initializeControllers();
+    _initializeCards();
+    _initializeSubscription();
+    _updateStoreLink();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _showSecurityLoginDialog();
     });
   }
 
-  Future<UserModel?> _findUserFromGoogle(String enteredMox) async {
-    final String normalized = enteredMox.trim().toUpperCase();
+  // ============================================================
+  // 📝 تهيئة المتحكمات
+  // ============================================================
 
-    if (normalized.isEmpty) {
-      return null;
+  void _initializeControllers() {
+    _phoneController.text = _liveUser.phone;
+    _storeNameController.text = _liveUser.name;
+    _businessCategoryController.text = _liveUser.address;
+    _descriptionController.text = _liveUser.storeDescription;
+
+    if (_descriptionController.text.trim().isEmpty &&
+        _liveUser.myAssets.isNotEmpty) {
+      _descriptionController.text = _liveUser.myAssets.first.description;
+    }
+  }
+
+  // ============================================================
+  // 🛒 توحيد تحميل البطاقات والأصول
+  // ============================================================
+
+  void _loadUserAssetsFromUser(UserModel user) {
+    final List<MarketingCard> assets = List<MarketingCard>.from(user.myAssets);
+
+    setState(() {
+      for (final MarketingCard card in assets) {
+        final String title = card.title.trim();
+        if (title.isEmpty) continue;
+        _cardActivationStatus[title] = true;
+      }
+    });
+  }
+
+  void _initializeCards() {
+    for (int index = 0; index < _resolvedCards.length; index++) {
+      final cardData = _resolvedCards[index];
+      final String titleKey = cardData['title'].toString();
+
+      MarketingCard? existingAsset;
+      try {
+        existingAsset = _liveUser.myAssets.firstWhere(
+          (asset) => asset.title.trim() == titleKey.trim(),
+        );
+      } catch (_) {
+        existingAsset = null;
+      }
+
+      if (existingAsset == null && index < _liveUser.myAssets.length) {
+        existingAsset = _liveUser.myAssets[index];
+      }
+
+      final bool isActive = existingAsset != null;
+      _cardActivationStatus[titleKey] = isActive;
+      _cardCategories[titleKey] =
+          existingAsset?.category ??
+          cardData['category']?.toString() ??
+          'بطاقة';
+      _cardSelectedIcons[titleKey] = Icons.shopping_bag;
+
+      _cardTitleControllers[titleKey] = TextEditingController(
+        text: existingAsset?.title ?? titleKey,
+      );
+      _cardDescControllers[titleKey] = TextEditingController(
+        text:
+            existingAsset?.description ??
+            cardData['description']?.toString() ??
+            '',
+      );
+      _cardPriceControllers[titleKey] = TextEditingController(
+        text: (existingAsset?.price ?? cardData['price'] ?? 0.0).toString(),
+      );
+      _cardWhatsappControllers[titleKey] = TextEditingController(
+        text: existingAsset?.whatsapp.isNotEmpty == true
+            ? existingAsset!.whatsapp
+            : (_liveUser.customWhatsApp ?? _liveUser.phone),
+      );
+      _cardDetailsLinkControllers[titleKey] = TextEditingController(
+        text: existingAsset?.facebookUrl ?? '',
+      );
+    }
+  }
+
+  // ============================================================
+  // ⏳ الاشتراك وإدارته
+  // ============================================================
+
+  void _initializeSubscription() {
+    final String? publishDate = _liveUser.storePublishDate;
+    if (publishDate == null ||
+        publishDate.trim().isEmpty ||
+        publishDate == "null") {
+      _isSubscriptionExpired = false;
+      _activationButtonState = 0;
+      return;
     }
 
+    _isSubscriptionExpired = _checkIf365DaysExpired(publishDate);
+    _activationButtonState = _isSubscriptionExpired ? 0 : 1;
+  }
+
+  bool _checkIf365DaysExpired(String? publishDateStr) {
+    if (publishDateStr == null ||
+        publishDateStr.trim().isEmpty ||
+        publishDateStr == "null") {
+      return false;
+    }
+    try {
+      final DateTime publishDate = DateTime.parse(publishDateStr);
+      final DateTime expiryDate = publishDate.add(
+        const Duration(days: _subscriptionDays),
+      );
+      return DateTime.now().isAfter(expiryDate);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  int _getRemainingDays() {
+    final String? date = _liveUser.storePublishDate;
+    if (date == null || date.trim().isEmpty || date == "null") {
+      return _subscriptionDays;
+    }
+    try {
+      final DateTime publishDate = DateTime.parse(date);
+      final DateTime expiryDate = publishDate.add(
+        const Duration(days: _subscriptionDays),
+      );
+      final Duration difference = expiryDate.difference(DateTime.now());
+      if (difference.isNegative) return 0;
+      final int days = difference.inHours ~/ 24;
+      return days > 0 ? days : 1;
+    } catch (_) {
+      return _subscriptionDays;
+    }
+  }
+
+  Future<void> _startSubscription() async {
+    final String? existingDate = _liveUser.storePublishDate;
+    if (existingDate != null &&
+        existingDate.trim().isNotEmpty &&
+        existingDate != "null") {
+      return;
+    }
+
+    final String startDate = DateTime.now().toIso8601String();
+    final UserModel activatedUser = _liveUser.copyWith(
+      storePublishDate: startDate,
+      role: 'reviewed_active',
+    );
+
+    try {
+      await StorageService.updateUserPartial(activatedUser);
+      _liveUser = activatedUser;
+
+      if (!mounted) return;
+      setState(() {
+        _isSubscriptionExpired = false;
+        _activationButtonState = 1;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🚀 تم تشغيل المتجر بنجاح — بدأت مدة الـ365 يوماً."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("❌ حدث خطأ أثناء بدء الاشتراك: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ============================================================
+  // 🔗 رابط المتجر العام
+  // ============================================================
+
+  void _updateStoreLink() {
+    final String guardianMox =
+        (widget.user.guardianMoxId ?? _publicGuardianMoxId ?? '').trim();
+    if (guardianMox.isEmpty ||
+        guardianMox == 'null' ||
+        guardianMox == 'لم يحدد') {
+      _linkController.text = '';
+      return;
+    }
+    _linkController.text = 'https://mox-2026.vercel.app/store/$guardianMox';
+  }
+
+  // ============================================================
+  // 🔐 الأمان وتسجيل الدخول المحلي
+  // ============================================================
+
+  Future<UserModel?> _findUserFromGoogle(String enteredMox) async {
+    final String normalized = enteredMox.trim().toUpperCase();
+    if (normalized.isEmpty) return null;
     try {
       return await StorageService.getUserByMoxId(normalized);
     } catch (e) {
-      debugPrint('❌ [_findUserFromGoogle] $e');
       return null;
     }
   }
 
   Future<void> _showSecurityLoginDialog() async {
     final TextEditingController securityController = TextEditingController();
-
     if (!mounted) return;
 
     await showDialog(
@@ -278,8 +526,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم موكس الخاص بك  لتأكيد صلاحية الوصول.",
-                style: TextStyle(fontSize: 12, color: Colors.black87),
+                "أدخل رقم موكس الخاص بك لتأكيد صلاحية الوصول.",
+                style: TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 15),
               TextField(
@@ -315,25 +563,19 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 final bool matched =
                     entered.isNotEmpty &&
                     (entered == localMox || entered == guardianMox);
-
                 if (matched) {
-                  setState(() {
-                    _isAuthorized = true;
-                  });
+                  setState(() => _isAuthorized = true);
                   return;
                 }
 
                 final UserModel? remoteUser = await _findUserFromGoogle(
                   entered,
                 );
-
                 if (remoteUser != null &&
                     (remoteUser.moxId.trim().toUpperCase() == localMox ||
                         (remoteUser.guardianMoxId ?? '').trim().toUpperCase() ==
                             guardianMox)) {
-                  setState(() {
-                    _isAuthorized = true;
-                  });
+                  setState(() => _isAuthorized = true);
                   return;
                 }
 
@@ -351,262 +593,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         );
       },
     );
-
     securityController.dispose();
   }
 
   // ============================================================
-  // 📝 تهيئة بيانات المتجر
-  // ============================================================
-
-  void _initializeControllers() {
-    _phoneController.text = _liveUser.phone;
-
-    _storeNameController.text = _liveUser.name;
-
-    _businessCategoryController.text = _liveUser.address;
-
-    _descriptionController.text = _liveUser.storeDescription;
-
-    // إذا لم يكن هناك وصف مستقل، نستخدم وصف أول أصل
-    // كحل توافق مع البيانات القديمة.
-    if (_descriptionController.text.trim().isEmpty &&
-        _liveUser.myAssets.isNotEmpty) {
-      _descriptionController.text = _liveUser.myAssets.first.description;
-    }
-  }
-
-  // ============================================================
-  // 🛒 تهيئة البطاقات
-  // ============================================================
-
-  void _initializeCards() {
-    for (int index = 0; index < _resolvedCards.length; index++) {
-      final cardData = _resolvedCards[index];
-
-      final String titleKey = cardData['title'].toString();
-
-      MarketingCard? existingAsset;
-
-      // أولاً: محاولة المطابقة بالعنوان
-      try {
-        existingAsset = _liveUser.myAssets.firstWhere(
-          (asset) => asset.title.trim() == titleKey.trim(),
-        );
-      } catch (_) {
-        existingAsset = null;
-      }
-
-      // ثانياً: fallback بالموقع
-      if (existingAsset == null && index < _liveUser.myAssets.length) {
-        existingAsset = _liveUser.myAssets[index];
-      }
-
-      final bool isActive = existingAsset != null;
-
-      _cardActivationStatus[titleKey] = isActive;
-
-      _cardCategories[titleKey] =
-          existingAsset?.category ??
-          cardData['category']?.toString() ??
-          'بطاقة';
-
-      _cardSelectedIcons[titleKey] = Icons.shopping_bag;
-
-      _cardTitleControllers[titleKey] = TextEditingController(
-        text: existingAsset?.title ?? titleKey,
-      );
-
-      _cardDescControllers[titleKey] = TextEditingController(
-        text:
-            existingAsset?.description ??
-            cardData['description']?.toString() ??
-            '',
-      );
-
-      _cardPriceControllers[titleKey] = TextEditingController(
-        text: (existingAsset?.price ?? cardData['price'] ?? 0.0).toString(),
-      );
-
-      _cardWhatsappControllers[titleKey] = TextEditingController(
-        text: existingAsset?.whatsapp.isNotEmpty == true
-            ? existingAsset!.whatsapp
-            : (_liveUser.customWhatsApp ?? _liveUser.phone),
-      );
-
-      _cardDetailsLinkControllers[titleKey] = TextEditingController(
-        text: existingAsset?.facebookUrl ?? '',
-      );
-    }
-  }
-
-  // ============================================================
-  // ⏳ الاشتراك
-  // ============================================================
-
-  void _initializeSubscription() {
-    final String? publishDate = _liveUser.storePublishDate;
-
-    // المتجر لم يبدأ اشتراكه بعد
-    if (publishDate == null ||
-        publishDate.trim().isEmpty ||
-        publishDate == "null") {
-      _isSubscriptionExpired = false;
-      _activationButtonState = 0;
-      return;
-    }
-
-    // لديه تاريخ بداية
-    _isSubscriptionExpired = _checkIf365DaysExpired(publishDate);
-
-    // 1 = الاشتراك فعال
-    // 0 = غير فعال / لم يبدأ أو انتهى
-    _activationButtonState = _isSubscriptionExpired ? 0 : 1;
-  }
-
-  // ============================================================
-  // 🔍 فحص انتهاء الـ365 يوماً
-  // ============================================================
-
-  bool _checkIf365DaysExpired(String? publishDateStr) {
-    if (publishDateStr == null ||
-        publishDateStr.trim().isEmpty ||
-        publishDateStr == "null") {
-      return false;
-    }
-
-    try {
-      final DateTime publishDate = DateTime.parse(publishDateStr);
-
-      final DateTime expiryDate = publishDate.add(
-        const Duration(days: _subscriptionDays),
-      );
-
-      return DateTime.now().isAfter(expiryDate);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // ============================================================
-  // 📅 الأيام المتبقية
-  // ============================================================
-
-  int _getRemainingDays() {
-    final String? date = _liveUser.storePublishDate;
-
-    // لم يبدأ الاشتراك بعد
-    if (date == null || date.trim().isEmpty || date == "null") {
-      return _subscriptionDays;
-    }
-
-    try {
-      final DateTime publishDate = DateTime.parse(date);
-
-      final DateTime expiryDate = publishDate.add(
-        const Duration(days: _subscriptionDays),
-      );
-
-      final Duration difference = expiryDate.difference(DateTime.now());
-
-      if (difference.isNegative) {
-        return 0;
-      }
-
-      // نضمن ظهور 365 في البداية بدلاً من 364
-      final int days = difference.inHours ~/ 24;
-
-      return days > 0 ? days : 1;
-    } catch (_) {
-      return _subscriptionDays;
-    }
-  }
-
-  // ============================================================
-  // 🚀 بدء الاشتراك لأول مرة
-  // ============================================================
-
-  Future<void> _startSubscription() async {
-    // إذا كان هناك اشتراك أصلاً لا نبدأ من جديد
-    final String? existingDate = _liveUser.storePublishDate;
-
-    if (existingDate != null &&
-        existingDate.trim().isNotEmpty &&
-        existingDate != "null") {
-      return;
-    }
-
-    final String startDate = DateTime.now().toIso8601String();
-
-    final UserModel activatedUser = _liveUser.copyWith(
-      storePublishDate: startDate,
-      role: 'reviewed_active',
-    );
-
-    try {
-      await StorageService.updateUserPartial(activatedUser);
-
-      // تحديث النسخة الحية
-      _liveUser = activatedUser;
-
-      if (!mounted) return;
-
-      setState(() {
-        _isSubscriptionExpired = false;
-        _activationButtonState = 1;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🚀 تم تشغيل المتجر بنجاح — بدأت مدة الـ365 يوماً."),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ حدث خطأ أثناء بدء الاشتراك: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // 🔗 رابط المتجر العام
-  // ============================================================
-
-  void _updateStoreLink() {
-    final String guardianMox = (widget.user.guardianMoxId ?? '').trim();
-
-    if (guardianMox.isEmpty ||
-        guardianMox == 'null' ||
-        guardianMox == 'لم يحدد') {
-      _linkController.text = '';
-
-      debugPrint('⚠️ [Store Link] لا توجد guardianMoxId');
-
-      return;
-    }
-
-    final String storeUrl = 'https://mox-2026.vercel.app/store/$guardianMox';
-
-    _linkController.text = storeUrl;
-
-    debugPrint('🔗 [Store Link] الرابط النهائي: $storeUrl');
-  }
-  // ============================================================
-  // 🔐 نافذة الفحص المنبثقة لـ guardianMoxId وإتمام النشر
+  // 🔐 الفحص والنشر الفعلي
   // ============================================================
 
   Future<void> _showStoreValidationDialog(
     List<MarketingCard> updatedAssets,
   ) async {
     final TextEditingController moxController = TextEditingController();
-
     if (!mounted) return;
 
     await showDialog(
@@ -637,15 +634,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "أدخل رقم موكس موكس للتأكد من ربطه بملفك ونشر المتجر.",
-                style: TextStyle(fontSize: 12, color: Colors.black87),
+                "أدخل رقم موكس الخاص بك للتأكد من ربطه بملفك ونشر المتجر.",
+                style: TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 15),
               TextField(
                 controller: moxController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
-                  labelText: "رقم MOX (حسابك الرقمي)",
+                  labelText: "رقم MOX",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.badge),
                   isDense: true,
@@ -655,9 +652,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-              },
+              onPressed: () => Navigator.pop(ctx),
               child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
@@ -666,17 +661,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 final String enteredMox = moxController.text
                     .trim()
                     .toUpperCase();
-
                 final String userMox = _liveUser.moxId.trim().toUpperCase();
                 final String guardianMox = (_liveUser.guardianMoxId ?? '')
                     .trim()
                     .toUpperCase();
 
-                // التأكد من أن الرقم المدخل متطابق محلياً مع ملف العميل
                 final bool moxMatched =
                     enteredMox.isNotEmpty &&
                     (enteredMox == userMox || enteredMox == guardianMox);
-
                 Navigator.pop(ctx);
 
                 if (!moxMatched) {
@@ -684,7 +676,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   return;
                 }
 
-                // إذا تطابق الرقم بنجاح، نبدأ عملية النشر الفعلية
                 await _executeStorePublish(updatedAssets);
               },
               child: const Text(
@@ -699,18 +690,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         );
       },
     );
-
     moxController.dispose();
   }
 
-  // ============================================================
-  // ⚡ التنفيذ الفعلي لحفظ ونشر المتجر بعد نجاح الفحص
-  // ============================================================
-
   Future<void> _executeStorePublish(List<MarketingCard> updatedAssets) async {
-    setState(() {
-      _isPublishing = true;
-    });
+    setState(() => _isPublishing = true);
 
     try {
       final String finalPublishTimestamp =
@@ -730,21 +714,20 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         role: 'reviewed_active',
       );
 
+      // الحفظ عبر المعمارية السليمة المعتمدة
       await StorageService.updateUserPartial(updatedUser);
 
       final UserModel? confirmedUser = await StorageService.getUserByMoxId(
         updatedUser.moxId,
       );
-
       _liveUser = confirmedUser ?? updatedUser;
 
       if (!mounted) return;
-
       setState(() {
         _isPublishing = false;
         _isSubscriptionExpired = false;
         _activationButtonState = 1;
-        _isAuthorized = true; // توثيق الجلسة بعد نجاح الفحص
+        _isAuthorized = true;
       });
 
       _updateStoreLink();
@@ -753,16 +736,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         const SnackBar(
           content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        _isPublishing = false;
-      });
-
+      setState(() => _isPublishing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("❌ حدث خطأ أثناء نشر المتجر: $e"),
@@ -772,13 +750,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
-  // ============================================================
-  // ❌ خطأ الفحص
-  // ============================================================
-
   void _showLuxuryErrorDialog() {
     if (!mounted) return;
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -805,18 +778,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ),
           content: const Text(
             "رقم موكس غير مطابق لبيانات هذا المتجر المحلي.",
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           ),
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-              onPressed: () {
-                Navigator.pop(ctx);
-              },
+              onPressed: () => Navigator.pop(ctx),
               child: const Text("حسناً", style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -826,12 +793,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔑 التفعيل بعد انتهاء الاشتراك
+  // 🔑 التنشيط والتجديد
   // ============================================================
 
   void _showActivationKeyDialog() {
     final TextEditingController keyController = TextEditingController();
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -840,7 +806,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-
           title: const Row(
             children: [
               Icon(Icons.lock_clock, color: Colors.red),
@@ -857,30 +822,19 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
             ],
           ),
-
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 "انتهت مدة الاشتراك البالغة 365 يوماً.",
-                style: TextStyle(fontSize: 12, height: 1.5),
+                style: TextStyle(fontSize: 12),
               ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                "أدخل مفتاح التنشيط لإعادة تشغيل المتجر لمدة 365 يوماً جديدة.",
-                style: TextStyle(fontSize: 12, height: 1.5),
-              ),
-
               const SizedBox(height: 15),
-
               TextField(
                 controller: keyController,
                 maxLength: 40,
                 textCapitalization: TextCapitalization.characters,
-
                 decoration: const InputDecoration(
                   labelText: "مفتاح التنشيط",
                   border: OutlineInputBorder(),
@@ -891,26 +845,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
             ],
           ),
-
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-              },
+              onPressed: () => Navigator.pop(ctx),
               child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
             ),
-
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-
               onPressed: () async {
                 final String enteredKey = keyController.text
                     .trim()
                     .toUpperCase();
-
-                final String correctKey = _sovereignActivationKey.toUpperCase();
-
-                if (enteredKey != correctKey) {
+                if (enteredKey != _sovereignActivationKey.toUpperCase()) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("❌ مفتاح التنشيط غير صحيح."),
@@ -919,12 +865,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                   );
                   return;
                 }
-
                 Navigator.pop(ctx);
-
                 await _renewSubscription();
               },
-
               child: const Text(
                 "تفعيل المتجر",
                 style: TextStyle(
@@ -937,16 +880,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         );
       },
     );
-
     keyController.dispose();
   }
-  // ============================================================
-  // 🔄 تجديد الاشتراك لمدة 365 يوماً
-  // ============================================================
 
   Future<void> _renewSubscription() async {
     final String newDate = DateTime.now().toIso8601String();
-
     final UserModel renewedUser = _liveUser.copyWith(
       storePublishDate: newDate,
       role: 'reviewed_active',
@@ -954,11 +892,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
     try {
       await StorageService.updateUserPartial(renewedUser);
-
       _liveUser = renewedUser;
 
       if (!mounted) return;
-
       setState(() {
         _isSubscriptionExpired = false;
         _activationButtonState = 1;
@@ -968,12 +904,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         const SnackBar(
           content: Text("✅ تم تجديد المتجر لمدة 365 يوماً جديدة."),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("❌ حدث خطأ أثناء حفظ التفعيل: $e"),
@@ -984,7 +918,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🎨 اختيار أيقونة
+  // 🎨 اختيار الأيقونة
   // ============================================================
 
   void _showIconSelectorDialog(String titleKey) {
@@ -1015,27 +949,14 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ),
               itemBuilder: (context, index) {
                 final item = _availableIcons[index];
-
                 final IconData icon = item['icon'];
-
                 final String name = item['name'];
 
                 return InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    setState(() {
-                      _cardSelectedIcons[titleKey] = icon;
-                    });
-
+                    setState(() => _cardSelectedIcons[titleKey] = icon);
                     Navigator.pop(ctx);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("✅ تم اختيار أيقونة $name"),
-                        backgroundColor: Colors.teal,
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -1077,38 +998,30 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🧱 بناء الأصول الحالية
+  // 🧱 بناء الأصول الحالية من واجهة المستخدم
   // ============================================================
 
   List<MarketingCard> _getCurrentAssetsFromUI() {
     final List<MarketingCard> assets = [];
-
     for (final cardData in _resolvedCards) {
       final String titleKey = cardData['title'].toString();
-
       final bool isActive = _cardActivationStatus[titleKey] ?? false;
-
       if (!isActive) continue;
 
       final String title =
           _cardTitleControllers[titleKey]?.text.trim() ?? titleKey;
-
       final String description =
           _cardDescControllers[titleKey]?.text.trim() ?? '';
-
       final double price =
           double.tryParse(
             _cardPriceControllers[titleKey]?.text.trim() ?? '0',
           ) ??
           0.0;
-
       final String whatsapp =
           _cardWhatsappControllers[titleKey]?.text.trim() ??
           _phoneController.text.trim();
-
       final String facebookUrl =
           _cardDetailsLinkControllers[titleKey]?.text.trim() ?? '';
-
       final String category = _cardCategories[titleKey] ?? 'بطاقة';
 
       assets.add(
@@ -1123,13 +1036,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         ),
       );
     }
-
     return assets;
   }
-
-  // ============================================================
-  // 👤 بناء UserModel حي
-  // ============================================================
 
   UserModel _buildLiveUserModel() {
     return _liveUser.copyWith(
@@ -1141,18 +1049,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     );
   }
 
-  // ============================================================
-  // 👁️ المعاينة
-  // ============================================================
-
   void _openStorePreview() {
     if (_isSubscriptionExpired) {
       _showActivationKeyDialog();
       return;
     }
-
     final UserModel liveUser = _buildLiveUserModel();
-
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -1164,10 +1066,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       },
     );
   }
-
-  // ============================================================
-  // 🚀 النشر والحفظ - إطلاق نافذة الفحص المنبثقة
-  // ============================================================
 
   Future<void> _publishStore() async {
     final bool hasSubscription =
@@ -1190,12 +1088,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     final List<MarketingCard> updatedAssets = _getCurrentAssetsFromUI();
-
     if (updatedAssets.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1206,16 +1101,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return;
     }
 
-    // إظهار نافذة الفحص المنبثقة لـ MOX قبل اتمام النشر نهائياً
     _showStoreValidationDialog(updatedAssets);
   }
-  // ============================================================
-  // 📋 نسخ الرابط
-  // ============================================================
 
   void _copyStoreLink() {
     Clipboard.setData(ClipboardData(text: _linkController.text));
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("📋 تم نسخ رابط المتجر."),
@@ -1239,40 +1129,31 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     for (final controller in _cardTitleControllers.values) {
       controller.dispose();
     }
-
     for (final controller in _cardDescControllers.values) {
       controller.dispose();
     }
-
     for (final controller in _cardPriceControllers.values) {
       controller.dispose();
     }
-
     for (final controller in _cardWhatsappControllers.values) {
       controller.dispose();
     }
-
     for (final controller in _cardDetailsLinkControllers.values) {
       controller.dispose();
     }
-
     super.dispose();
   }
 
   // ============================================================
-  // 🧩 CARD UI
+  // 🧩 تصميم البطاقات (UI)
   // ============================================================
 
   Widget _buildMarketingCard(Map<String, dynamic> cardData) {
     final String titleKey = cardData['title'].toString();
-
     final bool isChecked = _cardActivationStatus[titleKey] ?? false;
-
     final String category = _cardCategories[titleKey] ?? 'بطاقة';
-
     final IconData selectedIcon =
         _cardSelectedIcons[titleKey] ?? Icons.shopping_bag;
-
     final bool canEditCards = _isAuthorized;
 
     return Card(
@@ -1290,7 +1171,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // رأس البطاقة
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1319,13 +1199,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     ],
                     onChanged: canEditCards
                         ? (value) {
-                            if (value == null) {
-                              return;
-                            }
-
-                            setState(() {
-                              _cardCategories[titleKey] = value;
-                            });
+                            if (value == null) return;
+                            setState(() => _cardCategories[titleKey] = value);
                           }
                         : null,
                   ),
@@ -1343,24 +1218,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       value: isChecked,
                       activeColor: _primaryColor,
                       onChanged: canEditCards
-                          ? (value) {
-                              setState(() {
-                                _cardActivationStatus[titleKey] =
-                                    value ?? false;
-                              });
-                            }
+                          ? (value) => setState(
+                              () => _cardActivationStatus[titleKey] =
+                                  value ?? false,
+                            )
                           : null,
                     ),
                   ],
                 ),
               ],
             ),
-
             const Divider(),
-
             const SizedBox(height: 8),
-
-            // الأيقونة + العنوان والوصف
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1394,9 +1263,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 12),
-
                 Expanded(
                   child: Column(
                     children: [
@@ -1425,10 +1292,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // السعر والواتساب
             Row(
               children: [
                 Expanded(
@@ -1464,17 +1328,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 5),
-
             const Text(
               "اكتب رقم واتساب بالصيغة الدولية بدون +",
               style: TextStyle(fontSize: 9, color: Colors.grey),
             ),
-
             const SizedBox(height: 10),
-
-            // فيسبوك / رابط التفاصيل
             TextFormField(
               controller: _cardDetailsLinkControllers[titleKey],
               onChanged: (_) => setState(() {}),
@@ -1490,10 +1349,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // 🔒 شاشة انتهاء الاشتراك
-  // ============================================================
 
   Widget _buildExpiredScreen() {
     return Scaffold(
@@ -1563,28 +1418,69 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🌐 BUILD
+  // 🌐 BUILD الأساسي
   // ============================================================
 
   @override
   Widget build(BuildContext context) {
-    // ==========================================================
-    // 🌐 العرض العام
-    // ==========================================================
-
+    // ----------------------------------------------------------
+    // 1. عرض المتجر العام عبر Vercel
+    // ----------------------------------------------------------
     if (widget.isPublic) {
+      if (_storeLoading || !_publicLoadFinished) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator(color: _primaryColor)),
+        );
+      }
+
+      final UserModel? publicUser = _publicUser;
+      if (publicUser == null) {
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: _primaryColor,
+            title: const Text(
+              'المتجر الرقمي',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          body: const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.store_mall_directory_outlined,
+                    size: 70,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 18),
+                  Text(
+                    'المتجر غير موجود أو غير متاح حالياً.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
       return StorePreviewWidget(
-        user: _buildLiveUserModel(),
+        user: publicUser,
         allCards: _resolvedCards,
         activeStatus: _cardActivationStatus,
         isPublicView: true,
       );
     }
 
-    // ==========================================================
-    // 🔐 غير مصرح
-    // ==========================================================
-
+    // ----------------------------------------------------------
+    // 2. منطقة الإدارة المحمية
+    // ----------------------------------------------------------
     if (!_isAuthorized) {
       return Scaffold(
         appBar: AppBar(
@@ -1613,17 +1509,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
 
-    // ==========================================================
-    // 🔒 منتهي
-    // ==========================================================
-
     if (_isSubscriptionExpired) {
       return _buildExpiredScreen();
     }
-
-    // ==========================================================
-    // 🚀 الإدارة
-    // ==========================================================
 
     final bool isStoreActive =
         _liveUser.storePublishDate != null &&
@@ -1678,9 +1566,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
-                  // ======================================================
-                  // العنوان
-                  // ======================================================
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -1733,12 +1618,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
-                  // ======================================================
-                  // اسم المتجر
-                  // ======================================================
                   TextFormField(
                     controller: _storeNameController,
                     onChanged: (_) => setState(() {}),
@@ -1747,19 +1627,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.store),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return "يرجى إدخال اسم المتجر";
-                      }
-                      return null;
-                    },
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? "يرجى إدخال اسم المتجر"
+                        : null,
                   ),
-
                   const SizedBox(height: 14),
-
-                  // ======================================================
-                  // المجال
-                  // ======================================================
                   TextFormField(
                     controller: _businessCategoryController,
                     onChanged: (_) => setState(() {}),
@@ -1768,19 +1640,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.category),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return "يرجى تحديد المجال التجاري";
-                      }
-                      return null;
-                    },
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? "يرجى تحديد المجال التجاري"
+                        : null,
                   ),
-
                   const SizedBox(height: 14),
-
-                  // ======================================================
-                  // الهاتف
-                  // ======================================================
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
@@ -1790,19 +1654,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.phone),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().length < 8) {
-                        return "يرجى إدخال رقم هاتف صحيح";
-                      }
-                      return null;
-                    },
+                    validator: (v) => (v == null || v.trim().length < 8)
+                        ? "يرجى إدخال رقم هاتف صحيح"
+                        : null,
                   ),
-
                   const SizedBox(height: 14),
-
-                  // ======================================================
-                  // الوصف
-                  // ======================================================
                   TextFormField(
                     controller: _descriptionController,
                     maxLength: 256,
@@ -1813,51 +1669,37 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.description),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return "يرجى كتابة وصف المتجر";
-                      }
-                      return null;
-                    },
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? "يرجى كتابة وصف المتجر"
+                        : null,
                   ),
-
                   const SizedBox(height: 8),
-
-                  // ======================================================
-                  // حالة المتجر والاشتراك
-                  // ======================================================
                   Builder(
                     builder: (context) {
                       final bool hasSubscription =
                           _liveUser.storePublishDate != null &&
                           _liveUser.storePublishDate!.trim().isNotEmpty &&
                           _liveUser.storePublishDate != "null";
-
                       final bool subscriptionActive =
                           hasSubscription && !_isSubscriptionExpired;
 
                       return Container(
                         padding: const EdgeInsets.all(14),
-
                         decoration: BoxDecoration(
                           color: subscriptionActive
                               ? Colors.green.shade50
                               : Colors.indigo.shade50,
-
                           borderRadius: BorderRadius.circular(14),
-
                           border: Border.all(
                             color: subscriptionActive
                                 ? Colors.green
                                 : _primaryColor,
                           ),
                         ),
-
                         child: Column(
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
                               children: [
                                 Row(
                                   children: [
@@ -1869,17 +1711,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                           ? Colors.green
                                           : _darkColor,
                                     ),
-
                                     const SizedBox(width: 8),
-
                                     Text(
                                       subscriptionActive
                                           ? "المتجر يعمل"
                                           : "المتجر جاهز للتشغيل",
-
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-
                                         color: subscriptionActive
                                             ? Colors.green.shade800
                                             : _darkColor,
@@ -1887,22 +1725,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     ),
                                   ],
                                 ),
-
                                 if (subscriptionActive)
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
                                       vertical: 6,
                                     ),
-
                                     decoration: BoxDecoration(
                                       color: Colors.green,
                                       borderRadius: BorderRadius.circular(20),
                                     ),
-
                                     child: Text(
                                       "متبقي ${_getRemainingDays()} يوم",
-
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -1912,27 +1746,18 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                   ),
                               ],
                             ),
-
-                            // ==================================================
-                            // 🚀 بدء الاشتراك لأول مرة
-                            // ==================================================
                             if (!hasSubscription) ...[
                               const SizedBox(height: 14),
-
                               Container(
                                 width: double.infinity,
-
                                 padding: const EdgeInsets.all(10),
-
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-
                                 child: const Text(
                                   "المتجر جاهز بالكامل. اضغط الزر أدناه عندما تريد بدء مدة الاشتراك. ستبدأ الـ365 يوماً من لحظة الضغط.",
                                   textAlign: TextAlign.center,
-
                                   style: TextStyle(
                                     fontSize: 11,
                                     height: 1.5,
@@ -1940,32 +1765,24 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                   ),
                                 ),
                               ),
-
                               const SizedBox(height: 10),
-
                               SizedBox(
                                 width: double.infinity,
                                 height: 48,
-
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: _primaryColor,
-
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-
                                   onPressed: _startSubscription,
-
                                   icon: const Icon(
                                     Icons.play_circle_fill,
                                     color: Colors.white,
                                   ),
-
                                   label: const Text(
                                     "🚀 بدء تشغيل المتجر — 365 يوماً",
-
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -1975,16 +1792,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                 ),
                               ),
                             ],
-
-                            // ==================================================
-                            // 🔄 الاشتراك فعال
-                            // ==================================================
                             if (subscriptionActive) ...[
                               const SizedBox(height: 8),
-
                               const Align(
                                 alignment: Alignment.centerRight,
-
                                 child: Text(
                                   "✓ الاشتراك فعال ويمكنك الآن حفظ ونشر المتجر.",
                                   style: TextStyle(
@@ -2000,9 +1811,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       );
                     },
                   ),
-                  // ======================================================
-                  // الرابط
-                  // ======================================================
+                  const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -2054,12 +1863,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // ======================================================
-                  // عنوان البطاقات
-                  // ======================================================
                   const Text(
                     "🛒 المنتجات والخدمات",
                     style: TextStyle(
@@ -2068,28 +1872,16 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       color: _darkColor,
                     ),
                   ),
-
                   const SizedBox(height: 5),
-
                   const Text(
                     "فعّل البطاقات التي تريد ظهورها في المتجر العام.",
                     style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
-
                   const SizedBox(height: 10),
-
-                  // ======================================================
-                  // البطاقات
-                  // ======================================================
                   ..._resolvedCards.map(
                     (cardData) => _buildMarketingCard(cardData),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // ======================================================
-                  // المعاينة
-                  // ======================================================
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 48),
@@ -2105,12 +1897,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
-                  // ======================================================
-                  // النشر
-                  // ======================================================
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primaryColor,
@@ -2143,9 +1930,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   const Center(
                     child: Text(
                       "MOX Digital App • المنظومة أونلاين",
@@ -2156,15 +1941,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
                 ],
               ),
             ),
-
-            // ==========================================================
-            // مؤشر الحفظ
-            // ==========================================================
             if (_isPublishing)
               Positioned.fill(
                 child: Container(
