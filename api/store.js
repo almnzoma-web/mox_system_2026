@@ -94,7 +94,7 @@ export default async function handler(request) {
 
     const timeout = setTimeout(() => {
       controller.abort();
-    }, 8000);
+    }, 20000);
 
     let response;
 
