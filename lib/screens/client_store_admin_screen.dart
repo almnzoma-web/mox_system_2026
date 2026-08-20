@@ -238,6 +238,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       _initializeControllers();
       _loadUserAssetsFromUser(user);
+
+      // ✨ الإضافة الضرورية: تحديث حالة الاشتراك وتاريخ النشر القادم من السحابة
+      _initializeSubscription();
     } catch (e) {
       debugPrint('❌ [STORE PUBLIC] $e');
       if (!mounted) return;
