@@ -250,10 +250,34 @@ class UserModel {
   // ============================================================
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // دالة مساعدة للبحث عن المفتاح بغض النظر عن حالة الأحرف
+    T? findKey<T>(List<String> keys) {
+      for (final key in keys) {
+        if (json.containsKey(key) && json[key] != null) {
+          final val = json[key];
+          if (val is T) return val;
+          // محاولة تحويل النوع إذا لزم الأمر
+          if (T == String) return val.toString() as T;
+        }
+      }
+      // البحث غير الحساس لحالة الأحرف (Case-insensitive fallback)
+      for (final entry in json.entries) {
+        for (final key in keys) {
+          if (entry.key.toLowerCase() == key.toLowerCase() &&
+              entry.value != null) {
+            final val = entry.value;
+            if (T == String) return val.toString() as T;
+            return val as T;
+          }
+        }
+      }
+      return null;
+    }
+
     final List<MarketingCard> parsedAssets = [];
 
     try {
-      final rawAssets = json['myAssets'];
+      final rawAssets = findKey<dynamic>(['myAssets', 'myassets', 'MYASSETS']);
 
       if (rawAssets is String && rawAssets.trim().isNotEmpty) {
         final decoded = jsonDecode(rawAssets);
@@ -275,12 +299,19 @@ class UserModel {
     } catch (_) {}
 
     // ==========================================================
-    // DATES
+    // DATES (باستخدام البحث المرن)
     // ==========================================================
 
-    final rawPublishDate = json['storePublishDate']?.toString().trim();
-
-    final rawActivationDate = json['activationDate']?.toString().trim();
+    final rawPublishDate = findKey<String>([
+      'storePublishDate',
+      'storepublishdate',
+      'STORE_PUBLISH_DATE',
+    ])?.trim();
+    final rawActivationDate = findKey<String>([
+      'activationDate',
+      'activationdate',
+      'ACTIVATION_DATE',
+    ])?.trim();
 
     final String? publishDate =
         rawPublishDate != null &&
@@ -295,7 +326,6 @@ class UserModel {
             rawActivationDate != 'null'
         ? rawActivationDate
         : null;
-
     // ==========================================================
     // الهوية الرقمية
     // ==========================================================
