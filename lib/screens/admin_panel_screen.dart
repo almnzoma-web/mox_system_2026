@@ -265,7 +265,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       final http.Response cloudResponse = await http
           .get(uri, headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 20));
 
       debugPrint('☁️ [Vercel Store] HTTP Status: ${cloudResponse.statusCode}');
 
