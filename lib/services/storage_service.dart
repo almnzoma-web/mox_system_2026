@@ -926,6 +926,8 @@ class StorageService {
         } else {
           final dynamic decoded = json.decode(response.body);
 
+          debugPrint('🌐 [RAW VERCEL RESPONSE]: ${response.body}');
+
           if (decoded is Map) {
             final Map<String, dynamic> data = Map<String, dynamic>.from(
               decoded,
