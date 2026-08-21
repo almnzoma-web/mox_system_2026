@@ -970,19 +970,20 @@ class StorageService {
               }
 
               // ========================================================
-              // التعديل الحاسم: تطبيع المفاتيح وضمان قراءة التاريخ والأصول
+              // التعديل الحاسم: تطبيع المفاتيح وضمان قراءة التاريخ والأصول بدقة
               // ========================================================
               final Map<String, dynamic> normalizedMap = {};
               userMap.forEach((key, value) {
                 normalizedMap[key.trim().toLowerCase()] = value;
               });
 
-              // معالجة تاريخ النشر بمختلف احتمالات الحروف
+              // معالجة تاريخ النشر بمختلف احتمالات وحالات الأحرف من السيرفر
               final String pubDate = _clean(
                 normalizedMap['storepublishdate']?.toString() ??
-                    normalizedMap['storePublishDate']?.toString(),
+                    normalizedMap['storePublishDate']?.toString() ??
+                    normalizedMap['store_publish_date']?.toString(),
               );
-              if (pubDate.isNotEmpty) {
+              if (pubDate.isNotEmpty && pubDate.toLowerCase() != 'null') {
                 userMap['storePublishDate'] = pubDate;
               }
 
@@ -1030,10 +1031,6 @@ class StorageService {
               }
             }
 
-            // ------------------------------------------------------
-            // إذا كان API أعاد success=false
-            // ------------------------------------------------------
-
             debugPrint('⚠️ [Public Store] لم يتم العثور على المستخدم: $data');
           }
         }
@@ -1075,101 +1072,12 @@ class StorageService {
 
     return null;
   }
+
   // ============================================================
   // GET USER BY GUARDIAN MOX ID
   // ============================================================
 
   static Future<UserModel?> getUserByGuardianMoxId(String guardianMoxId) async {
     return getUserByMoxId(guardianMoxId);
-  }
-
-  // ============================================================
-  // CLIENT CARDS
-  // ============================================================
-
-  static Future<List<Map<String, dynamic>>> getClientCards(
-    String identifier,
-  ) async {
-    try {
-      final UserModel? user = await getUserByMoxId(identifier);
-
-      if (user != null && user.myAssets.isNotEmpty) {
-        return user.myAssets.map((card) => card.toJson()).toList();
-      }
-    } catch (e) {
-      debugPrint('⚠️ [Client Cards] $e');
-    }
-
-    return [];
-  }
-
-  // ============================================================
-  // FORCE CLOUD REFRESH
-  //
-  // هذه وظيفة إدارية فقط.
-  // ============================================================
-
-  static Future<bool> refreshUsersFromCloud() async {
-    if (_cloudSyncRunning) {
-      return false;
-    }
-
-    _cloudSyncRunning = true;
-
-    try {
-      final List<UserModel>? cloudUsers = await _fetchAllUsersFromCloud();
-
-      if (cloudUsers == null) {
-        return false;
-      }
-
-      registeredUsers = [];
-
-      for (final UserModel user in cloudUsers) {
-        if (!_isValidMoxId(user.moxId)) {
-          continue;
-        }
-
-        if (_isAdminUser(user)) {
-          continue;
-        }
-
-        registeredUsers.add(user);
-      }
-
-      _ensureAdmin();
-
-      await saveUsersList();
-
-      return true;
-    } catch (e) {
-      debugPrint('❌ [Force Cloud Refresh] $e');
-
-      return false;
-    } finally {
-      _cloudSyncRunning = false;
-    }
-  }
-
-  // ============================================================
-  // CLEAR LOCAL USERS
-  // ============================================================
-
-  static Future<void> clearLocalUsers() async {
-    try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-      await prefs.remove(savedUsersKey);
-
-      registeredUsers = [adminUser];
-
-      _isLoaded = true;
-
-      await prefs.setInt(localUsersVersionKey, currentLocalUsersVersion);
-
-      debugPrint('🧹 [Local Clear] تم حذف جميع العملاء من الذاكرة المحلية.');
-    } catch (e) {
-      debugPrint('❌ [Local Clear] $e');
-    }
   }
 }
