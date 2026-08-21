@@ -307,7 +307,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         cloudUser = Map<String, dynamic>.from(data['user']);
       } else if (data['data'] is Map) {
         cloudUser = Map<String, dynamic>.from(data['data']);
-      } else if (data.containsKey('moxId') || data.containsKey('phone')) {
+      } else if (data.containsKey('moxId') ||
+          data.containsKey('MOXID') ||
+          data.containsKey('phone') ||
+          data.containsKey('PHONE')) {
         cloudUser = data;
       }
 
@@ -318,25 +321,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         return;
       }
 
-      final String cloudPhone = (cloudUser['phone'] ?? cloudUser['PHONE'] ?? '')
+      // ========================================================
+      // التوحيد: تحويل جميع المفاتيح إلى أحرف كبيرة (UPPERCASE)
+      // ========================================================
+      final Map<String, dynamic> normalizedCloudUser = cloudUser.map((
+        key,
+        value,
+      ) {
+        return MapEntry(key.trim().toUpperCase(), value);
+      });
+
+      final String cloudPhone = (normalizedCloudUser['PHONE'] ?? '')
           .toString()
           .trim();
-      final String cloudMoxId = (cloudUser['moxId'] ?? cloudUser['MOXID'] ?? '')
+      final String cloudMoxId = (normalizedCloudUser['MOXID'] ?? '')
           .toString()
           .trim();
 
       if (cloudPhone.isNotEmpty) user.phone = cloudPhone;
       if (cloudMoxId.isNotEmpty) user.moxId = cloudMoxId.toUpperCase();
 
-      final String cloudGuardian =
-          (cloudUser['guardianMoxId'] ?? cloudUser['GUARDIANMOXID'] ?? '')
-              .toString()
-              .trim();
+      final String cloudGuardian = (normalizedCloudUser['GUARDIANMOXID'] ?? '')
+          .toString()
+          .trim();
       if (cloudGuardian.isNotEmpty && cloudGuardian.toLowerCase() != 'null') {
         user.guardianMoxId = cloudGuardian.toUpperCase();
       }
 
-      final String cloudPassword = (cloudUser['password'] ?? '')
+      final String cloudPassword = (normalizedCloudUser['PASSWORD'] ?? '')
           .toString()
           .trim();
       if (cloudPassword.isNotEmpty && cloudPassword.toLowerCase() != 'null') {
@@ -344,18 +356,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       }
 
       final String cloudPublishDate =
-          (cloudUser['storePublishDate'] ?? cloudUser['storepublishdate'] ?? '')
-              .toString()
-              .trim();
+          (normalizedCloudUser['STOREPUBLISHDATE'] ?? '').toString().trim();
       if (cloudPublishDate.isNotEmpty &&
           cloudPublishDate.toLowerCase() != 'null') {
         user.storePublishDate = cloudPublishDate;
       }
 
       // ========================================================
-      // التعديل الحاسم: معالجة واستخراج myAssets بدقة تامة
+      // التعديل الحاسم: معالجة واستخراج MYASSETS بدقة تامة
       // ========================================================
-      final dynamic rawAssets = cloudUser['myAssets'] ?? cloudUser['myassets'];
+      final dynamic rawAssets = normalizedCloudUser['MYASSETS'];
       if (rawAssets != null) {
         if (rawAssets is List) {
           user.myAssets = rawAssets
