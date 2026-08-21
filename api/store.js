@@ -20,7 +20,7 @@ export default async function handler(request) {
       .toUpperCase();
 
     const scriptUrl =
-      "https://script.google.com/macros/s/AKfycbxhJ3zItik-LdX3xlAkGtN265-9AIMkAen4muh3BnV_Ua33Iv2qlYA-jPvLe4QDSeCU/exec";
+      "https://script.google.com/macros/s/AKfycbzl7NumkBE1qGI8SiVRA2TrH7Z5X_3ixp0YIAXirErmPl0hqV020h1VWyGC-4ijqSIJ/exec";
 
     // ============================================================
     // تحديد الطلب
