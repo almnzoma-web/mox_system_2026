@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:convert';
 
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
@@ -9,6 +7,8 @@ import '../models/marketing_card.dart';
 class StorePreviewWidget extends StatelessWidget {
   final UserModel user;
 
+  // أبقيتها في الواجهة حتى لا تنكسر الاستدعاءات القديمة،
+  // لكن مصدر الحقيقة للمتجر هو user.myAssets.
   final List<Map<String, dynamic>> allCards;
   final Map<String, bool> activeStatus;
 
@@ -22,23 +22,23 @@ class StorePreviewWidget extends StatelessWidget {
     this.isPublicView = false,
   });
 
-  // 🚀 التعديل الصحيح: جلب معرف الموكس الحقيقي من بيانات المستخدم بدلاً من القيمة الوهمية الفارغة
-  String get guardianMoxId => user.guardianMoxId?.trim() ?? '';
+  // ============================================================
+  // 🆔 معرف المتجر
+  // ============================================================
+
+  String get guardianMoxId {
+    return user.guardianMoxId?.trim() ?? '';
+  }
 
   // ============================================================
-  // STORE PUBLISH DATE
+  // 📅 تاريخ نشر المتجر
   //
-  // ملاحظة مهمة:
-  // التاريخ لم يعد شرطاً لعرض المتجر.
-  //
-  // إذا لم يوجد تاريخ نشر:
-  // المتجر يعتبر نشطاً ولا يتم تعطيله.
-  //
-  // التاريخ يستخدم فقط لحساب انتهاء الاشتراك إذا كان موجوداً.
+  // المصدر الوحيد للاشتراك والانتهاء.
+  // activationDate لا علاقة له بهذا المنطق.
   // ============================================================
 
   DateTime? _getPublishDate() {
-    final value = user.storePublishDate?.trim() ?? '';
+    final String value = user.storePublishDate?.trim() ?? '';
 
     if (value.isEmpty || value == 'null') {
       return null;
@@ -52,16 +52,11 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // EXPIRY DATE
-  //
-  // سنة واحدة من تاريخ نشر المتجر.
-  //
-  // إذا لم يوجد تاريخ:
-  // لا يوجد تاريخ انتهاء، وبالتالي لا نعطل المتجر.
+  // ⏳ تاريخ انتهاء الاشتراك
   // ============================================================
 
   DateTime? _getExpiryDate() {
-    final publishDate = _getPublishDate();
+    final DateTime? publishDate = _getPublishDate();
 
     if (publishDate == null) {
       return null;
@@ -71,15 +66,14 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // SUBSCRIPTION EXPIRED
+  // 🔴 هل الاشتراك منتهي؟
   //
-  // هذه هي النقطة الوحيدة التي تحدد انتهاء الاشتراك.
+  // storePublishDate فقط.
   // ============================================================
 
   bool _isSubscriptionExpired() {
-    final expiryDate = _getExpiryDate();
+    final DateTime? expiryDate = _getExpiryDate();
 
-    // لا يوجد تاريخ = لا نعطل المتجر.
     if (expiryDate == null) {
       return false;
     }
@@ -88,47 +82,29 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // REMAINING DAYS
-  //
-  // -1 تعني أن المتجر ليس لديه تاريخ انتهاء محدد.
+  // 📊 الأيام المتبقية
   // ============================================================
 
   int _getRemainingDays() {
-    final expiryDate = _getExpiryDate();
+    final DateTime? expiryDate = _getExpiryDate();
 
     if (expiryDate == null) {
       return -1;
     }
 
-    final difference = expiryDate.difference(DateTime.now());
+    final Duration difference = expiryDate.difference(DateTime.now());
 
     if (difference.isNegative) {
       return 0;
     }
 
-    return difference.inDays;
+    final int days = difference.inDays;
+
+    return days > 0 ? days : 1;
   }
 
   // ============================================================
-  // STORE STATUS
-  //
-  // مهم:
-  // عدم وجود storePublishDate لا يعني "غير مفعّل".
-  //
-  // الرابط الصحيح + UserModel صحيح = المتجر يعرض.
-  // الاشتراك المنتهي فقط = تعطيل الطلبات.
-  // ============================================================
-
-  String _getStoreStatus() {
-    if (_isSubscriptionExpired()) {
-      return 'منتهي';
-    }
-
-    return 'نشط';
-  }
-
-  // ============================================================
-  // STATUS LABEL
+  // 🏪 حالة المتجر
   // ============================================================
 
   String _getStatusLabel() {
@@ -136,30 +112,64 @@ class StorePreviewWidget extends StatelessWidget {
       return 'منتهي';
     }
 
-    final remainingDays = _getRemainingDays();
+    final int remainingDays = _getRemainingDays();
 
-    // لا يوجد تاريخ اشتراك محدد.
     if (remainingDays < 0) {
-      return 'لم يمتلك رقم موكس';
+      return 'نشط';
     }
 
     return 'متبقي $remainingDays يوم';
   }
 
   // ============================================================
-  // PUBLIC CARDS
+  // 📅 تنسيق التاريخ للعرض
+  //
+  // activationDate عرض فقط.
+  // لا يدخل في أي شرط.
   // ============================================================
 
-  List<MarketingCard> _getPublicCards() {
-    return user.myAssets.where((card) => card.isApproved).toList();
+  String _formatDisplayDate(String? value) {
+    final String date = value?.trim() ?? '';
+
+    if (date.isEmpty || date == 'null') {
+      return 'غير محدد';
+    }
+
+    try {
+      final DateTime parsed = DateTime.parse(date);
+
+      final String day = parsed.day.toString().padLeft(2, '0');
+
+      final String month = parsed.month.toString().padLeft(2, '0');
+
+      final String year = parsed.year.toString();
+
+      return '$year-$month-$day';
+    } catch (_) {
+      return date;
+    }
   }
 
   // ============================================================
-  // WHATSAPP
+  // 🛒 الأصول / البطاقات
+  //
+  // المصدر الحقيقي الوحيد = user.myAssets
+  // ============================================================
+
+  List<MarketingCard> _getPublicCards() {
+    return user.myAssets
+        .where((MarketingCard card) => card.isApproved)
+        .toList();
+  }
+
+  // ============================================================
+  // 📱 واتساب
+  //
+  // الاشتراك المنتهي يوقف الطلب فقط.
+  // المتجر نفسه لا يختفي.
   // ============================================================
 
   Future<void> _openWhatsApp(String phone) async {
-    // الاشتراك المنتهي يمنع الطلبات فقط.
     if (_isSubscriptionExpired()) {
       return;
     }
@@ -167,16 +177,18 @@ class StorePreviewWidget extends StatelessWidget {
     String cleanPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
 
     if (cleanPhone.isEmpty) {
-      cleanPhone =
-          user.customWhatsApp?.replaceAll(RegExp(r'[^\d]'), '') ??
-          user.phone.replaceAll(RegExp(r'[^\d]'), '');
+      cleanPhone = (user.customWhatsApp ?? '').replaceAll(RegExp(r'[^\d]'), '');
+    }
+
+    if (cleanPhone.isEmpty) {
+      cleanPhone = user.phone.replaceAll(RegExp(r'[^\d]'), '');
     }
 
     if (cleanPhone.isEmpty) {
       return;
     }
 
-    final url = Uri.parse('https://wa.me/$cleanPhone');
+    final Uri url = Uri.parse('https://wa.me/$cleanPhone');
 
     try {
       if (await canLaunchUrl(url)) {
@@ -186,18 +198,17 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // FACEBOOK
-  //
-  // لا يتم تعطيل رابط فيسبوك بسبب انتهاء الاشتراك.
-  // الاشتراك المنتهي يعطل "الطلب" فقط.
+  // 📘 فيسبوك
   // ============================================================
 
   Future<void> _openFacebook(String urlString) async {
-    if (urlString.trim().isEmpty) {
+    final String value = urlString.trim();
+
+    if (value.isEmpty) {
       return;
     }
 
-    final url = Uri.tryParse(urlString.trim());
+    final Uri? url = Uri.tryParse(value);
 
     if (url == null) {
       return;
@@ -211,67 +222,69 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // CARD ICON - الدالة السيادية المعدلة
+  // 🎨 أيقونة البطاقة
   // ============================================================
 
   Widget _buildCardIcon(MarketingCard card) {
-    // 1. استخراج القيمة القادمة سواء كانت category أو iconKey
     final String rawValue =
         (card.category.isNotEmpty ? card.category : card.iconKey).trim();
 
-    // 2. جسر مطابقة النصوص العربية أو المفاتيح الإنجليزية مع الخرائط المعتمدة
     String resolvedKey = 'other';
 
-    // مطابقة الأسماء العربية (إذا كانت مخزنة كعربي في الشيت)
     switch (rawValue) {
       case 'حقيبة تسوق':
       case 'shopping_bag':
         resolvedKey = 'shopping_bag';
         break;
+
       case 'متجر':
       case 'متجر وتجارة':
       case 'store':
         resolvedKey = 'store';
         break;
+
       case 'توصيل':
       case 'local_shipping':
         resolvedKey = 'local_shipping';
         break;
+
       case 'هدية':
       case 'card_giftcard':
         resolvedKey = 'card_giftcard';
         break;
+
       case 'نجمة':
       case 'star':
         resolvedKey = 'star';
         break;
+
       case 'بطاقة':
       case 'credit_card':
         resolvedKey = 'credit_card';
         break;
+
       case 'عرض':
       case 'local_offer':
         resolvedKey = 'local_offer';
         break;
+
       case 'خدمة عملاء':
       case 'headset_mic':
         resolvedKey = 'headset_mic';
         break;
+
       case 'قسم':
       case 'service':
         resolvedKey = 'service';
         break;
+
       default:
-        // إذا كان المفتاح الإنجليزي موجوداً أصلاً في الخريطة
         if (MarketingCard.iconSymbols.containsKey(rawValue)) {
           resolvedKey = rawValue;
-        } else {
-          resolvedKey = 'other';
         }
     }
 
-    // 3. جلب الرمز الإيموجي من القاموس المعتمد لديك
-    final symbol = MarketingCard.iconSymbols[resolvedKey] ?? '⭐';
+    final String symbol = MarketingCard.iconSymbols[resolvedKey] ?? '⭐';
 
     return Container(
       width: 48,
@@ -289,19 +302,167 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // STORE CONTENT
+  // 📦 بطاقة المنتج / الخدمة
+  // ============================================================
+
+  Widget _buildProductCard(
+    BuildContext context,
+    MarketingCard card,
+    bool isExpired,
+  ) {
+    final String whatsapp = card.whatsapp.isNotEmpty
+        ? card.whatsapp
+        : (user.customWhatsApp ?? user.phone);
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCardIcon(card),
+
+                const SizedBox(width: 12),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        card.title.isNotEmpty ? card.title : 'منتج أو خدمة',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Color(0xFF1B6B80),
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      if (card.iconLabel.isNotEmpty)
+                        Row(
+                          children: [
+                            Text(
+                              card.iconSymbol,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              card.iconLabel,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+
+                if (card.price > 0)
+                  Text(
+                    '${card.price}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.green,
+                    ),
+                  ),
+              ],
+            ),
+
+            if (card.category.isNotEmpty) ...[
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF28A9CC).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  card.category,
+                  style: const TextStyle(
+                    color: Color(0xFF1B6B80),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+
+            if (card.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+
+              Text(
+                card.description,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isExpired ? Colors.grey : Colors.green,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      minimumSize: const Size(double.infinity, 38),
+                    ),
+                    onPressed: isExpired ? null : () => _openWhatsApp(whatsapp),
+                    icon: Icon(
+                      isExpired
+                          ? Icons.lock_outline
+                          : Icons.shopping_bag_outlined,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                    label: Text(
+                      isExpired ? 'الطلب متوقف' : 'طلب عبر واتساب',
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+                ),
+
+                if (card.facebookUrl.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+
+                  IconButton(
+                    tooltip: 'فيسبوك',
+                    onPressed: () => _openFacebook(card.facebookUrl),
+                    icon: const Icon(Icons.facebook, color: Color(0xFF1877F2)),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 🏪 جسم المتجر الكامل
   // ============================================================
 
   Widget _buildStoreContent(
     BuildContext context,
     List<MarketingCard> publicCards,
   ) {
-    // ignore: unused_local_variable
-    final remainingDays = _getRemainingDays();
-
-    final storeStatus = _getStoreStatus();
-
-    final isExpired = storeStatus == 'منتهي';
+    final bool isExpired = _isSubscriptionExpired();
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -310,7 +471,7 @@ class StorePreviewWidget extends StatelessWidget {
         child: Column(
           children: [
             // ==================================================
-            // STORE HEADER
+            // 🏪 رأس المتجر
             // ==================================================
             Container(
               width: double.infinity,
@@ -382,11 +543,62 @@ class StorePreviewWidget extends StatelessWidget {
             ),
 
             // ==================================================
-            // STORE STATUS
+            // 📅 تاريخ التفعيل
+            //
+            // عرض فقط.
+            // لا يدخل في حالة المتجر.
+            // لا يدخل في الاشتراك.
+            // ==================================================
+            if (user.activationDate != null &&
+                user.activationDate!.trim().isNotEmpty &&
+                user.activationDate != 'null') ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'تاريخ التفعيل:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1B6B80),
+                          fontSize: 12,
+                        ),
+                      ),
+
+                      Text(
+                        _formatDisplayDate(user.activationDate),
+                        style: const TextStyle(
+                          color: Color(0xFF1B6B80),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            // ==================================================
+            // 🚦 حالة المتجر
+            //
+            // تعتمد فقط على storePublishDate.
             // ==================================================
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
               child: Container(
+                width: double.infinity,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 10,
@@ -431,10 +643,7 @@ class StorePreviewWidget extends StatelessWidget {
             ),
 
             // ==================================================
-            // WHATSAPP
-            //
-            // المتجر يظل ظاهراً حتى بعد انتهاء الاشتراك.
-            // لكن الطلب عبر واتساب يتوقف.
+            // 📱 واتساب المتجر
             // ==================================================
             Padding(
               padding: const EdgeInsets.all(16),
@@ -463,7 +672,7 @@ class StorePreviewWidget extends StatelessWidget {
             ),
 
             // ==================================================
-            // PRODUCTS TITLE
+            // 🛒 عنوان الأصول
             // ==================================================
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -483,10 +692,11 @@ class StorePreviewWidget extends StatelessWidget {
             const SizedBox(height: 10),
 
             // ==================================================
-            // EXPIRED
+            // 🔴 انتهاء الاشتراك
             //
-            // لا نخفي المتجر ولا المنتجات.
-            // فقط نوضح أن الطلبات متوقفة.
+            // لا نخفي المتجر.
+            // لا نخفي الأصول.
+            // نوقف الطلب فقط.
             // ==================================================
             if (isExpired)
               Padding(
@@ -511,9 +721,10 @@ class StorePreviewWidget extends StatelessWidget {
 
                       Expanded(
                         child: Text(
-                          'انتهت مدة الاشتراك. المتجر ظاهر للزوار، '
-                          'لكن استقبال الطلبات متوقف حالياً. '
-                          'يمكن إعادة تفعيل الطلبات بعد التجديد.',
+                          'انتهت مدة الاشتراك. '
+                          'المتجر ظاهر للزوار، '
+                          'لكن استقبال الطلبات '
+                          'متوقف حالياً.',
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             color: Colors.red,
@@ -528,108 +739,19 @@ class StorePreviewWidget extends StatelessWidget {
               ),
 
             // ==================================================
-            // CARDS DISPLAY SECTION (WITH VERCEL API PROXY)
+            // 🛒 الأصول
+            //
+            // المصدر الوحيد = user.myAssets
             // ==================================================
-            if (publicCards.isEmpty) ...[
-              // 🚀 حماية: عدم إرسال الطلب أبداً إذا كان الـ guardianMoxId فارغاً لمنع خطأ الـ Timeout
-              if (guardianMoxId.isEmpty) ...[
-                const Padding(
-                  padding: EdgeInsets.all(30),
-                  child: Text(
-                    '⚠️ رقم معرف المتجر غير متوفر.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.orange, fontSize: 13),
-                  ),
+            if (publicCards.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(30),
+                child: Text(
+                  'لا توجد منتجات أو خدمات منشورة حالياً.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
                 ),
-              ] else ...[
-                // 🚀 جلب بيانات المتجر مباشرة من الـ API الجديد على Vercel
-                FutureBuilder<http.Response>(
-                  future: http.get(
-                    Uri.parse('/api/store').replace(
-                      queryParameters: {'guardianMoxId': guardianMoxId},
-                    ),
-                  ),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (snapshot.hasError ||
-                        !snapshot.hasData ||
-                        snapshot.data!.statusCode != 200) {
-                      return const Padding(
-                        padding: EdgeInsets.all(30),
-                        child: Text(
-                          'لا توجد منتجات أو خدمات منشورة حالياً.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                      );
-                    }
-
-                    try {
-                      // تفكيك الـ JSON القادم من الـ API
-                      final dynamic decoded = jsonDecode(snapshot.data!.body);
-
-                      // استخراج البطاقات بناءً على هيكلة الاستجابة
-                      List<dynamic> rawCards = [];
-                      if (decoded is Map<String, dynamic>) {
-                        rawCards =
-                            decoded['cards'] as List<dynamic>? ??
-                            decoded['data'] as List<dynamic>? ??
-                            [];
-                      } else if (decoded is List) {
-                        rawCards = decoded;
-                      }
-
-                      if (rawCards.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Text(
-                            'لا توجد بطاقات متاحة لهذا المتجر حالياً.',
-                            textAlign: TextAlign.center,
-                          ),
-                        );
-                      }
-
-                      // عرض البطاقات بنفس التصميم السيادي
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: rawCards.length,
-                        itemBuilder: (context, index) {
-                          final cardData = rawCards[index] is Map
-                              ? rawCards[index]
-                              : {};
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 16,
-                            ),
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.star,
-                                color: Colors.amber,
-                              ),
-                              title: Text(
-                                cardData['title'] ?? cardData['name'] ?? '',
-                              ),
-                              subtitle: Text(cardData['description'] ?? ''),
-                              trailing: Text('${cardData['price'] ?? ''}'),
-                            ),
-                          );
-                        },
-                      );
-                    } catch (e) {
-                      return Text('خطأ في معالجة بيانات المتجر: $e');
-                    }
-                  },
-                ),
-              ],
-            ]
-            // ==================================================
-            // CARDS
-            // ==================================================
+              )
             else
               ListView.builder(
                 shrinkWrap: true,
@@ -637,176 +759,10 @@ class StorePreviewWidget extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: publicCards.length,
                 itemBuilder: (context, index) {
-                  final card = publicCards[index];
-
-                  final whatsapp = card.whatsapp.isNotEmpty
-                      ? card.whatsapp
-                      : (user.customWhatsApp ?? user.phone);
-
-                  return Card(
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildCardIcon(card),
-
-                              const SizedBox(width: 12),
-
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      card.title.isNotEmpty
-                                          ? card.title
-                                          : 'منتج أو خدمة',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                        color: Color(0xFF1B6B80),
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 4),
-
-                                    Row(
-                                      children: [
-                                        Text(
-                                          card.iconSymbol,
-                                          style: const TextStyle(fontSize: 12),
-                                        ),
-
-                                        const SizedBox(width: 4),
-
-                                        Text(
-                                          card.iconLabel,
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              if (card.price > 0)
-                                Text(
-                                  '${card.price}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                            ],
-                          ),
-
-                          if (card.category.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF28A9CC,
-                                ).withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                card.category,
-                                style: const TextStyle(
-                                  color: Color(0xFF1B6B80),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-
-                          if (card.description.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-
-                            Text(
-                              card.description,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black87,
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 12),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isExpired
-                                        ? Colors.grey
-                                        : Colors.green,
-                                    disabledBackgroundColor:
-                                        Colors.grey.shade300,
-                                    minimumSize: const Size(
-                                      double.infinity,
-                                      38,
-                                    ),
-                                  ),
-                                  onPressed: isExpired
-                                      ? null
-                                      : () => _openWhatsApp(whatsapp),
-                                  icon: Icon(
-                                    isExpired
-                                        ? Icons.lock_outline
-                                        : Icons.shopping_bag_outlined,
-                                    color: Colors.white,
-                                    size: 17,
-                                  ),
-                                  label: Text(
-                                    isExpired
-                                        ? 'الطلب متوقف'
-                                        : 'طلب عبر واتساب',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              if (card.facebookUrl.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-
-                                IconButton(
-                                  tooltip: 'فيسبوك',
-                                  onPressed: () =>
-                                      _openFacebook(card.facebookUrl),
-                                  icon: const Icon(
-                                    Icons.facebook,
-                                    color: Color(0xFF1877F2),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                  return _buildProductCard(
+                    context,
+                    publicCards[index],
+                    isExpired,
                   );
                 },
               ),
@@ -830,11 +786,11 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // PRIVATE PREVIEW
+  // 🔒 المعاينة الخاصة
   // ============================================================
 
   Widget _buildPrivatePreview(BuildContext context) {
-    final cards = user.myAssets.where((card) => card.isApproved).toList();
+    final List<MarketingCard> cards = _getPublicCards();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -896,7 +852,6 @@ class StorePreviewWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // العرض العام
     if (isPublicView) {
       return Scaffold(
         backgroundColor: Colors.white,
@@ -913,7 +868,6 @@ class StorePreviewWidget extends StatelessWidget {
       );
     }
 
-    // المعاينة داخل لوحة التحكم
     return _buildPrivatePreview(context);
   }
 }

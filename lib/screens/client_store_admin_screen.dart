@@ -223,17 +223,13 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
 
     try {
-      // ==========================================================
-      // 1️⃣ جلب كائن المتجر الكامل
-      // ==========================================================
-
-      final UserModel? cloudUser = await StorageService.getUserByGuardianMoxId(
+      final UserModel? user = await StorageService.getUserByGuardianMoxId(
         guardianId,
       );
 
       if (!mounted) return;
 
-      if (cloudUser == null) {
+      if (user == null) {
         debugPrint('❌ [STORE PUBLIC] لم يتم العثور على المتجر: $guardianId');
 
         setState(() {
@@ -245,47 +241,42 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         return;
       }
 
-      debugPrint(
-        '✅ [STORE PUBLIC] تم تحميل كائن المتجر كاملاً: ${cloudUser.name}',
-      );
-
-      debugPrint('📦 [STORE PUBLIC] عدد الأصول: ${cloudUser.myAssets.length}');
+      debugPrint('✅ [STORE PUBLIC] تم تحميل كائن المتجر كاملاً: ${user.name}');
 
       // ==========================================================
-      // 2️⃣ تحديث الكائن الحي بالكامل
-      // ==========================================================
-
-      _liveUser = cloudUser;
-      _publicUser = cloudUser;
-
-      // ==========================================================
-      // 3️⃣ تهيئة كل أجزاء المتجر من نفس UserModel
-      // ==========================================================
-
-      _initializeControllers();
-
-      _initializeCards();
-
-      _initializeSubscription();
-
-      _updateStoreLink();
-
-      // ==========================================================
-      // 4️⃣ انتهاء التحميل بعد اكتمال كل مكونات الكائن
+      // 🏪 المتجر = UserModel واحد كامل
       // ==========================================================
 
       setState(() {
-        _publicUser = cloudUser;
-        _liveUser = cloudUser;
-
+        _publicUser = user;
+        _liveUser = user;
         _publicLoadFinished = true;
         _storeLoading = false;
       });
 
-      debugPrint('✅ [STORE PUBLIC] المتجر أصبح كائناً واحداً متكاملاً.');
-    } catch (e, stackTrace) {
+      // ==========================================================
+      // التهيئة الخاصة بالعرض
+      // ==========================================================
+
+      _initializeControllers();
+
+      // ==========================================================
+      // الاشتراك يعتمد على storePublishDate فقط
+      // ==========================================================
+
+      _initializeSubscription();
+
+      debugPrint('🏪 STORE: ${user.name}');
+
+      debugPrint('🆔 GUARDIAN: ${user.guardianMoxId}');
+
+      debugPrint('📅 ACTIVATION: ${user.activationDate}');
+
+      debugPrint('🚀 PUBLISH: ${user.storePublishDate}');
+
+      debugPrint('🛒 ASSETS: ${user.myAssets.length}');
+    } catch (e) {
       debugPrint('❌ [STORE PUBLIC] $e');
-      debugPrint('$stackTrace');
 
       if (!mounted) return;
 
@@ -296,7 +287,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       });
     }
   }
-
   // ============================================================
   // 🔒 تحميل المتجر الخاص — لوحة الإدارة
   // ============================================================
