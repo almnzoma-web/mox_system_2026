@@ -61,42 +61,29 @@ class UserModel {
   UserModel({
     required this.phone,
     required this.password,
-
     required this.name,
     required this.address,
-
     this.storeDescription = '',
-
     required this.balance,
     this.commission = 0.0,
-
     required this.gender,
     required this.accountType,
-
     this.moxId = 'ID-005000',
     this.role = 'free',
-
     this.customWhatsApp,
-
     this.guardianMoxId = '',
     this.guardianMoxIdCustomer = 'MOX249-00010001',
-
     this.storePublishDate,
     this.activationDate,
-
     this.points = 0,
-
     this.myAssets = const [],
     this.signedDocuments = const [],
     // ==========================================================
     // التوقيع الرقمي
     // ==========================================================
     this.digitalPublicKey,
-
     this.digitalSignatureAlgorithm = 'Ed25519',
-
     this.digitalSignatureCreatedAt,
-
     this.digitalSignatureKeyVersion = 1,
   });
 
@@ -106,25 +93,18 @@ class UserModel {
 
   UserModel copyWith({
     int? points,
-
     double? balance,
     double? commission,
-
     String? name,
     String? address,
     String? storeDescription,
-
     String? phone,
     String? role,
-
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
-
     String? storePublishDate,
     String? activationDate,
-
     List<MarketingCard>? myAssets,
-
     // ==========================================================
     // التوقيع الرقمي
     // ==========================================================
@@ -135,54 +115,32 @@ class UserModel {
   }) {
     return UserModel(
       phone: phone ?? this.phone,
-
-      // لا يتم تغيير كلمة السر هنا
       password: password,
-
       name: name ?? this.name,
-
       address: address ?? this.address,
-
       storeDescription: storeDescription ?? this.storeDescription,
-
       balance: balance ?? this.balance,
-
       commission: commission ?? this.commission,
-
       gender: gender,
-
       accountType: accountType,
-
       moxId: moxId,
-
       role: role ?? this.role,
-
       customWhatsApp: customWhatsApp,
-
       guardianMoxId: guardianMoxId ?? this.guardianMoxId,
-
       guardianMoxIdCustomer:
           guardianMoxIdCustomer ?? this.guardianMoxIdCustomer,
-
       storePublishDate: storePublishDate ?? this.storePublishDate,
-
       activationDate: activationDate ?? this.activationDate,
-
       points: points ?? this.points,
-
       myAssets: myAssets ?? this.myAssets,
-
       // ========================================================
       // التوقيع الرقمي
       // ========================================================
       digitalPublicKey: digitalPublicKey ?? this.digitalPublicKey,
-
       digitalSignatureAlgorithm:
           digitalSignatureAlgorithm ?? this.digitalSignatureAlgorithm,
-
       digitalSignatureCreatedAt:
           digitalSignatureCreatedAt ?? this.digitalSignatureCreatedAt,
-
       digitalSignatureKeyVersion:
           digitalSignatureKeyVersion ?? this.digitalSignatureKeyVersion,
     );
@@ -215,10 +173,7 @@ class UserModel {
       'points': points,
       'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
       'storePublishDate': storePublishDate ?? '',
-
-      // ✅ الحقل المنسوخ تلقائياً ليذهب إلى قوقل بلا عناء
       'activationDate': effectiveActivation,
-
       'digitalPublicKey': digitalPublicKey ?? '',
       'digitalSignatureAlgorithm': digitalSignatureAlgorithm,
       'digitalSignatureCreatedAt': digitalSignatureCreatedAt ?? '',
@@ -237,11 +192,9 @@ class UserModel {
         if (json.containsKey(key) && json[key] != null) {
           final val = json[key];
           if (val is T) return val;
-          // محاولة تحويل النوع إذا لزم الأمر
           if (T == String) return val.toString() as T;
         }
       }
-      // البحث غير الحساس لحالة الأحرف (Case-insensitive fallback)
       for (final entry in json.entries) {
         for (final key in keys) {
           if (entry.key.toLowerCase() == key.toLowerCase() &&
@@ -280,7 +233,7 @@ class UserModel {
     } catch (_) {}
 
     // ==========================================================
-    // DATES (باستخدام البحث المرن)
+    // DATES (باستخدام البحث المرن والتوريث السيادي)
     // ==========================================================
 
     final rawPublishDate = findKey<String>([
@@ -288,25 +241,27 @@ class UserModel {
       'storepublishdate',
       'STORE_PUBLISH_DATE',
     ])?.trim();
+
     final rawActivationDate = findKey<String>([
       'activationDate',
       'activationdate',
       'ACTIVATION_DATE',
     ])?.trim();
 
-    final String? publishDate =
+    final String? finalPublishDate =
         rawPublishDate != null &&
             rawPublishDate.isNotEmpty &&
             rawPublishDate != 'null'
         ? rawPublishDate
         : null;
 
-    final String? activationDate =
-        rawActivationDate != null &&
+    final String? finalActivationDate =
+        (rawActivationDate != null &&
             rawActivationDate.isNotEmpty &&
-            rawActivationDate != 'null'
+            rawActivationDate != 'null')
         ? rawActivationDate
-        : null;
+        : finalPublishDate;
+
     // ==========================================================
     // الهوية الرقمية
     // ==========================================================
@@ -346,51 +301,30 @@ class UserModel {
 
     return UserModel(
       phone: json['phone']?.toString() ?? '',
-
       password: json['password']?.toString() ?? '',
-
       name: json['name']?.toString() ?? '',
-
       address: json['address']?.toString() ?? '',
-
       storeDescription: json['storeDescription']?.toString() ?? '',
-
       balance: double.tryParse(json['balance']?.toString() ?? '0') ?? 0.0,
-
       commission: double.tryParse(json['commission']?.toString() ?? '0') ?? 0.0,
-
       gender: json['gender']?.toString() ?? '',
-
       accountType: json['accountType']?.toString() ?? '',
-
       moxId: json['moxId']?.toString() ?? 'لم يحدد',
-
       role: json['role']?.toString() ?? 'free',
-
       customWhatsApp: json['customWhatsApp']?.toString(),
-
       guardianMoxId: json['guardianMoxId']?.toString() ?? '',
-
       guardianMoxIdCustomer:
           json['guardianMoxIdCustomer']?.toString() ?? 'MOX249-00010001',
-
-      storePublishDate: publishDate,
-
-      activationDate: activationDate,
-
+      storePublishDate: finalPublishDate,
+      activationDate: finalActivationDate,
       points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
-
       myAssets: parsedAssets,
-
       // ========================================================
       // الهوية الرقمية
       // ========================================================
       digitalPublicKey: publicKey,
-
       digitalSignatureAlgorithm: algorithm,
-
       digitalSignatureCreatedAt: signatureCreatedAt,
-
       digitalSignatureKeyVersion: keyVersion,
     );
   }
