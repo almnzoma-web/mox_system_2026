@@ -935,26 +935,11 @@ class StorageService {
 
             Map<String, dynamic>? rawUser;
 
-            // ------------------------------------------------------
-            // الشكل:
-            // { user: {...} }
-            // ------------------------------------------------------
-
             if (data['user'] is Map) {
               rawUser = Map<String, dynamic>.from(data['user']);
-            }
-            // ------------------------------------------------------
-            // الشكل:
-            // { data: {...} }
-            // ------------------------------------------------------
-            else if (data['data'] is Map) {
+            } else if (data['data'] is Map) {
               rawUser = Map<String, dynamic>.from(data['data']);
-            }
-            // ------------------------------------------------------
-            // الشكل:
-            // user مباشرة داخل response
-            // ------------------------------------------------------
-            else if (data.containsKey('phone') ||
+            } else if (data.containsKey('phone') ||
                 data.containsKey('moxId') ||
                 data.containsKey('MOXID')) {
               rawUser = data;
@@ -972,38 +957,47 @@ class StorageService {
               }
 
               // ========================================================
-              // التعديل الحاسم: تطبيع المفاتيح وضمان قراءة التاريخ والأصول بدقة
+              // التعديل الهندسي الحاسم: تطبيع الماب بالكامل وتوفير المفاتيح بصيغتيها
               // ========================================================
               final Map<String, dynamic> normalizedMap = {};
               userMap.forEach((key, value) {
                 normalizedMap[key.trim().toLowerCase()] = value;
               });
 
-              // معالجة تاريخ النشر بمختلف احتمالات وحالات الأحرف من السيرفر
+              // استخراج تاريخ النشر بكل الاحتمالات الممكنة
               final String pubDate = _clean(
                 normalizedMap['storepublishdate']?.toString() ??
                     normalizedMap['storePublishDate']?.toString() ??
                     normalizedMap['store_publish_date']?.toString(),
               );
+
               if (pubDate.isNotEmpty && pubDate.toLowerCase() != 'null') {
+                // نحدث الكلتين لضمان التقاطها بغض النظر عن طريقة قراءة UserModel
                 userMap['storePublishDate'] = pubDate;
+                userMap['storepublishdate'] = pubDate;
+                userMap['store_publish_date'] = pubDate;
               }
 
-              // معالجة الأصول myAssets بمختلف احتمالات الحروف
+              // استخراج الأصول myAssets بكل الاحتمالات
               final dynamic assets =
                   normalizedMap['myassets'] ?? normalizedMap['myAssets'];
               if (assets != null) {
                 if (assets is List) {
                   userMap['myAssets'] = assets;
+                  userMap['myassets'] = assets;
                 } else if (assets is String && assets.trim().isNotEmpty) {
                   try {
-                    userMap['myAssets'] = json.decode(assets);
+                    final decodedAssets = json.decode(assets);
+                    userMap['myAssets'] = decodedAssets;
+                    userMap['myassets'] = decodedAssets;
                   } catch (_) {
-                    userMap['myAssets'] = assets
+                    final splitAssets = assets
                         .split(',')
                         .map((e) => e.trim())
                         .where((e) => e.isNotEmpty)
                         .toList();
+                    userMap['myAssets'] = splitAssets;
+                    userMap['myassets'] = splitAssets;
                   }
                 }
               }
