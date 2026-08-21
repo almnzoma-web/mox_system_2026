@@ -171,6 +171,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   @override
   void initState() {
     super.initState();
+
     _liveUser = widget.user;
 
     _publicGuardianMoxId =
@@ -181,17 +182,21 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     _initializeStore();
   }
 
+  // ============================================================
+  // 🧠 بوابة التهيئة الرئيسية
+  // ============================================================
+
   Future<void> _initializeStore() async {
     if (widget.isPublic) {
       await _loadPublicStore();
-      return;
+    } else {
+      await _loadPrivateStore();
     }
-
-    await _loadPrivateStore();
   }
 
   // ============================================================
-  // 🌐 تحميل المتجر العام من Vercel / Cloud مباشرة
+  // 🌐 تحميل المتجر العام
+  // المتجر هنا كائن واحد كامل
   // ============================================================
 
   Future<void> _loadPublicStore() async {
@@ -200,50 +205,90 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     final String guardianId = (_publicGuardianMoxId ?? '').trim().toUpperCase();
 
     if (guardianId.isEmpty) {
+      if (!mounted) return;
+
       setState(() {
+        _publicUser = null;
         _publicLoadFinished = true;
+        _storeLoading = false;
       });
+
       return;
     }
 
-    setState(() {
-      _storeLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _storeLoading = true;
+      });
+    }
 
     try {
-      // الاعتماد المطلق على Vercel و StorageService عبر guardianMoxId
-      final UserModel? user = await StorageService.getUserByGuardianMoxId(
+      // ==========================================================
+      // 1️⃣ جلب كائن المتجر الكامل
+      // ==========================================================
+
+      final UserModel? cloudUser = await StorageService.getUserByGuardianMoxId(
         guardianId,
       );
 
       if (!mounted) return;
 
-      if (user == null) {
+      if (cloudUser == null) {
         debugPrint('❌ [STORE PUBLIC] لم يتم العثور على المتجر: $guardianId');
+
         setState(() {
           _publicUser = null;
           _publicLoadFinished = true;
           _storeLoading = false;
         });
+
         return;
       }
 
-      debugPrint('✅ [STORE PUBLIC] تم تحميل: ${user.name}');
+      debugPrint(
+        '✅ [STORE PUBLIC] تم تحميل كائن المتجر كاملاً: ${cloudUser.name}',
+      );
+
+      debugPrint('📦 [STORE PUBLIC] عدد الأصول: ${cloudUser.myAssets.length}');
+
+      // ==========================================================
+      // 2️⃣ تحديث الكائن الحي بالكامل
+      // ==========================================================
+
+      _liveUser = cloudUser;
+      _publicUser = cloudUser;
+
+      // ==========================================================
+      // 3️⃣ تهيئة كل أجزاء المتجر من نفس UserModel
+      // ==========================================================
+
+      _initializeControllers();
+
+      _initializeCards();
+
+      _initializeSubscription();
+
+      _updateStoreLink();
+
+      // ==========================================================
+      // 4️⃣ انتهاء التحميل بعد اكتمال كل مكونات الكائن
+      // ==========================================================
+
       setState(() {
-        _publicUser = user;
-        _liveUser = user;
+        _publicUser = cloudUser;
+        _liveUser = cloudUser;
+
         _publicLoadFinished = true;
         _storeLoading = false;
       });
 
-      _initializeControllers();
-      _loadUserAssetsFromUser(user);
-
-      // ✨ الإضافة الضرورية: تحديث حالة الاشتراك وتاريخ النشر القادم من السحابة
-      _initializeSubscription();
-    } catch (e) {
+      debugPrint('✅ [STORE PUBLIC] المتجر أصبح كائناً واحداً متكاملاً.');
+    } catch (e, stackTrace) {
       debugPrint('❌ [STORE PUBLIC] $e');
+      debugPrint('$stackTrace');
+
       if (!mounted) return;
+
       setState(() {
         _publicUser = null;
         _publicLoadFinished = true;
@@ -253,44 +298,58 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🔒 تحميل المتجر الخاص (الإدارة)
+  // 🔒 تحميل المتجر الخاص — لوحة الإدارة
   // ============================================================
 
   Future<void> _loadPrivateStore() async {
-    setState(() {
-      _storeLoading = true;
-    });
-
-    try {
-      final UserModel? user = await StorageService.getUser();
-      if (!mounted) return;
-
-      if (user != null) {
-        setState(() {
-          _liveUser = user;
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ [STORE PRIVATE] $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _storeLoading = false;
-        });
-      }
+    if (mounted) {
+      setState(() {
+        _storeLoading = true;
+      });
     }
 
-    _initializeControllers();
-    _initializeCards();
-    _initializeSubscription();
-    _updateStoreLink();
+    try {
+      final UserModel? storedUser = await StorageService.getUser();
+
+      if (!mounted) return;
+
+      if (storedUser != null) {
+        _liveUser = storedUser;
+      }
+
+      // ==========================================================
+      // تهيئة المتجر بالكامل من نفس الكائن
+      // ==========================================================
+
+      _initializeControllers();
+
+      _initializeCards();
+
+      _initializeSubscription();
+
+      _updateStoreLink();
+    } catch (e, stackTrace) {
+      debugPrint('❌ [STORE PRIVATE] $e');
+      debugPrint('$stackTrace');
+    } finally {
+      // ignore: control_flow_in_finally
+      if (!mounted) return;
+
+      setState(() {
+        _storeLoading = false;
+      });
+    }
+
+    // ==========================================================
+    // 🔐 فتح حماية الإدارة بعد اكتمال التهيئة
+    // ==========================================================
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+
       _showSecurityLoginDialog();
     });
   }
-
   // ============================================================
   // 📝 تهيئة المتحكمات
   // ============================================================
@@ -311,6 +370,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🛒 توحيد تحميل البطاقات والأصول
   // ============================================================
 
+  // ignore: unused_element
   void _loadUserAssetsFromUser(UserModel user) {
     final List<MarketingCard> assets = List<MarketingCard>.from(user.myAssets);
 
@@ -324,52 +384,107 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   void _initializeCards() {
-    for (int index = 0; index < _resolvedCards.length; index++) {
-      final cardData = _resolvedCards[index];
-      final String titleKey = cardData['title'].toString();
+    // تنظيف الحالة القديمة
+    _cardActivationStatus.clear();
+    _cardCategories.clear();
+    _cardSelectedIcons.clear();
 
-      MarketingCard? existingAsset;
-      try {
-        existingAsset = _liveUser.myAssets.firstWhere(
-          (asset) => asset.title.trim() == titleKey.trim(),
-        );
-      } catch (_) {
-        existingAsset = null;
-      }
+    for (final controller in _cardTitleControllers.values) {
+      controller.dispose();
+    }
 
-      if (existingAsset == null && index < _liveUser.myAssets.length) {
-        existingAsset = _liveUser.myAssets[index];
-      }
+    for (final controller in _cardDescControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardPriceControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardWhatsappControllers.values) {
+      controller.dispose();
+    }
+
+    for (final controller in _cardDetailsLinkControllers.values) {
+      controller.dispose();
+    }
+
+    _cardTitleControllers.clear();
+    _cardDescControllers.clear();
+    _cardPriceControllers.clear();
+    _cardWhatsappControllers.clear();
+    _cardDetailsLinkControllers.clear();
+
+    // ==========================================================
+    // 📦 الأصول الحقيقية القادمة مع UserModel
+    // ==========================================================
+
+    final List<MarketingCard> assets = List<MarketingCard>.from(
+      _liveUser.myAssets,
+    );
+
+    // ==========================================================
+    // 🧠 خريطة الأصول حسب العنوان
+    // ==========================================================
+
+    final Map<String, MarketingCard> assetsByTitle = {};
+
+    for (final MarketingCard asset in assets) {
+      final String key = asset.title.trim();
+
+      if (key.isEmpty) continue;
+
+      assetsByTitle[key.toUpperCase()] = asset;
+    }
+
+    // ==========================================================
+    // 🛒 بناء البطاقات من نفس المصدر
+    // ==========================================================
+
+    for (final cardData in _resolvedCards) {
+      final String titleKey = cardData['title'].toString().trim();
+
+      final MarketingCard? existingAsset =
+          assetsByTitle[titleKey.toUpperCase()];
 
       final bool isActive = existingAsset != null;
+
       _cardActivationStatus[titleKey] = isActive;
+
       _cardCategories[titleKey] =
           existingAsset?.category ??
           cardData['category']?.toString() ??
           'بطاقة';
+
       _cardSelectedIcons[titleKey] = Icons.shopping_bag;
 
       _cardTitleControllers[titleKey] = TextEditingController(
         text: existingAsset?.title ?? titleKey,
       );
+
       _cardDescControllers[titleKey] = TextEditingController(
         text:
             existingAsset?.description ??
             cardData['description']?.toString() ??
             '',
       );
+
       _cardPriceControllers[titleKey] = TextEditingController(
         text: (existingAsset?.price ?? cardData['price'] ?? 0.0).toString(),
       );
+
       _cardWhatsappControllers[titleKey] = TextEditingController(
         text: existingAsset?.whatsapp.isNotEmpty == true
             ? existingAsset!.whatsapp
             : (_liveUser.customWhatsApp ?? _liveUser.phone),
       );
+
       _cardDetailsLinkControllers[titleKey] = TextEditingController(
         text: existingAsset?.facebookUrl ?? '',
       );
     }
+
+    debugPrint('📦 [CARDS INIT] تم توحيد ${assets.length} أصل مع البطاقات.');
   }
 
   // ============================================================
@@ -1431,50 +1546,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     // ----------------------------------------------------------
     if (widget.isPublic) {
       if (_storeLoading || !_publicLoadFinished) {
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator(color: _primaryColor)),
-        );
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
 
-      final UserModel? publicUser = _publicUser;
-      if (publicUser == null) {
-        return Scaffold(
-          appBar: AppBar(
-            backgroundColor: _primaryColor,
-            title: const Text(
-              'المتجر الرقمي',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          body: const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.store_mall_directory_outlined,
-                    size: 70,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(height: 18),
-                  Text(
-                    'المتجر غير موجود أو غير متاح حالياً.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+      if (_publicUser == null) {
+        return const Scaffold(body: Center(child: Text('المتجر غير موجود')));
       }
 
       return StorePreviewWidget(
-        user: publicUser,
+        user: _publicUser!,
         allCards: _resolvedCards,
         activeStatus: _cardActivationStatus,
         isPublicView: true,
