@@ -304,11 +304,17 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       if (!mounted) return;
 
       if (storedUser != null) {
-        _liveUser = storedUser;
+        // ✨ النسخ المباشر والآمن: جعل activationDate ينسخ storePublishDate تلقائياً وبدون شروط
+        final String pubDate = storedUser.storePublishDate ?? '';
+        _liveUser = storedUser.copyWith(
+          activationDate: pubDate.isNotEmpty && pubDate != 'null'
+              ? pubDate
+              : storedUser.activationDate,
+        );
       }
 
       // ==========================================================
-      // تهيئة المتجر بالكامل من نفس الكائن
+      // تهيئة المتجر بالكامل من نفس الكائن المحدث
       // ==========================================================
 
       _initializeControllers();
