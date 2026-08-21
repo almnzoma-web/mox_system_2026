@@ -969,8 +969,44 @@ class StorageService {
                 userMap['moxId'] = userMap['MOXID'];
               }
 
-              final UserModel cloudUser = UserModel.fromJson(userMap);
+              // ========================================================
+              // التعديل الحاسم: تطبيع المفاتيح وضمان قراءة التاريخ والأصول
+              // ========================================================
+              final Map<String, dynamic> normalizedMap = {};
+              userMap.forEach((key, value) {
+                normalizedMap[key.trim().toLowerCase()] = value;
+              });
 
+              // معالجة تاريخ النشر بمختلف احتمالات الحروف
+              final String pubDate = _clean(
+                normalizedMap['storepublishdate']?.toString() ??
+                    normalizedMap['storePublishDate']?.toString(),
+              );
+              if (pubDate.isNotEmpty) {
+                userMap['storePublishDate'] = pubDate;
+              }
+
+              // معالجة الأصول myAssets بمختلف احتمالات الحروف
+              final dynamic assets =
+                  normalizedMap['myassets'] ?? normalizedMap['myAssets'];
+              if (assets != null) {
+                if (assets is List) {
+                  userMap['myAssets'] = assets;
+                } else if (assets is String && assets.trim().isNotEmpty) {
+                  try {
+                    userMap['myAssets'] = json.decode(assets);
+                  } catch (_) {
+                    userMap['myAssets'] = assets
+                        .split(',')
+                        .map((e) => e.trim())
+                        .where((e) => e.isNotEmpty)
+                        .toList();
+                  }
+                }
+              }
+              // ========================================================
+
+              final UserModel cloudUser = UserModel.fromJson(userMap);
               if (_isValidMoxId(cloudUser.moxId)) {
                 if (!_isAdminUser(cloudUser)) {
                   final int index = registeredUsers.indexWhere(
