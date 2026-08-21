@@ -188,59 +188,40 @@ class UserModel {
     );
   }
 
-  // ============================================================
-  // TO JSON
-  // ============================================================
-
   Map<String, dynamic> toJson() {
+    // ✨ ضمان أن activationDate ينسخ storePublishDate تلقائياً عند الرفع لقوقل إذا لم يكن موجوداً
+    final String effectiveActivation =
+        (activationDate != null &&
+            activationDate!.trim().isNotEmpty &&
+            activationDate != 'null')
+        ? activationDate!
+        : (storePublishDate ?? '');
+
     return {
       'phone': phone,
-
-      // للمستخدمين العاديين فقط.
-      // الإدارة في Flutter تحمل كلمة سر فارغة.
       'password': password,
-
       'name': name,
-
       'address': address,
-
       'storeDescription': storeDescription,
-
       'balance': balance,
-
       'commission': commission,
-
       'gender': gender,
-
       'accountType': accountType,
-
       'moxId': moxId,
-
       'role': role,
-
       'customWhatsApp': customWhatsApp ?? '',
-
       'guardianMoxId': guardianMoxId ?? '',
-
       'guardianMoxIdCustomer': guardianMoxIdCustomer ?? '',
-
       'points': points,
-
       'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
-
       'storePublishDate': storePublishDate ?? '',
 
-      'activationDate': activationDate ?? '',
+      // ✅ الحقل المنسوخ تلقائياً ليذهب إلى قوقل بلا عناء
+      'activationDate': effectiveActivation,
 
-      // ========================================================
-      // الهوية الرقمية
-      // ========================================================
       'digitalPublicKey': digitalPublicKey ?? '',
-
       'digitalSignatureAlgorithm': digitalSignatureAlgorithm,
-
       'digitalSignatureCreatedAt': digitalSignatureCreatedAt ?? '',
-
       'digitalSignatureKeyVersion': digitalSignatureKeyVersion,
     };
   }
