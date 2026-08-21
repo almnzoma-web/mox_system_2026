@@ -247,6 +247,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   //
   // ============================================================
 
+  // ============================================================
+  // ☁️ جلب أحدث بيانات العميل من Vercel (محدث ليشمل تاريخ التفعيل)
+  // ============================================================
+
   Future<void> _refreshClientFromVercel(UserModel user) async {
     try {
       final String guardianId = (user.guardianMoxId ?? '').trim().toUpperCase();
@@ -270,8 +274,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       debugPrint('☁️ [Vercel Store] HTTP Status: ${cloudResponse.statusCode}');
 
-      debugPrint('☁️ [Vercel Store] Raw Body: ${cloudResponse.body}');
-
       if (cloudResponse.statusCode != 200) {
         debugPrint(
           '⚠️ [Vercel Store] السيرفر رفض الطلب برمز: ${cloudResponse.statusCode}',
@@ -281,22 +283,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       final String body = cloudResponse.body.trim();
 
-      if (body.isEmpty) {
-        debugPrint('❌ [Vercel Store] الاستجابة فارغة تماماً!');
-        return;
-      }
-
-      if (body.startsWith('<') || body.toLowerCase().contains('<html')) {
-        debugPrint(
-          '❌ [Vercel Store] كارثة: السيرفر أعاد صفحة HTML (خطأ في مسار الـ Vercel أو API غير موجود)',
-        );
+      if (body.isEmpty ||
+          body.startsWith('<') ||
+          body.toLowerCase().contains('<html')) {
+        debugPrint('❌ [Vercel Store] الاستجابة فارغة أو عبارة عن HTML');
         return;
       }
 
       final dynamic decoded = json.decode(body);
 
       if (decoded is! Map) {
-        debugPrint('❌ [Vercel Store] الاستجابة ليست خريطة (Map): $decoded');
+        debugPrint('❌ [Vercel Store] الاستجابة ليست خريطة (Map)');
         return;
       }
 
@@ -309,15 +306,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         cloudUser = Map<String, dynamic>.from(data['data']);
       } else if (data.containsKey('moxId') ||
           data.containsKey('MOXID') ||
-          data.containsKey('phone') ||
-          data.containsKey('PHONE')) {
+          data.containsKey('phone')) {
         cloudUser = data;
       }
 
       if (cloudUser == null) {
-        debugPrint(
-          '⚠️ [Vercel Store] لم يتم العثور على بيانات المستخدم داخل ماب الاستجابة: $data',
-        );
+        debugPrint('⚠️ [Vercel Store] لم يتم العثور على بيانات المستخدم');
         return;
       }
 
@@ -362,8 +356,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         user.storePublishDate = cloudPublishDate;
       }
 
+      // ✨ الإضافة السيادية: معالجة وقراءة تاريخ التفعيل (activationDate) وتمريره للعميل
+      final String cloudActivationDate =
+          (normalizedCloudUser['ACTIVATIONDATE'] ?? '').toString().trim();
+      if (cloudActivationDate.isNotEmpty &&
+          cloudActivationDate.toLowerCase() != 'null') {
+        user.activationDate = cloudActivationDate;
+      } else {
+        // إذا كان فارغاً في القوقل ولكن تاريخ النشر موجود، نجعله يطابقه تلقائياً
+        user.activationDate = user.storePublishDate;
+      }
+
       // ========================================================
-      // التعديل الحاسم: معالجة واستخراج MYASSETS بدقة تامة
+      // معالجة MYASSETS بدقة تامة
       // ========================================================
       final dynamic rawAssets = normalizedCloudUser['MYASSETS'];
       if (rawAssets != null) {
@@ -382,7 +387,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   .toList();
             }
           } catch (_) {
-            // لو نص عادي مفصول بفواصل أو غيره
             user.myAssets = rawAssets
                 .split(',')
                 .map((e) => e.trim())
@@ -393,12 +397,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       }
 
       debugPrint(
-        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام للمستخدم: ${user.name} (عدد الأصول: ${user.myAssets.length})',
+        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام وتثبيت تاريخ التفعيل.',
       );
     } catch (e, stackTrace) {
-      debugPrint(
-        '❌ [Vercel Store Exception] حدث استثناء خطير أثناء جلب بيانات العميل: $e',
-      );
+      debugPrint('❌ [Vercel Store Exception] $e');
       debugPrint('📍 StackTrace: $stackTrace');
     }
   }
