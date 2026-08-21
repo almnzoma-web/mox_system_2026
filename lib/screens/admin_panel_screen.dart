@@ -29,7 +29,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbzAtZVB6NU77fw5nEP_Gx7XX9O6oRuevnfoR6jsWkWFJOQUBtsx0CLfTAVE7adfeE4t/exec';
+      'https://script.google.com/macros/s/AKfycbwMbCQ9eFNjHDQbt6MDltnhKyqWQXiQL8_6eBE8Omcd5dhfVEglkHreeIXCx-5Yq3pp/exec';
 
   // ============================================================
   // 🌐 VERCEL STORE API
