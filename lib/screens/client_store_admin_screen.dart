@@ -45,7 +45,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ضع هنا رابط Web App المنشور من Google Apps Script.
   // لا تضع أي مفتاح سري داخل Flutter.
   static const String _moxActivationEndpoint =
-      'https://script.google.com/macros/s/AKfycbxnZC3JWaQkPnZcneljphfPiBoXdHCo7Si-9vqE8pVoIWwqNGZbEfGaORrMmYngxFHC/exec';
+      'https://script.google.com/macros/s/AKfycbxeiztX1QCsV8s5HstcRX5CnxPXKw2pt70Wp52aPkWleIwYrv2Ibu1JYSuUGbRmXzVj/exec';
 
   // ============================================================
   // 🎨 هوية MOX
@@ -1943,7 +1943,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                             if (!subscriptionActive) ...[
                               const SizedBox(height: 12),
                               const Text(
-                                'المتجر جاهز. أدخل مفتاح التنشيط ليبدأ اشتراك 365 يوماً من لحظة قبول المفتاح. لا يتم تخزين المفتاح داخل Flutter.',
+                                'المتجر جاهز. أدخل مفتاح التنشيط ليبدأ اشتراك 365 يوماً من لحظة قبول المفتاح.   .',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 11,
