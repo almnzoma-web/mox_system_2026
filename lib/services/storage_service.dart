@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -103,11 +105,72 @@ class StorageService {
         id.toLowerCase() != 'null' &&
         id.toLowerCase() != 'لم يحدد';
   }
+  // ============================================================
+  // NORMALIZE USER MAP
+  // ============================================================
 
+  static Map<String, dynamic> _normalizeUserMap(Map<String, dynamic> source) {
+    final Map<String, dynamic> result = Map<String, dynamic>.from(source);
+
+    dynamic findValue(List<String> keys) {
+      for (final String wanted in keys) {
+        for (final MapEntry<String, dynamic> entry in source.entries) {
+          if (entry.key.trim().toLowerCase() == wanted.trim().toLowerCase()) {
+            return entry.value;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    void setIfFound(String target, List<String> aliases) {
+      final dynamic value = findValue(aliases);
+
+      if (value != null) {
+        result[target] = value;
+      }
+    }
+
+    setIfFound('moxId', ['moxId', 'MOXID', 'mox_id']);
+
+    setIfFound('storePublishDate', [
+      'storePublishDate',
+      'storepublishdate',
+      'store_publish_date',
+    ]);
+
+    setIfFound('activationDate', [
+      'activationDate',
+      'activationdate',
+      'activation_date',
+    ]);
+
+    setIfFound('myAssets', ['myAssets', 'myassets', 'my_assets']);
+
+    // ----------------------------------------------------------
+    // myAssets إذا وصلت كنص JSON
+    // ----------------------------------------------------------
+
+    final dynamic assets = result['myAssets'];
+
+    if (assets is String && assets.trim().isNotEmpty) {
+      try {
+        final dynamic decodedAssets = json.decode(assets);
+
+        if (decodedAssets is List) {
+          result['myAssets'] = decodedAssets;
+        }
+      } catch (_) {}
+    }
+
+    return result;
+  }
   // ============================================================
   // GUARDIAN VALIDATION
   // ============================================================
 
+  // ignore: duplicate_ignore
   // ignore: unused_element
   static bool _isValidGuardianMoxId(String? value) {
     final String id = _clean(value).toUpperCase();
@@ -256,6 +319,7 @@ class StorageService {
   // لا يتم تشغيلها أثناء فتح المتجر العام.
   // ============================================================
 
+  // ignore: duplicate_ignore
   // ignore: unused_element
   static Future<void> _syncFromCloudInBackground() async {
     if (_cloudSyncRunning) {
@@ -412,7 +476,184 @@ class StorageService {
       await loadUsers();
     }
   }
+  // ============================================================
+  // 🔐 ACTIVATE STORE
+  //
+  // التنشيط يتم مرة واحدة فقط.
+  // المفتاح لا يُحفظ في Flutter.
+  // Flutter يرسل المفتاح إلى Apps Script فقط.
+  //
+  // Apps Script هو صاحب القرار:
+  // - هل المفتاح صحيح؟
+  // - هل استُخدم سابقاً؟
+  // - هل المتجر مفعل مسبقاً؟
+  // - متى يبدأ الاشتراك؟
+  // ============================================================
 
+  static Future<UserModel?> activateStore({
+    required UserModel user,
+    required String activationKey,
+  }) async {
+    final String cleanKey = activationKey.trim();
+
+    if (cleanKey.isEmpty) {
+      throw Exception('أدخل مفتاح التنشيط.');
+    }
+
+    if (!_isValidMoxId(user.moxId)) {
+      throw Exception('معرف المتجر غير صالح.');
+    }
+
+    // ==========================================================
+    // لا تسمح بإعادة التنشيط من التطبيق
+    // ==========================================================
+
+    final String existingPublishDate = _clean(user.storePublishDate);
+
+    if (existingPublishDate.isNotEmpty &&
+        existingPublishDate.toLowerCase() != 'null') {
+      throw Exception('هذا المتجر تم تنشيطه مسبقاً.');
+    }
+
+    try {
+      final Uri uri = Uri.parse(_scriptUrl).replace(
+        queryParameters: {
+          'action': _activationAction,
+          'moxId': user.moxId.trim(),
+          'phone': user.phone.trim(),
+          'activationKey': cleanKey,
+        },
+      );
+
+      debugPrint('🔐 [Store Activation] إرسال طلب التنشيط...');
+
+      final http.Response response = await http
+          .get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('🔐 [Store Activation] HTTP ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        throw Exception('تعذر الاتصال بخدمة التنشيط.');
+      }
+
+      if (_isHtmlResponse(response.body)) {
+        throw Exception('خدمة التنشيط أعادت استجابة غير صالحة.');
+      }
+
+      final dynamic decoded = json.decode(response.body);
+
+      if (decoded is! Map) {
+        throw Exception('استجابة التنشيط غير صالحة.');
+      }
+
+      final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+
+      final String status = data['status']?.toString().toLowerCase() ?? '';
+
+      // ========================================================
+      // ❌ فشل التنشيط
+      // ========================================================
+
+      if (status != 'success') {
+        final String message = _clean(data['message']?.toString());
+
+        throw Exception(
+          message.isNotEmpty ? message : 'مفتاح التنشيط غير صالح.',
+        );
+      }
+
+      // ========================================================
+      // 📅 التاريخ الذي أنشأه Google
+      // ========================================================
+
+      String publishDate = _clean(data['storePublishDate']?.toString());
+
+      String activationDate = _clean(data['activationDate']?.toString());
+
+      // ========================================================
+      // إذا رجع Apps Script مستخدم كامل
+      // ========================================================
+
+      UserModel activatedUser = user;
+
+      if (data['user'] is Map) {
+        try {
+          final Map<String, dynamic> rawUser = Map<String, dynamic>.from(
+            data['user'],
+          );
+
+          final Map<String, dynamic> normalized = _normalizeUserMap(rawUser);
+
+          activatedUser = UserModel.fromJson(normalized);
+
+          publishDate = _clean(activatedUser.storePublishDate);
+
+          activationDate = _clean(activatedUser.activationDate);
+        } catch (e) {
+          debugPrint('⚠️ [Store Activation] تعذر قراءة User من الاستجابة: $e');
+        }
+      }
+
+      // ========================================================
+      // تأكيد أن Google أعاد تاريخ التفعيل
+      // ========================================================
+
+      if (publishDate.isEmpty || publishDate.toLowerCase() == 'null') {
+        throw Exception('تم التنشيط ولكن لم يصل تاريخ بداية الاشتراك.');
+      }
+
+      // ========================================================
+      // نضمن بقاء بيانات المتجر القديمة
+      // ونغيّر فقط بيانات الاشتراك
+      // ========================================================
+
+      activatedUser = activatedUser.copyWith(
+        storePublishDate: publishDate,
+        activationDate: activationDate.isNotEmpty
+            ? activationDate
+            : publishDate,
+      );
+
+      // ========================================================
+      // تحديث الذاكرة
+      // ========================================================
+
+      final int index = registeredUsers.indexWhere(
+        (u) => u.moxId == activatedUser.moxId || u.phone == activatedUser.phone,
+      );
+
+      if (index == -1) {
+        registeredUsers.add(activatedUser);
+      } else {
+        registeredUsers[index] = activatedUser;
+      }
+
+      _ensureAdmin();
+
+      // ========================================================
+      // حفظ Local Cache
+      // ========================================================
+
+      await saveUsersList();
+
+      // ========================================================
+      // حفظ المستخدم الحالي
+      // ========================================================
+
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString(userKey, jsonEncode(activatedUser.toJson()));
+
+      debugPrint('✅ [Store Activation] تم تنشيط المتجر لمدة 365 يوم.');
+
+      return activatedUser;
+    } catch (e) {
+      debugPrint('❌ [Store Activation] $e');
+
+      rethrow;
+    }
+  }
   // ============================================================
   // SAVE LOCAL USERS
   // ============================================================
@@ -578,7 +819,47 @@ class StorageService {
       debugPrint('❌ [Session Cache] $e');
     }
   }
+  // ============================================================
+  // FIND LOCAL USER
+  // ============================================================
 
+  static UserModel? _findLocalUser(UserModel user) {
+    try {
+      return registeredUsers.firstWhere(
+        (u) => u.moxId == user.moxId || u.phone == user.phone,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ============================================================
+  // PRESERVE SUBSCRIPTION
+  //
+  // حفظ المتجر لا يملك صلاحية إنشاء أو حذف الاشتراك.
+  // ============================================================
+
+  static UserModel _preserveSubscriptionState({
+    required UserModel? oldUser,
+    required UserModel newUser,
+  }) {
+    if (oldUser == null) {
+      return newUser;
+    }
+
+    final String oldPublishDate = _clean(oldUser.storePublishDate);
+
+    final String oldActivationDate = _clean(oldUser.activationDate);
+
+    return newUser.copyWith(
+      storePublishDate: oldPublishDate.isNotEmpty
+          ? oldPublishDate
+          : newUser.storePublishDate,
+      activationDate: oldActivationDate.isNotEmpty
+          ? oldActivationDate
+          : newUser.activationDate,
+    );
+  }
   // ============================================================
   // SAVE TO CLOUD
   // ============================================================
@@ -636,13 +917,44 @@ class StorageService {
 
   static Future<void> saveUser(UserModel user) async {
     try {
+      await ensureLoaded();
+
+      final UserModel? oldUser = _findLocalUser(user);
+
+      final UserModel protectedUser = _preserveSubscriptionState(
+        oldUser: oldUser,
+        newUser: user,
+      );
+
+      final bool cloudSaved = await _saveToCloud(protectedUser);
+
+      if (!cloudSaved) {
+        throw Exception('تعذر حفظ بيانات المتجر في Google Sheet.');
+      }
+
       final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      await prefs.setString(userKey, jsonEncode(user.toJson()));
+      await prefs.setString(userKey, jsonEncode(protectedUser.toJson()));
 
-      await addUser(user);
+      final int index = registeredUsers.indexWhere(
+        (u) => u.moxId == protectedUser.moxId || u.phone == protectedUser.phone,
+      );
+
+      if (index == -1) {
+        registeredUsers.add(protectedUser);
+      } else {
+        registeredUsers[index] = protectedUser;
+      }
+
+      _ensureAdmin();
+
+      await saveUsersList();
+
+      debugPrint('✅ [Active User] تم حفظ المتجر مع الحفاظ على الاشتراك.');
     } catch (e) {
       debugPrint('❌ [Active User] $e');
+
+      rethrow;
     }
   }
 
