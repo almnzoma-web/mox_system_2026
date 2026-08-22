@@ -1,7 +1,9 @@
-// ignore_for_file: unused_field, use_build_context_synchronously
+// ignore_for_file: duplicate_ignore, unused_element, unused_field, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
@@ -38,9 +40,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🔐 مفتاح التنشيط الحالي
   // ============================================================
 
-  static const String _sovereignActivationKey = "MOX-2026-KEY-9876543210AB";
-
   static const int _subscriptionDays = 365;
+
+  // ضع هنا رابط Web App المنشور من Google Apps Script.
+  // لا تضع أي مفتاح سري داخل Flutter.
+  static const String _moxActivationEndpoint =
+      'https://script.google.com/macros/s/AKfycbzFXkiUTxjxQB2WBr31UKuAeeVsDbIKlr6lDmI7NupBme-Dim8_YKVbuG-sNttU6jn2Sg/exec';
 
   // ============================================================
   // 🎨 هوية MOX
@@ -528,6 +533,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🔄 مزامنة حالة الاشتراك بناءً على التاريخ السيادي
   // ============================================================
 
+  // ignore: unused_element
   void _syncSubscriptionState() {
     final String pubDate = _liveUser.storePublishDate?.trim() ?? '';
 
@@ -550,46 +556,67 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ============================================================
 
   Future<void> _startSubscription() async {
-    final String? existingDate = _liveUser.storePublishDate;
-    if (existingDate != null &&
-        existingDate.trim().isNotEmpty &&
-        existingDate != "null") {
-      // حتى لو كان موجوداً مسبقاً، نقوم بمزامنة الحالة لضمان عدم تراجع الزر
-      _syncSubscriptionState();
-      return;
+    // التنشيط لم يعد يتم من Flutter.
+    // الزر يستدعي نافذة مفتاح التنشيط، والتحقق الحقيقي يتم في Google Apps Script.
+    await _showActivationKeyDialog();
+  }
+
+  Future<bool> _activateStoreWithGoogle(String activationKey) async {
+    final String endpoint = _moxActivationEndpoint.trim();
+    if (endpoint.isEmpty || endpoint.contains('PASTE_GOOGLE')) {
+      throw Exception('لم يتم ضبط رابط Google Apps Script في Flutter.');
     }
 
-    final String startDate = DateTime.now().toIso8601String();
-    final UserModel activatedUser = _liveUser.copyWith(
-      storePublishDate: startDate,
-      activationDate: startDate, // تثبيت تاريخ التفعيل لضمان عدم فقدانه في قوقل
-      role: 'reviewed_active',
+    final response = await http
+        .post(
+          Uri.parse(endpoint),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'action': 'activateStore',
+            'activationKey': activationKey.trim(),
+            'moxId': _liveUser.moxId.trim(),
+            'guardianMoxId': (_liveUser.guardianMoxId ?? '').trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Google Apps Script HTTP ${response.statusCode}');
+    }
+
+    final dynamic decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw Exception('استجابة Google غير صالحة.');
+    }
+
+    final bool ok = decoded['ok'] == true;
+    if (!ok) {
+      throw Exception(decoded['message']?.toString() ?? 'فشل التنشيط.');
+    }
+
+    // بعد نجاح التنشيط، نعيد تحميل المستخدم من المصدر حتى يصبح Google هو
+    // مصدر الحقيقة الوحيد للتاريخ.
+    final UserModel? remote = await StorageService.getUserByMoxId(
+      _liveUser.moxId,
     );
 
-    try {
-      await StorageService.updateUserPartial(activatedUser);
-      _liveUser = activatedUser;
+    final String serverDate = decoded['storePublishDate']?.toString() ?? '';
+    final String serverActivation =
+        decoded['activationDate']?.toString() ?? serverDate;
 
-      if (!mounted) return;
+    _liveUser = (remote ?? _liveUser).copyWith(
+      storePublishDate: (remote?.storePublishDate?.trim().isNotEmpty == true)
+          ? remote!.storePublishDate
+          : serverDate,
+      activationDate: (remote?.activationDate?.trim().isNotEmpty == true)
+          ? remote!.activationDate
+          : serverActivation,
+      role: remote?.role.trim().isNotEmpty == true
+          ? remote!.role
+          : 'reviewed_active',
+    );
 
-      // استدعاء دالة المزامنة الموحدة لتحديث الواجهة وزر النشر بثبات تام
-      _syncSubscriptionState();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🚀 تم تشغيل المتجر بنجاح — بدأت مدة الـ365 يوماً."),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ حدث خطأ أثناء بدء الاشتراك: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    return true;
   }
 
   // ============================================================
@@ -825,16 +852,21 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     setState(() => _isPublishing = true);
 
     try {
-      // 🛡️ الحفاظ على تاريخ التنشيط الحالي للمتجر طالما أنه ساري ولم تنتهِ الـ 365 يوماً
-      final String existingPublishDate = _liveUser.storePublishDate ?? '';
-      final bool isAlreadyActive =
-          existingPublishDate.isNotEmpty &&
-          existingPublishDate != "null" &&
-          !_checkIf365DaysExpired(existingPublishDate);
+      // 🔒 لا ننشئ تاريخاً جديداً هنا أبداً.
+      // التنشيط هو العملية الوحيدة التي تنشئ/تجدد storePublishDate.
+      // حفظ المنتجات لا يلمس تاريخ الاشتراك.
+      final String preservedPublishDate =
+          _liveUser.storePublishDate?.trim() ?? '';
+      final String preservedActivationDate =
+          _liveUser.activationDate?.trim() ?? '';
 
-      final String finalPublishTimestamp = isAlreadyActive
-          ? existingPublishDate
-          : DateTime.now().toIso8601String();
+      if (preservedPublishDate.isEmpty || preservedPublishDate == 'null') {
+        throw Exception('المتجر غير مفعّل. أدخل مفتاح التنشيط أولاً.');
+      }
+
+      if (_checkIf365DaysExpired(preservedPublishDate)) {
+        throw Exception('انتهت مدة الاشتراك. أدخل مفتاح تنشيط جديد.');
+      }
 
       final UserModel updatedUser = _liveUser.copyWith(
         name: _storeNameController.text.trim(),
@@ -842,22 +874,39 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         address: _businessCategoryController.text.trim(),
         storeDescription: _descriptionController.text.trim(),
         myAssets: updatedAssets,
-        storePublishDate: finalPublishTimestamp,
+        // 🔒 حماية صريحة من أي reset أثناء الحفظ.
+        storePublishDate: preservedPublishDate,
+        activationDate: preservedActivationDate.isNotEmpty
+            ? preservedActivationDate
+            : preservedPublishDate,
         role: 'reviewed_active',
       );
 
-      // الحفظ عبر المعمارية السليمة المعتمدة
       await StorageService.updateUserPartial(updatedUser);
 
       final UserModel? confirmedUser = await StorageService.getUserByMoxId(
         updatedUser.moxId,
       );
-      _liveUser = confirmedUser ?? updatedUser;
+
+      // إذا كانت نسخة Google ناقصة في الاستجابة الحالية، لا نسمح لها
+      // بإسقاط تاريخ التنشيط محلياً. النسخة القادمة من Google يجب أن
+      // تحفظه أيضاً بفضل كود Apps Script الجديد.
+      _liveUser = (confirmedUser ?? updatedUser).copyWith(
+        storePublishDate:
+            confirmedUser?.storePublishDate?.trim().isNotEmpty == true
+            ? confirmedUser!.storePublishDate
+            : preservedPublishDate,
+        activationDate: confirmedUser?.activationDate?.trim().isNotEmpty == true
+            ? confirmedUser!.activationDate
+            : (preservedActivationDate.isNotEmpty
+                  ? preservedActivationDate
+                  : preservedPublishDate),
+      );
 
       if (!mounted) return;
+
       setState(() {
         _isPublishing = false;
-        // 🔒 الحفاظ على حالة الاشتراك نشطاً طالما لم تنتهِ المدة، لكي لا يعود زر التنشيط أبداً
         _isSubscriptionExpired = _checkIf365DaysExpired(
           _liveUser.storePublishDate,
         );
@@ -869,7 +918,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
+          content: Text('🚀 تم حفظ ونشر المتجر دون تغيير تاريخ الاشتراك.'),
           backgroundColor: Colors.green,
         ),
       );
@@ -878,7 +927,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       setState(() => _isPublishing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("❌ حدث خطأ أثناء نشر المتجر: $e"),
+          content: Text('❌ حدث خطأ أثناء نشر المتجر: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -931,125 +980,162 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🔑 التنشيط والتجديد
   // ============================================================
 
-  void _showActivationKeyDialog() {
+  Future<void> _showActivationKeyDialog() async {
     final TextEditingController keyController = TextEditingController();
-    showDialog(
+    bool isBusy = false;
+
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.lock_clock, color: Colors.red),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  "انتهت صلاحية المتجر",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                    fontSize: 14,
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final bool hasExistingDate =
+                _liveUser.storePublishDate?.trim().isNotEmpty == true &&
+                _liveUser.storePublishDate != 'null';
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Icon(
+                    hasExistingDate ? Icons.refresh_rounded : Icons.key_rounded,
+                    color: _primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hasExistingDate ? 'تجديد اشتراك المتجر' : 'تنشيط المتجر',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _darkColor,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasExistingDate
+                        ? 'أدخل مفتاح التنشيط لتجديد المتجر لمدة 365 يوماً.'
+                        : 'أدخل مفتاح التنشيط الذي حصلت عليه. بعد التحقق يبدأ اشتراك 365 يوماً.',
+                    style: const TextStyle(fontSize: 12, height: 1.5),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: keyController,
+                    enabled: !isBusy,
+                    maxLength: 80,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'مفتاح التنشيط',
+                      hintText: 'أدخل المفتاح هنا',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.vpn_key),
+                      isDense: true,
+                      counterText: '',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isBusy ? null : () => Navigator.pop(ctx),
+                  child: const Text(
+                    'إلغاء',
+                    style: TextStyle(color: Colors.grey),
                   ),
                 ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "انتهت مدة الاشتراك البالغة 365 يوماً.",
-                style: TextStyle(fontSize: 12),
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: keyController,
-                maxLength: 40,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: "مفتاح التنشيط",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.vpn_key),
-                  isDense: true,
-                  counterText: "",
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("إلغاء", style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-              onPressed: () async {
-                final String enteredKey = keyController.text
-                    .trim()
-                    .toUpperCase();
-                if (enteredKey != _sovereignActivationKey.toUpperCase()) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("❌ مفتاح التنشيط غير صحيح."),
-                      backgroundColor: Colors.red,
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                  ),
+                  onPressed: isBusy
+                      ? null
+                      : () async {
+                          final String key = keyController.text
+                              .trim()
+                              .toUpperCase();
+                          if (key.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('⚠️ أدخل مفتاح التنشيط أولاً.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isBusy = true);
+
+                          try {
+                            await _activateStoreWithGoogle(key);
+
+                            if (ctx.mounted) Navigator.pop(ctx);
+
+                            if (!mounted) return;
+                            _initializeControllers();
+                            _initializeCards();
+                            _initializeSubscription();
+                            _updateStoreLink();
+
+                            setState(() {
+                              _isSubscriptionExpired = false;
+                              _activationButtonState = 1;
+                              _isAuthorized = true;
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  '✅ تم التحقق من المفتاح وتنشيط المتجر لمدة 365 يوماً.',
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() => isBusy = false);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('❌ $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                  icon: isBusy
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.verified, color: Colors.white),
+                  label: Text(
+                    isBusy ? 'جارٍ التحقق...' : 'تحقق وتنشيط',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
-                  );
-                  return;
-                }
-                Navigator.pop(ctx);
-                await _renewSubscription();
-              },
-              child: const Text(
-                "تفعيل المتجر",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
+
     keyController.dispose();
-  }
-
-  Future<void> _renewSubscription() async {
-    final String newDate = DateTime.now().toIso8601String();
-    final UserModel renewedUser = _liveUser.copyWith(
-      storePublishDate: newDate,
-      role: 'reviewed_active',
-    );
-
-    try {
-      await StorageService.updateUserPartial(renewedUser);
-      _liveUser = renewedUser;
-
-      if (!mounted) return;
-      setState(() {
-        _isSubscriptionExpired = false;
-        _activationButtonState = 1;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("✅ تم تجديد المتجر لمدة 365 يوماً جديدة."),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ حدث خطأ أثناء حفظ التفعيل: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   // ============================================================
@@ -1209,12 +1295,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         _liveUser.storePublishDate != "null";
 
     if (!hasSubscription) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🚀 اضغط «بدء تشغيل المتجر — 365 يوماً» أولاً."),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      await _showActivationKeyDialog();
       return;
     }
 
@@ -1622,10 +1703,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
 
-    if (_isSubscriptionExpired) {
-      return _buildExpiredScreen();
-    }
-
     // ignore: unused_local_variable
     final bool isStoreActive =
         _liveUser.storePublishDate != null &&
@@ -1794,20 +1871,21 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                           _liveUser.storePublishDate != null &&
                           _liveUser.storePublishDate!.trim().isNotEmpty &&
                           _liveUser.storePublishDate != "null";
+                      final bool isExpired = _isSubscriptionExpired;
                       final bool subscriptionActive =
-                          hasSubscription && !_isSubscriptionExpired;
+                          hasSubscription && !isExpired;
 
                       return Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: subscriptionActive
                               ? Colors.green.shade50
-                              : Colors.indigo.shade50,
+                              : Colors.orange.shade50,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: subscriptionActive
                                 ? Colors.green
-                                : _primaryColor,
+                                : Colors.orange,
                           ),
                         ),
                         child: Column(
@@ -1820,21 +1898,23 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                     Icon(
                                       subscriptionActive
                                           ? Icons.check_circle
-                                          : Icons.timer,
+                                          : Icons.key_rounded,
                                       color: subscriptionActive
                                           ? Colors.green
-                                          : _darkColor,
+                                          : Colors.orange.shade800,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       subscriptionActive
-                                          ? "المتجر يعمل"
-                                          : "المتجر جاهز للتشغيل",
+                                          ? 'المتجر يعمل'
+                                          : (isExpired
+                                                ? 'انتهى الاشتراك'
+                                                : 'المتجر غير مفعّل'),
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: subscriptionActive
                                             ? Colors.green.shade800
-                                            : _darkColor,
+                                            : Colors.orange.shade900,
                                       ),
                                     ),
                                   ],
@@ -1850,7 +1930,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
-                                      "متبقي ${_getRemainingDays()} يوم",
+                                      'متبقي ${_getRemainingDays()} يوم',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -1860,23 +1940,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                   ),
                               ],
                             ),
-                            if (!hasSubscription) ...[
-                              const SizedBox(height: 14),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Text(
-                                  "المتجر جاهز بالكامل. اضغط الزر أدناه عندما تريد بدء مدة الاشتراك. ستبدأ الـ365 يوماً من لحظة الضغط.",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    height: 1.5,
-                                    color: Colors.black87,
-                                  ),
+                            if (!subscriptionActive) ...[
+                              const SizedBox(height: 12),
+                              const Text(
+                                'المتجر جاهز. أدخل مفتاح التنشيط ليبدأ اشتراك 365 يوماً من لحظة قبول المفتاح. لا يتم تخزين المفتاح داخل Flutter.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  height: 1.5,
+                                  color: Colors.black87,
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -1890,14 +1962,16 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  onPressed: _startSubscription,
+                                  onPressed: _showActivationKeyDialog,
                                   icon: const Icon(
-                                    Icons.play_circle_fill,
+                                    Icons.vpn_key,
                                     color: Colors.white,
                                   ),
-                                  label: const Text(
-                                    "🚀 بدء تشغيل المتجر — 365 يوماً",
-                                    style: TextStyle(
+                                  label: Text(
+                                    isExpired
+                                        ? '🔑 تجديد المتجر — مفتاح جديد'
+                                        : '🔑 تنشيط المتجر',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
@@ -1911,7 +1985,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                               const Align(
                                 alignment: Alignment.centerRight,
                                 child: Text(
-                                  "✓ الاشتراك فعال ويمكنك الآن حفظ ونشر المتجر.",
+                                  '✓ الاشتراك فعال ويمكنك الآن حفظ وتحديث ونشر المتجر.',
                                   style: TextStyle(
                                     color: Colors.green,
                                     fontSize: 10,
