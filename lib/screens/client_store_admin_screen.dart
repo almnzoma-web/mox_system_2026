@@ -321,7 +321,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       _initializeCards();
 
-      _syncSubscriptionState();
+      _initializeCards();
 
       _initializeSubscription();
 
@@ -486,6 +486,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
+  // 🛡️ المرجع السيادي المطلق للحالة (قانون لا يقبل الخطأ)
+  // ============================================================
+  bool get _isStoreActive {
+    final String pubDate = _liveUser.storePublishDate?.trim() ?? '';
+    if (pubDate.isEmpty || pubDate == "null") return false;
+    return !_checkIf365DaysExpired(pubDate);
+  }
+
+  // ============================================================
   // ⏳ الاشتراك وإدارته
   // ============================================================
 
@@ -500,7 +509,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
 
     _isSubscriptionExpired = _checkIf365DaysExpired(publishDate);
-    _activationButtonState = _isSubscriptionExpired ? 0 : 1;
+    // 🔒 ربط حالة الزر بالمرجع السيادي حصرياً لضمان عدم ضياعه أبداً
+    _activationButtonState = _isStoreActive ? 1 : 0;
   }
 
   bool _checkIf365DaysExpired(String? publishDateStr) {
@@ -544,19 +554,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ============================================================
 
   void _syncSubscriptionState() {
-    final String pubDate = _liveUser.storePublishDate?.trim() ?? '';
-
-    // فحص هل التاريخ موجود وصحيح ولم تنتهِ الـ 365 يوماً؟
-    final bool hasValidDate = pubDate.isNotEmpty && pubDate != "null";
-    final bool isExpired = hasValidDate
-        ? _checkIf365DaysExpired(pubDate)
-        : true;
-
     setState(() {
-      _isSubscriptionExpired = isExpired;
-      // إذا كان هناك تاريخ صالح ولم ينتهِ الاشتراك، اجعل الحالة 1 فوراً (متجر مفعل)
-      // وإذا لم يكن هناك تاريخ أو انتهى، اجعلها 0 (زر بدء التشغيل)
-      _activationButtonState = (!isExpired && hasValidDate) ? 1 : 0;
+      _isSubscriptionExpired = !_isStoreActive;
+      // 🔒 فرض القيمة 1 بقوة طالما أن المتجر نشط وسيادي
+      _activationButtonState = _isStoreActive ? 1 : 0;
     });
   }
 
@@ -606,7 +607,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
   }
-
   // ============================================================
   // 🔗 رابط المتجر العام
   // ============================================================
