@@ -45,7 +45,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ضع هنا رابط Web App المنشور من Google Apps Script.
   // لا تضع أي مفتاح سري داخل Flutter.
   static const String _moxActivationEndpoint =
-      'https://script.google.com/macros/s/AKfycbzFXkiUTxjxQB2WBr31UKuAeeVsDbIKlr6lDmI7NupBme-Dim8_YKVbuG-sNttU6jn2Sg/exec';
+      'https://script.google.com/macros/s/AKfycbxnZC3JWaQkPnZcneljphfPiBoXdHCo7Si-9vqE8pVoIWwqNGZbEfGaORrMmYngxFHC/exec';
 
   // ============================================================
   // 🎨 هوية MOX
