@@ -1614,6 +1614,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       return _buildExpiredScreen();
     }
 
+    // ignore: unused_local_variable
     final bool isStoreActive =
         _liveUser.storePublishDate != null &&
         _liveUser.storePublishDate!.trim().isNotEmpty &&
@@ -1999,6 +2000,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // 🚀 زر الحفظ والتحديث والنشر الدائم طوال الـ 365 يوماً
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primaryColor,
@@ -2007,9 +2010,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                         borderRadius: BorderRadius.circular(13),
                       ),
                     ),
-                    onPressed: _isPublishing || !isStoreActive
+                    onPressed: _isPublishing
                         ? null
-                        : _publishStore,
+                        : _publishStore, // متاح دائماً للتعديل والنشر طوال فترة الاشتراك دون أن يختفي
                     icon: _isPublishing
                         ? const SizedBox(
                             width: 20,
@@ -2023,7 +2026,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
                     label: Text(
                       _isPublishing
                           ? "جاري الحفظ والنشر..."
-                          : "🚀 حفظ ونشر المتجر",
+                          : "💾 حفظ وتحديث ونشر المتجر",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
