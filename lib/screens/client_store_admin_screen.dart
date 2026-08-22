@@ -366,19 +366,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // 🛒 توحيد تحميل البطاقات والأصول
   // ============================================================
 
-  // ignore: unused_element
-  void _loadUserAssetsFromUser(UserModel user) {
-    final List<MarketingCard> assets = List<MarketingCard>.from(user.myAssets);
-
-    setState(() {
-      for (final MarketingCard card in assets) {
-        final String title = card.title.trim();
-        if (title.isEmpty) continue;
-        _cardActivationStatus[title] = true;
-      }
-    });
-  }
-
   void _initializeCards() {
     // تنظيف الحالة القديمة
     _cardActivationStatus.clear();
