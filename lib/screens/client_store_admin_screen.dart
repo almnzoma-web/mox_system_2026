@@ -816,12 +816,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     setState(() => _isPublishing = true);
 
     try {
-      // الحفاظ على تاريخ النشر والتفعيل الأساسي وعدم إعادة ضبطه عند مجرد تعديل المنتجات أو الوصف
-      final String basePublishDate =
-          (_liveUser.storePublishDate != null &&
-              _liveUser.storePublishDate!.trim().isNotEmpty &&
-              _liveUser.storePublishDate != "null")
-          ? _liveUser.storePublishDate!
+      // 🛡️ الحفاظ على تاريخ التنشيط الحالي للمتجر طالما أنه ساري ولم تنتهِ الـ 365 يوماً
+      final String existingPublishDate = _liveUser.storePublishDate ?? '';
+      final bool isAlreadyActive =
+          existingPublishDate.isNotEmpty &&
+          existingPublishDate != "null" &&
+          !_checkIf365DaysExpired(existingPublishDate);
+
+      final String finalPublishTimestamp = isAlreadyActive
+          ? existingPublishDate
           : DateTime.now().toIso8601String();
 
       final UserModel updatedUser = _liveUser.copyWith(
@@ -830,10 +833,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         address: _businessCategoryController.text.trim(),
         storeDescription: _descriptionController.text.trim(),
         myAssets: updatedAssets,
-        storePublishDate: basePublishDate,
-        activationDate: _liveUser.activationDate?.isNotEmpty == true
-            ? _liveUser.activationDate
-            : basePublishDate,
+        storePublishDate: finalPublishTimestamp,
         role: 'reviewed_active',
       );
 
@@ -848,8 +848,11 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       if (!mounted) return;
       setState(() {
         _isPublishing = false;
-        _isSubscriptionExpired = false;
-        _activationButtonState = 1;
+        // 🔒 الحفاظ على حالة الاشتراك نشطاً طالما لم تنتهِ المدة، لكي لا يعود زر التنشيط أبداً
+        _isSubscriptionExpired = _checkIf365DaysExpired(
+          _liveUser.storePublishDate,
+        );
+        _activationButtonState = _isSubscriptionExpired ? 0 : 1;
         _isAuthorized = true;
       });
 
@@ -857,7 +860,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("🚀 تم حفظ وتحديث بيانات المتجر ونشرها بنجاح."),
+          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
           backgroundColor: Colors.green,
         ),
       );
