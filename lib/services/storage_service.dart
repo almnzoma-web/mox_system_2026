@@ -44,6 +44,16 @@ class StorageService {
   static const String _vercelStoreUrl = 'https://mox-2026.vercel.app/api/store';
 
   // ============================================================
+  // STORE ACTIVATION
+  // ============================================================
+
+  // ignore: unused_field
+  static const String _activationAction = 'activateStore';
+
+  // مدة الاشتراك لأول تفعيل
+  static const int storeSubscriptionDays = 365;
+
+  // ============================================================
   // HTML GUARD
   // ============================================================
 
@@ -445,7 +455,7 @@ class StorageService {
   // ============================================================
 
   static Map<String, String> _userCloudParameters(UserModel user) {
-    return <String, String>{
+    final Map<String, String> params = <String, String>{
       'action': 'save',
       'phone': user.phone,
       'name': user.name,
@@ -462,15 +472,27 @@ class StorageService {
       'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
       'points': user.points.toString(),
       'myAssets': _encodeAssets(user.myAssets),
+
+      // ========================================================
+      // 🔐 الاشتراك
+      //
+      // هذه البيانات للقراءة والحفاظ عليها فقط.
+      // لا يتم إنشاء اشتراك جديد من خلال save.
+      // ========================================================
       'storePublishDate': user.storePublishDate ?? '',
       'activationDate': user.activationDate ?? '',
+
+      // ========================================================
+      // 🔐 التوقيع الرقمي
+      // ========================================================
       'digitalPublicKey': user.digitalPublicKey ?? '',
       'digitalSignatureAlgorithm': user.digitalSignatureAlgorithm,
       'digitalSignatureCreatedAt': user.digitalSignatureCreatedAt ?? '',
       'digitalSignatureKeyVersion': user.digitalSignatureKeyVersion.toString(),
     };
-  }
 
+    return params;
+  }
   // ============================================================
   // ADD USER
   // ============================================================
