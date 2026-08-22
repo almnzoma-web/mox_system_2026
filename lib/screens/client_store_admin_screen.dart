@@ -537,6 +537,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
+  // ============================================================
+  // ⏳ الاشتراك وإدارته (محدث لضمان استمرار ظهور زر النشر طوال العام)
+  // ============================================================
+
   Future<void> _startSubscription() async {
     final String? existingDate = _liveUser.storePublishDate;
     if (existingDate != null &&
@@ -548,6 +552,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     final String startDate = DateTime.now().toIso8601String();
     final UserModel activatedUser = _liveUser.copyWith(
       storePublishDate: startDate,
+      activationDate: startDate, // تثبيت تاريخ التفعيل لضمان عدم فقدانه في قوقل
       role: 'reviewed_active',
     );
 
@@ -811,11 +816,12 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     setState(() => _isPublishing = true);
 
     try {
-      final String finalPublishTimestamp =
-          (widget.user.storePublishDate != null &&
-              widget.user.storePublishDate!.trim().isNotEmpty &&
-              !_checkIf365DaysExpired(widget.user.storePublishDate))
-          ? widget.user.storePublishDate!
+      // الحفاظ على تاريخ النشر والتفعيل الأساسي وعدم إعادة ضبطه عند مجرد تعديل المنتجات أو الوصف
+      final String basePublishDate =
+          (_liveUser.storePublishDate != null &&
+              _liveUser.storePublishDate!.trim().isNotEmpty &&
+              _liveUser.storePublishDate != "null")
+          ? _liveUser.storePublishDate!
           : DateTime.now().toIso8601String();
 
       final UserModel updatedUser = _liveUser.copyWith(
@@ -824,7 +830,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         address: _businessCategoryController.text.trim(),
         storeDescription: _descriptionController.text.trim(),
         myAssets: updatedAssets,
-        storePublishDate: finalPublishTimestamp,
+        storePublishDate: basePublishDate,
+        activationDate: _liveUser.activationDate?.isNotEmpty == true
+            ? _liveUser.activationDate
+            : basePublishDate,
         role: 'reviewed_active',
       );
 
@@ -848,7 +857,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
+          content: Text("🚀 تم حفظ وتحديث بيانات المتجر ونشرها بنجاح."),
           backgroundColor: Colors.green,
         ),
       );
@@ -1508,16 +1517,29 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primaryColor,
-                  minimumSize: const Size(double.infinity, 52),
+                  minimumSize: const Size(double.infinity, 54),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(13),
                   ),
                 ),
-                onPressed: _showActivationKeyDialog,
-                icon: const Icon(Icons.vpn_key, color: Colors.white),
-                label: const Text(
-                  "تنشيط المتجر",
-                  style: TextStyle(
+                onPressed: _isPublishing
+                    ? null
+                    : _publishStore, // متاح دائماً طوال العام للتعديل والحفظ دون قيود
+                icon: _isPublishing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.cloud_upload, color: Colors.white),
+                label: Text(
+                  _isPublishing
+                      ? "جاري الحفظ والنشر..."
+                      : "💾 حفظ وتحديث ونشر المتجر", // يظل ظاهراً ونشطاً طوال الـ 365 يوماً
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
