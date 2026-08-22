@@ -674,9 +674,16 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     // بناء UserModel (التعديل الحاسم لاستخراج بيانات user الفرعية)
     // ========================================================
 
+    // استخراج الخريطة بذكاء بغض النظر عن طريقة تغليفها في قوقل
     final Map<String, dynamic> userMap = map['user'] is Map
         ? Map<String, dynamic>.from(map['user'])
-        : map;
+        : (map['data'] is Map ? Map<String, dynamic>.from(map['data']) : map);
+
+    // 🔍 طباعة تفحصية سريعة لنرى مفاتيح الخريطة القادمة من قوقل
+    debugPrint('🔍 [MAP KEYS]: ${userMap.keys.toList()}');
+    debugPrint(
+      '🔍 [RAW storePublishDate in Map]: ${userMap['storePublishDate'] ?? userMap['StorePublishDate'] ?? userMap['STORE_PUBLISH_DATE']}',
+    );
 
     final UserModel user = UserModel.fromJson(userMap);
 
