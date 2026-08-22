@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: unused_field, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -154,7 +154,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   bool _isAuthorized = false;
   bool _isPublishing = false;
   bool _isSubscriptionExpired = false;
-  // ignore: unused_field
+
   int _activationButtonState = 0;
 
   bool _storeLoading = false;
