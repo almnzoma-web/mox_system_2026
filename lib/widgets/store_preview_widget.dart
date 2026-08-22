@@ -31,10 +31,7 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // 📅 تاريخ نشر المتجر
-  //
-  // المصدر الوحيد للاشتراك والانتهاء.
-  // activationDate لا علاقة له بهذا المنطق.
+  // 📅 تاريخ نشر المتجر (المصدر السيادي الثابت للاشتراك)
   // ============================================================
 
   DateTime? _getPublishDate() {
@@ -52,7 +49,7 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // ⏳ تاريخ انتهاء الاشتراك
+  // ⏳ تاريخ انتهاء الاشتراك (365 يوماً ثابتة لا تتأثر بتحديث المنتجات)
   // ============================================================
 
   DateTime? _getExpiryDate() {
@@ -67,29 +64,27 @@ class StorePreviewWidget extends StatelessWidget {
 
   // ============================================================
   // 🔴 هل الاشتراك منتهي؟
-  //
-  // storePublishDate فقط.
   // ============================================================
 
   bool _isSubscriptionExpired() {
     final DateTime? expiryDate = _getExpiryDate();
 
     if (expiryDate == null) {
-      return false;
+      return false; // إذا لم يُفعل أصلاً، يُدار عبر زر البدء في لوحة الإدارة
     }
 
     return !DateTime.now().isBefore(expiryDate);
   }
 
   // ============================================================
-  // 📊 الأيام المتبقية
+  // 📊 الأيام المتبقية (تُحسب بدقة لضمان استمرار ظهور بطاقة التفعيل)
   // ============================================================
 
   int _getRemainingDays() {
     final DateTime? expiryDate = _getExpiryDate();
 
     if (expiryDate == null) {
-      return -1;
+      return 365;
     }
 
     final Duration difference = expiryDate.difference(DateTime.now());
