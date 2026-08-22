@@ -321,6 +321,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       _initializeCards();
 
+      _syncSubscriptionState();
+
       _initializeSubscription();
 
       _updateStoreLink();
@@ -538,6 +540,27 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
+  // 🔄 مزامنة حالة الاشتراك بناءً على التاريخ السيادي
+  // ============================================================
+
+  void _syncSubscriptionState() {
+    final String pubDate = _liveUser.storePublishDate?.trim() ?? '';
+
+    // فحص هل التاريخ موجود وصحيح ولم تنتهِ الـ 365 يوماً؟
+    final bool hasValidDate = pubDate.isNotEmpty && pubDate != "null";
+    final bool isExpired = hasValidDate
+        ? _checkIf365DaysExpired(pubDate)
+        : true;
+
+    setState(() {
+      _isSubscriptionExpired = isExpired;
+      // إذا كان هناك تاريخ صالح ولم ينتهِ الاشتراك، اجعل الحالة 1 فوراً (متجر مفعل)
+      // وإذا لم يكن هناك تاريخ أو انتهى، اجعلها 0 (زر بدء التشغيل)
+      _activationButtonState = (!isExpired && hasValidDate) ? 1 : 0;
+    });
+  }
+
+  // ============================================================
   // ⏳ الاشتراك وإدارته (محدث لضمان استمرار ظهور زر النشر طوال العام)
   // ============================================================
 
@@ -546,6 +569,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     if (existingDate != null &&
         existingDate.trim().isNotEmpty &&
         existingDate != "null") {
+      // حتى لو كان موجوداً مسبقاً، نقوم بمزامنة الحالة لضمان عدم تراجع الزر
+      _syncSubscriptionState();
       return;
     }
 
@@ -561,10 +586,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       _liveUser = activatedUser;
 
       if (!mounted) return;
-      setState(() {
-        _isSubscriptionExpired = false;
-        _activationButtonState = 1;
-      });
+
+      // استدعاء دالة المزامنة الموحدة لتحديث الواجهة وزر النشر بثبات تام
+      _syncSubscriptionState();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
