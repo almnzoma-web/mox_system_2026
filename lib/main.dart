@@ -75,120 +75,64 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ==========================================================
-  // WEB URL STRATEGY
-  // ==========================================================
-
   if (kIsWeb) {
     usePathUrlStrategy();
   }
 
-  // ==========================================================
-  // الشاشة الافتراضية
-  // ==========================================================
-
   Widget initialScreen = const WelcomeScreen();
 
-  // ==========================================================
-  // WEB
-  //
-  // إذا كان الرابط:
-  //
-  // /store/MOX249-00010001
-  //
-  // نعالج المتجر العام مباشرة.
-  // ==========================================================
+  try {
+    String? guardianMoxId;
 
-  if (kIsWeb) {
-    try {
+    // 1. فحص الرابط بناءً على المنصة مباشرة وبشكل آمن
+    if (kIsWeb) {
       final Uri uri = Uri.base;
-
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      debugPrint('🌐 [BOOT] URI      : ${uri.toString()}');
-      debugPrint('🌐 [BOOT] PATH     : ${uri.path}');
-      debugPrint('🌐 [BOOT] SEGMENTS : ${uri.pathSegments}');
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      final String? guardianMoxId = _getGuardianMoxIdFromUri(uri);
-
-      debugPrint('🏪 [BOOT] GUARDIAN : $guardianMoxId');
-
-      if (guardianMoxId != null) {
-        initialScreen = await _loadPublicStoreScreen(guardianMoxId);
-      } else {
-        initialScreen = await _loadNormalApplication();
-      }
-    } catch (e, stackTrace) {
-      debugPrint('❌ [BOOT WEB ERROR] $e');
-
-      debugPrint('$stackTrace');
-
-      initialScreen = const WelcomeScreen();
-    }
-  }
-  // ==========================================================
-  // ANDROID / IOS
-  //
-  // نقرأ الرابط الذي فتح التطبيق.
-  // ==========================================================
-  else {
-    try {
-      final Uri? initialUri = await _getInitialAppLink();
-
-      if (initialUri != null) {
-        debugPrint(
-          '🔗 [BOOT APP LINK] '
-          'Initial URI: $initialUri',
+      guardianMoxId = _getGuardianMoxIdFromUri(uri);
+      debugPrint(
+        '🌐 [BOOT WEB] URI: ${uri.toString()} | Guardian: $guardianMoxId',
+      );
+    } else {
+      try {
+        // محاولة جلب الرابط للأندرويد مع حماية ضد التجميد
+        final Uri? initialUri = await _appLinks.getInitialLink().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
         );
 
-        final String? guardianMoxId = _getGuardianMoxIdFromUri(initialUri);
-
-        if (guardianMoxId != null) {
+        if (initialUri != null) {
+          guardianMoxId = _getGuardianMoxIdFromUri(initialUri);
           debugPrint(
-            '🏪 [BOOT APP LINK] '
-            'Opening store: $guardianMoxId',
+            '🔗 [BOOT MOBILE] Initial URI: $initialUri | Guardian: $guardianMoxId',
           );
-
-          initialScreen = await _loadPublicStoreScreen(guardianMoxId);
-        } else {
-          debugPrint(
-            'ℹ️ [BOOT APP LINK] '
-            'الرابط ليس رابط متجر عام',
-          );
-
-          initialScreen = await _loadNormalApplication();
         }
-      } else {
-        debugPrint(
-          'ℹ️ [BOOT APP LINK] '
-          'لا يوجد رابط ابتدائي',
-        );
-
-        initialScreen = await _loadNormalApplication();
+      } catch (e) {
+        debugPrint('⚠️ [BOOT MOBILE LINK EXCEPTION] $e');
       }
-    } catch (e, stackTrace) {
-      debugPrint('❌ [BOOT MOBILE ERROR] $e');
-
-      debugPrint('$stackTrace');
-
-      initialScreen = const WelcomeScreen();
     }
+
+    // 2. إذا تم استخراج guardianMoxId من الرابط، فهو سيد الموقف والأولوية المطلقة
+    if (guardianMoxId != null && _isValidGuardianMoxId(guardianMoxId)) {
+      debugPrint(
+        '🏪 [BOOT PRIORITY] تم تفعيل رابط المتجر العام مباشرة: $guardianMoxId',
+      );
+      initialScreen = await _loadPublicStoreScreen(guardianMoxId);
+    } else {
+      // 3. إذا لم يوجد رابط، نلجأ للجلسة العادية أو شاشة الترحيب
+      debugPrint(
+        'ℹ️ [BOOT PRIORITY] لا يوجد رابط، جارٍ فحص الجلسة المحفوظة...',
+      );
+      initialScreen = await _loadNormalApplication();
+    }
+  } catch (e, stackTrace) {
+    debugPrint('❌ [BOOT ERROR] $e');
+    debugPrint('$stackTrace');
+    initialScreen = const WelcomeScreen();
   }
 
-  // ==========================================================
-  // RUN APP
-  // ==========================================================
-
-  debugPrint('🚀 [BOOT] تشغيل التطبيق...');
-
-  debugPrint(
-    '🚀 [BOOT] initialScreen: '
-    '${initialScreen.runtimeType}',
-  );
+  debugPrint('🚀 [BOOT] تشغيل التطبيق بالشاشة: ${initialScreen.runtimeType}');
 
   runApp(MyApp(initialScreen: initialScreen));
 }
-
 // ============================================================
 // INITIAL APP LINK
 // ============================================================
@@ -196,6 +140,7 @@ Future<void> main() async {
 // الرابط الذي فتح التطبيق لأول مرة.
 // ============================================================
 
+// ignore: unused_element
 Future<Uri?> _getInitialAppLink() async {
   try {
     final Uri? uri = await _appLinks.getInitialLink();
