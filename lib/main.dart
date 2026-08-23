@@ -30,8 +30,6 @@ import 'widgets/store_preview_widget.dart';
 // guardianMoxIdCustomer
 //
 // ============================================================
-// تخزين مؤقت للرابط في حال لم يكن المستخدم مسجل دخول
-String? pendingPublicGuardianMoxId;
 // ============================================================
 // VERCEL STORE API
 //
@@ -50,6 +48,9 @@ String? pendingPublicGuardianMoxId;
 // ============================================================
 
 const String publicStoreApi = 'https://mox-2026.vercel.app/api/store';
+
+// تخزين مؤقت للرابط في حال لم يكن المستخدم مسجل دخول
+String? pendingPublicGuardianMoxId;
 
 // ============================================================
 // MAIN
