@@ -627,11 +627,12 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     // VERCEL API
     // ========================================================
 
+    // بناء الرابط المباشر لجوجل مع المعرف تماماً مثل المتصفح
     final Uri uri = Uri.parse(
-      publicStoreApi,
-    ).replace(queryParameters: {'guardianMoxId': cleanGuardianMoxId});
+      'https://script.google.com/macros/s/AKfycbyZopgVkCqIEQyJHVsjs1AT07MGG6swOFGgdOkwgYwvpA-UVySfUlyA_gOHr_-XtWsj/exec?action=getUserByGuardianMoxId&guardianMoxId=$cleanGuardianMoxId',
+    );
 
-    debugPrint('🌐 [STORE API] URL: $uri');
+    debugPrint('🌐 [STORE API DIRECT] URL: $uri');
 
     // ========================================================
     // HTTP GET
