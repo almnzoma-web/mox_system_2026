@@ -35,12 +35,16 @@ class ClientStoreAdminScreen extends StatefulWidget {
 
 class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ============================================================
-  // 🔐 مفتاح التنشيط الحالي
+  // 🔐 إعدادات التنشيط المرتبطة برابط قوقل
   // ============================================================
 
-  static const String _sovereignActivationKey = "MOX-2026-KEY-9876543210AB";
+  static const String _googleStoreApiUrl =
+      "https://script.google.com/macros/s/AKfycbxr1Fiq7D1Tfapos19WGXr_Hnqj34qnz4i3K73A-fbjXRYIbcE0mKNn6nIM-c8uwfzSsg/exec";
 
   static const int _subscriptionDays = 365;
+
+  // مفتاح توافقية مؤقت لكي لا تتأثر شاشة التحقق ويقبل الكود الإدخال
+  static const String _sovereignActivationKey = "MOX-2026-KEY-9876543210AB";
 
   // ============================================================
   // 🎨 هوية MOX
