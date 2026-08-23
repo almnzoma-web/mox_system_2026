@@ -43,7 +43,8 @@ import 'widgets/store_preview_widget.dart';
 //
 // ============================================================
 
-const String publicStoreApi = 'https://mox-2026.vercel.app/api/store';
+const String publicStoreApi =
+    'https://script.google.com/macros/s/AKfycbyZopgVkCqIEQyJHVsjs1AT07MGG6swOFGgdOkwgYwvpA-UVySfUlyA_gOHr_-XtWsj/exec?action=getUserByGuardianMoxId';
 
 // ============================================================
 // APP LINKS
