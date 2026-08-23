@@ -1,3 +1,7 @@
+// ذاكرة مؤقتة بسيطة داخل Vercel لمنع الذهاب لجوجل في كل طلب وتفادي الـ Timeout
+const memoryCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 دقائق كاش
+
 export default async function handler(request) {
   const start = Date.now();
 
@@ -20,7 +24,21 @@ export default async function handler(request) {
       .toUpperCase();
 
     // ============================================================
-    // GOOGLE APPS SCRIPT
+    // التحقق من الكاش السريع لتفادي ضغط جوجل والـ Timeout
+    // ============================================================
+    const cacheKey = guardianMoxId || action || "getall";
+    if (memoryCache.has(cacheKey)) {
+      const cached = memoryCache.get(cacheKey);
+      if (Date.now() - cached.time < CACHE_TTL) {
+        console.log("[MOX VERCEL] Serving from Memory Cache:", cacheKey);
+        return json(cached.data, 200);
+      } else {
+        memoryCache.delete(cacheKey);
+      }
+    }
+
+    // ============================================================
+    // GOOGLE APPS SCRIPT (الرابط الجديد)
     // ============================================================
 
     const scriptUrl =
@@ -34,16 +52,6 @@ export default async function handler(request) {
 
     // ============================================================
     // GET USER BY GUARDIAN MOX ID
-    //
-    // مهم جدًا:
-    //
-    // Google Apps Script يستخدم:
-    //
-    // getUserByGuardianMoxId
-    //
-    // وليس:
-    //
-    // getByGuardianMoxId
     // ============================================================
 
     if (guardianMoxId) {
@@ -97,7 +105,7 @@ export default async function handler(request) {
     );
 
     // ============================================================
-    // GOOGLE REQUEST TIMEOUT
+    // GOOGLE REQUEST TIMEOUT (تم رفع المهلة إلى 25 ثانية)
     // ============================================================
 
     const controller =
@@ -106,7 +114,7 @@ export default async function handler(request) {
     const timeout =
       setTimeout(() => {
         controller.abort();
-      }, 20000);
+      }, 25000);
 
     let response;
 
@@ -155,11 +163,6 @@ export default async function handler(request) {
     console.log(
       "[MOX VERCEL] RESPONSE LENGTH:",
       text.length
-    );
-
-    console.log(
-      "[MOX VERCEL] RESPONSE:",
-      text.substring(0, 1000)
     );
 
     // ============================================================
@@ -302,13 +305,6 @@ export default async function handler(request) {
 
     // ============================================================
     // استخراج المستخدم
-    //
-    // Google:
-    //
-    // {
-    //   ok: true,
-    //   user: {...}
-    // }
     // ============================================================
 
     const user =
@@ -381,42 +377,28 @@ export default async function handler(request) {
     }
 
     // ============================================================
-    // النجاح
-    //
-    // نعيد البيانات في مستويين:
-    //
-    // 1. user
-    // 2. guardianMoxId في المستوى الأعلى
-    //
-    // حتى يكون main.dart مرنًا مع النسخ القديمة والجديدة.
+    // النجاح تجهيز النتيجة للإرجاع وللحفظ في الكاش
     // ============================================================
 
-    return json(
-      {
+    const responsePayload = {
+      success: true,
+      status: "success",
+      guardianMoxId: returnedGuardian,
+      user: user,
+      data: user,
+      vercel: {
         success: true,
+        elapsedMs: Date.now() - start
+      }
+    };
 
-        status:
-          "success",
+    // حفظ النتيجة في الكاش لتكون الطلبات القادمة فورية تماماً
+    memoryCache.set(cacheKey, {
+      time: Date.now(),
+      data: responsePayload
+    });
 
-        guardianMoxId:
-          returnedGuardian,
-
-        user:
-          user,
-
-        data:
-          user,
-
-        vercel: {
-          success:
-            true,
-
-          elapsedMs:
-            Date.now() - start
-        }
-      },
-      200
-    );
+    return json(responsePayload, 200);
 
   } catch (error) {
     const elapsed =
@@ -447,7 +429,7 @@ export default async function handler(request) {
             elapsed,
 
           message:
-            "Google Apps Script did not respond within 20 seconds"
+            "Google Apps Script did not respond within 25 seconds"
         },
         504
       );
