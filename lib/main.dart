@@ -30,7 +30,8 @@ import 'widgets/store_preview_widget.dart';
 // guardianMoxIdCustomer
 //
 // ============================================================
-
+// تخزين مؤقت للرابط في حال لم يكن المستخدم مسجل دخول
+String? pendingPublicGuardianMoxId;
 // ============================================================
 // VERCEL STORE API
 //
