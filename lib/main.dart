@@ -17,30 +17,65 @@ import 'widgets/store_preview_widget.dart';
 // MOX DIGITAL
 // MAIN
 //
+// ============================================================
+//
 // الرابط العام:
+//
 // https://mox-2026.vercel.app/store/MOX249-00010001
 //
-// الهوية المستخدمة في المتجر العام:
+// ============================================================
+//
+// الهوية المستخدمة في الرابط العام:
+//
 // guardianMoxId
 //
-// لا نستخدم في تحديد المتجر العام:
+// لا نستخدم:
+//
 // moxId
 // phone
 // guardianMoxIdCustomer
 //
 // ============================================================
+//
+// نظام فتح الرابط:
+//
+// Android
+//   ↓
+// Android App Links
+//   ↓
+// assetlinks.json
+//   ↓
+// app_links
+//   ↓
+// Flutter
+//   ↓
+// guardianMoxId
+//   ↓
+// Vercel /api/store
+//   ↓
+// Google Apps Script
+//   ↓
+// Google Sheets
+//   ↓
+// UserModel
+//   ↓
+// StorePreviewWidget
+//
+// ============================================================
+//
+// مهم جداً:
+//
+// الرابط العام مستقل تماماً عن جلسة تسجيل الدخول.
+//
+// إذا كان العميل A مسجل دخول ثم فتح رابط العميل B:
+//
+// الرابط B له الأولوية
+// ويظهر المتجر B.
+//
+// ============================================================
 
 // ============================================================
 // VERCEL STORE API
-//
-// Flutter
-//    ↓
-// Vercel /api/store
-//    ↓
-// Google Apps Script
-//    ↓
-// Google Sheets
-//
 // ============================================================
 
 const String publicStoreApi = 'https://mox-2026.vercel.app/api/store';
@@ -48,22 +83,13 @@ const String publicStoreApi = 'https://mox-2026.vercel.app/api/store';
 // ============================================================
 // APP LINKS
 // ============================================================
-//
-// Android App Links:
-//
-// https://mox-2026.vercel.app/store/MOX249-00010001
-//
-// ============================================================
 
 final AppLinks _appLinks = AppLinks();
 
-StreamSubscription<Uri>? _appLinksSubscription;
+StreamSubscription<Uri>? _appLinkSubscription;
 
 // ============================================================
 // NAVIGATOR KEY
-// ============================================================
-//
-// نستخدمه لمعالجة App Links التي تصل والتطبيق مفتوح.
 // ============================================================
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -84,42 +110,136 @@ Future<void> main() async {
   }
 
   // ==========================================================
+  // الحصول على الرابط الأول
+  //
+  // Web:
+  //   Uri.base
+  //
+  // Android:
+  //   AppLinks.getInitialLink()
+  //
+  // ==========================================================
+
+  Uri? initialUri;
+
+  try {
+    if (kIsWeb) {
+      initialUri = Uri.base;
+
+      debugPrint('🌐 [BOOT] WEB URI: $initialUri');
+    } else {
+      initialUri = await _appLinks.getInitialLink();
+
+      debugPrint('📱 [BOOT] INITIAL APP LINK: $initialUri');
+    }
+  } catch (e, stackTrace) {
+    debugPrint('❌ [BOOT INITIAL LINK ERROR] $e');
+
+    debugPrint('$stackTrace');
+  }
+
+  // ==========================================================
+  // استخراج رابط المتجر العام
+  // ==========================================================
+
+  String? publicGuardianMoxId;
+
+  if (initialUri != null) {
+    publicGuardianMoxId = _getPublicGuardianMoxIdFromUri(initialUri);
+  }
+
+  // ==========================================================
   // الشاشة الافتراضية
   // ==========================================================
 
   Widget initialScreen = const WelcomeScreen();
 
   // ==========================================================
-  // WEB
+  // PUBLIC STORE
   //
-  // إذا كان الرابط:
+  // الرابط العام له الأولوية المطلقة.
   //
-  // /store/MOX249-00010001
+  // لا نهتم هنا:
   //
-  // نعالج المتجر العام مباشرة.
+  // هل يوجد Login؟
+  // هل يوجد User محفوظ؟
+  // هل يوجد مستخدم محلي؟
+  //
   // ==========================================================
 
-  if (kIsWeb) {
+  if (publicGuardianMoxId != null && publicGuardianMoxId.isNotEmpty) {
     try {
-      final Uri uri = Uri.base;
+      final String guardianMoxId = publicGuardianMoxId;
 
       debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      debugPrint('🌐 [BOOT] URI      : ${uri.toString()}');
-      debugPrint('🌐 [BOOT] PATH     : ${uri.path}');
-      debugPrint('🌐 [BOOT] SEGMENTS : ${uri.pathSegments}');
+
+      debugPrint('🏪 [PUBLIC STORE BOOT]');
+
+      debugPrint('🏪 guardianMoxId: $guardianMoxId');
+
       debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      final String? guardianMoxId = _getGuardianMoxIdFromUri(uri);
+      // ========================================================
+      // تحميل المتجر من السحابة
+      //
+      // مهم:
+      //
+      // لا نستخدم البحث المحلي أولاً.
+      //
+      // لأن الهاتف قد يحتوي جلسة عميل آخر.
+      //
+      // الرابط العام يجب أن يرجع المتجر الموجود في Google.
+      //
+      // ========================================================
 
-      debugPrint('🏪 [BOOT] GUARDIAN : $guardianMoxId');
+      final UserModel? foundUser = await _findPublicUserFromCloud(
+        guardianMoxId,
+      );
 
-      if (guardianMoxId != null) {
-        initialScreen = await _loadPublicStoreScreen(guardianMoxId);
-      } else {
-        initialScreen = await _loadNormalApplication();
+      // ========================================================
+      // المتجر موجود
+      // ========================================================
+
+      if (foundUser != null) {
+        debugPrint('✅ [PUBLIC STORE BOOT] المتجر موجود');
+
+        debugPrint('👤 الاسم: ${foundUser.name}');
+
+        debugPrint(
+          '🆔 guardianMoxId: '
+          '${foundUser.guardianMoxId}',
+        );
+
+        debugPrint(
+          '📅 storePublishDate: '
+          '${foundUser.storePublishDate}',
+        );
+
+        debugPrint(
+          '📅 activationDate: '
+          '${foundUser.activationDate}',
+        );
+
+        debugPrint(
+          '🧾 myAssets: '
+          '${foundUser.myAssets.length}',
+        );
+
+        initialScreen = _buildPublicStoreScreen(foundUser);
+      }
+      // ========================================================
+      // المتجر غير موجود
+      // ========================================================
+      else {
+        debugPrint(
+          '⚠️ [PUBLIC STORE BOOT] '
+          'المتجر غير موجود',
+        );
+
+        initialScreen = _buildStoreNotFoundScreen(guardianMoxId);
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ [BOOT WEB ERROR] $e');
+      debugPrint('❌ [PUBLIC STORE BOOT ERROR] $e');
 
       debugPrint('$stackTrace');
 
@@ -127,47 +247,54 @@ Future<void> main() async {
     }
   }
   // ==========================================================
-  // ANDROID / IOS
+  // NORMAL APPLICATION
   //
-  // نقرأ الرابط الذي فتح التطبيق.
+  // يتم الوصول هنا فقط إذا لم يكن الرابط:
+  //
+  // /store/...
+  //
   // ==========================================================
   else {
     try {
-      final Uri? initialUri = await _getInitialAppLink();
+      debugPrint('ℹ️ [MAIN] لا يوجد رابط متجر عام');
 
-      if (initialUri != null) {
+      // ========================================================
+      // تحميل المستخدمين المحليين
+      // ========================================================
+
+      await StorageService.loadUsers();
+
+      // ========================================================
+      // البحث عن جلسة المستخدم
+      // ========================================================
+
+      final UserModel? savedUser = await StorageService.getUser();
+
+      // ========================================================
+      // توجد جلسة
+      // ========================================================
+
+      if (savedUser != null) {
         debugPrint(
-          '🔗 [BOOT APP LINK] '
-          'Initial URI: $initialUri',
+          '🔐 [REMEMBER LOGIN] '
+          'جلسة محفوظة موجودة',
         );
 
-        final String? guardianMoxId = _getGuardianMoxIdFromUri(initialUri);
-
-        if (guardianMoxId != null) {
-          debugPrint(
-            '🏪 [BOOT APP LINK] '
-            'Opening store: $guardianMoxId',
-          );
-
-          initialScreen = await _loadPublicStoreScreen(guardianMoxId);
-        } else {
-          debugPrint(
-            'ℹ️ [BOOT APP LINK] '
-            'الرابط ليس رابط متجر عام',
-          );
-
-          initialScreen = await _loadNormalApplication();
-        }
-      } else {
+        initialScreen = DashboardScreen(user: savedUser);
+      }
+      // ========================================================
+      // لا توجد جلسة
+      // ========================================================
+      else {
         debugPrint(
-          'ℹ️ [BOOT APP LINK] '
-          'لا يوجد رابط ابتدائي',
+          '🔓 [REMEMBER LOGIN] '
+          'لا توجد جلسة محفوظة',
         );
 
-        initialScreen = await _loadNormalApplication();
+        initialScreen = const WelcomeScreen();
       }
     } catch (e, stackTrace) {
-      debugPrint('❌ [BOOT MOBILE ERROR] $e');
+      debugPrint('❌ [MAIN ERROR] $e');
 
       debugPrint('$stackTrace');
 
@@ -187,237 +314,174 @@ Future<void> main() async {
   );
 
   runApp(MyApp(initialScreen: initialScreen));
-}
 
-// ============================================================
-// INITIAL APP LINK
-// ============================================================
-//
-// الرابط الذي فتح التطبيق لأول مرة.
-// ============================================================
+  // ==========================================================
+  // الاستماع للروابط الجديدة
+  //
+  // مهم جداً:
+  //
+  // هذا الجزء يعالج حالة:
+  //
+  // التطبيق مفتوح بالفعل
+  // ثم المستخدم يضغط رابط متجر.
+  //
+  // ==========================================================
 
-Future<Uri?> _getInitialAppLink() async {
-  try {
-    final Uri? uri = await _appLinks.getInitialLink();
-
-    debugPrint('🔗 [APP LINKS] Initial link: $uri');
-
-    return uri;
-  } catch (e) {
-    debugPrint('❌ [APP LINKS] Initial link error: $e');
-
-    return null;
+  if (!kIsWeb) {
+    _listenToAppLinks();
   }
 }
 
 // ============================================================
-// APP LINK STREAM
+// APP LINKS LISTENER
 // ============================================================
 //
-// الروابط التي تصل والتطبيق مفتوح.
+// يعالج:
+//
+// التطبيق مفتوح
+// أو في الخلفية
+//
+// ثم يصل رابط جديد.
+//
 // ============================================================
 
-void _startAppLinksListener(BuildContext context) {
-  if (kIsWeb) {
-    return;
+void _listenToAppLinks() {
+  try {
+    _appLinkSubscription?.cancel();
+
+    _appLinkSubscription = _appLinks.uriLinkStream.listen(
+      (Uri uri) async {
+        try {
+          debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+          debugPrint('🔗 [APP LINK STREAM]');
+
+          debugPrint('🔗 URI: $uri');
+
+          debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+          final String? guardianMoxId = _getPublicGuardianMoxIdFromUri(uri);
+
+          // ======================================================
+          // ليس رابط متجر
+          // ======================================================
+
+          if (guardianMoxId == null) {
+            debugPrint(
+              'ℹ️ [APP LINK] '
+              'الرابط ليس رابط متجر عام',
+            );
+
+            return;
+          }
+
+          // ======================================================
+          // فتح المتجر
+          // ======================================================
+
+          await _openPublicStoreFromDeepLink(guardianMoxId);
+        } catch (e, stackTrace) {
+          debugPrint('❌ [APP LINK STREAM ERROR] $e');
+
+          debugPrint('$stackTrace');
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('❌ [APP LINK STREAM] ERROR: $error');
+
+        debugPrint('$stackTrace');
+      },
+    );
+  } catch (e, stackTrace) {
+    debugPrint('❌ [APP LINK LISTENER ERROR] $e');
+
+    debugPrint('$stackTrace');
   }
-
-  _appLinksSubscription?.cancel();
-
-  _appLinksSubscription = _appLinks.uriLinkStream.listen(
-    (Uri uri) async {
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      debugPrint('🔗 [APP LINKS STREAM] URI: $uri');
-
-      debugPrint('🔗 [APP LINKS STREAM] PATH: ${uri.path}');
-
-      debugPrint(
-        '🔗 [APP LINKS STREAM] SEGMENTS: '
-        '${uri.pathSegments}',
-      );
-
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      final String? guardianMoxId = _getGuardianMoxIdFromUri(uri);
-
-      if (guardianMoxId == null) {
-        debugPrint(
-          '⚠️ [APP LINKS STREAM] '
-          'ليس رابط متجر صالح',
-        );
-
-        return;
-      }
-
-      debugPrint(
-        '🏪 [APP LINKS STREAM] '
-        'Loading: $guardianMoxId',
-      );
-
-      final Widget screen = await _loadPublicStoreScreen(guardianMoxId);
-
-      // ======================================================
-      // حماية BuildContext
-      // ======================================================
-      //
-      // لا نستخدم BuildContext القديم بعد await.
-      // ======================================================
-
-      final NavigatorState? navigator = navigatorKey.currentState;
-
-      if (navigator == null) {
-        debugPrint(
-          '⚠️ [APP LINKS STREAM] '
-          'Navigator غير جاهز',
-        );
-
-        return;
-      }
-
-      navigator.pushReplacement(MaterialPageRoute(builder: (_) => screen));
-    },
-    onError: (Object error) {
-      debugPrint('❌ [APP LINKS STREAM ERROR] $error');
-    },
-  );
 }
 
 // ============================================================
-// PUBLIC STORE SCREEN
-// ============================================================
-//
-// مهم جدًا:
-//
-// لا نستخدم StorageService هنا.
-// لا نحتاج تسجيل دخول.
-// لا نحتاج جلسة.
-// لا نحتاج المستخدم المحلي.
-//
-// الرابط العام:
-// guardianMoxId
-//
-// ثم:
-// Vercel → Google → UserModel
+// فتح متجر من رابط يصل أثناء تشغيل التطبيق
 // ============================================================
 
-Future<Widget> _loadPublicStoreScreen(String guardianMoxId) async {
+Future<void> _openPublicStoreFromDeepLink(String guardianMoxId) async {
   try {
-    final String cleanGuardianMoxId = guardianMoxId.trim().toUpperCase();
-
-    if (!_isValidGuardianMoxId(cleanGuardianMoxId)) {
-      return _buildStoreNotFoundScreen(cleanGuardianMoxId);
-    }
-
     debugPrint(
-      '🏪 [PUBLIC STORE] '
-      'بدء تحميل المتجر: '
-      '$cleanGuardianMoxId',
+      '🏪 [DEEP LINK] تحميل المتجر: '
+      '$guardianMoxId',
     );
 
-    // ========================================================
-    // تحميل مباشر من السحابة
-    // ========================================================
+    // ==========================================================
+    // تحميل المتجر من السحابة
+    // ==========================================================
 
-    final UserModel? user = await _findPublicUserFromCloud(cleanGuardianMoxId);
+    final UserModel? user = await _findPublicUserFromCloud(guardianMoxId);
 
-    // ========================================================
-    // المتجر موجود
-    // ========================================================
-
-    if (user != null) {
-      debugPrint(
-        '✅ [PUBLIC STORE] '
-        'المتجر موجود',
-      );
-
-      debugPrint(
-        '👤 [PUBLIC STORE] الاسم: '
-        '${user.name}',
-      );
-
-      debugPrint(
-        '🆔 [PUBLIC STORE] guardianMoxId: '
-        '${user.guardianMoxId}',
-      );
-
-      debugPrint(
-        '📅 [PUBLIC STORE] storePublishDate: '
-        '${user.storePublishDate}',
-      );
-
-      debugPrint(
-        '🧾 [PUBLIC STORE] myAssets: '
-        '${user.myAssets.length}',
-      );
-
-      return _buildPublicStoreScreen(user);
-    }
-
-    // ========================================================
+    // ==========================================================
     // المتجر غير موجود
-    // ========================================================
+    // ==========================================================
 
-    debugPrint(
-      '⚠️ [PUBLIC STORE] '
-      'المتجر غير موجود: '
-      '$cleanGuardianMoxId',
-    );
-
-    return _buildStoreNotFoundScreen(cleanGuardianMoxId);
-  } catch (e, stackTrace) {
-    debugPrint('❌ [PUBLIC STORE ERROR] $e');
-
-    debugPrint('$stackTrace');
-
-    return _buildStoreNotFoundScreen(guardianMoxId);
-  }
-}
-
-// ============================================================
-// NORMAL APPLICATION
-// ============================================================
-//
-// هذا الجزء فقط يستخدم جلسة المستخدم.
-// ============================================================
-
-Future<Widget> _loadNormalApplication() async {
-  try {
-    debugPrint(
-      'ℹ️ [MAIN] '
-      'لا يوجد رابط متجر عام',
-    );
-
-    await StorageService.loadUsers();
-
-    final UserModel? savedUser = await StorageService.getUser();
-
-    if (savedUser != null) {
+    if (user == null) {
       debugPrint(
-        '🔐 [REMEMBER LOGIN] '
-        'جلسة محفوظة موجودة',
+        '⚠️ [DEEP LINK] '
+        'المتجر غير موجود',
       );
 
-      return DashboardScreen(user: savedUser);
+      final BuildContext? context = navigatorKey.currentState?.context;
+
+      if (context == null) {
+        return;
+      }
+
+      // ignore: use_build_context_synchronously
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _buildStoreNotFoundScreen(guardianMoxId),
+        ),
+      );
+
+      return;
     }
 
-    debugPrint(
-      '🔓 [REMEMBER LOGIN] '
-      'لا توجد جلسة محفوظة',
+    // ==========================================================
+    // الحصول على Navigator
+    // ==========================================================
+
+    final NavigatorState? navigator = navigatorKey.currentState;
+
+    if (navigator == null) {
+      debugPrint(
+        '⚠️ [DEEP LINK] '
+        'Navigator غير جاهز',
+      );
+
+      return;
+    }
+
+    // ==========================================================
+    // فتح المتجر العام
+    //
+    // نستخدم pushReplacement
+    // حتى لا تتراكم روابط المتاجر فوق بعضها.
+    //
+    // ==========================================================
+
+    navigator.pushReplacement(
+      MaterialPageRoute(builder: (_) => _buildPublicStoreScreen(user)),
     );
 
-    return const WelcomeScreen();
+    debugPrint(
+      '✅ [DEEP LINK] '
+      'تم فتح المتجر بنجاح',
+    );
   } catch (e, stackTrace) {
-    debugPrint('❌ [MAIN NORMAL ERROR] $e');
+    debugPrint('❌ [DEEP LINK OPEN ERROR] $e');
 
     debugPrint('$stackTrace');
-
-    return const WelcomeScreen();
   }
 }
 
 // ============================================================
-// BUILD PUBLIC STORE
+// بناء شاشة المتجر العام
 // ============================================================
 
 Widget _buildPublicStoreScreen(UserModel user) {
@@ -429,7 +493,7 @@ Widget _buildPublicStoreScreen(UserModel user) {
 }
 
 // ============================================================
-// STORE NOT FOUND
+// شاشة المتجر غير موجود
 // ============================================================
 
 Widget _buildStoreNotFoundScreen(String guardianMoxId) {
@@ -483,20 +547,19 @@ Widget _buildStoreNotFoundScreen(String guardianMoxId) {
 }
 
 // ============================================================
-// URI PARSER
+// استخراج guardianMoxId من URI
 // ============================================================
 //
 // الرابط:
 //
 // https://mox-2026.vercel.app/store/MOX249-00010001
 //
-// النتيجة:
-//
-// MOX249-00010001
 // ============================================================
 
-String? _getGuardianMoxIdFromUri(Uri uri) {
+String? _getPublicGuardianMoxIdFromUri(Uri uri) {
   try {
+    final List<String> segments = uri.pathSegments;
+
     debugPrint(
       '🔗 [URL PARSER] URI: '
       '${uri.toString()}',
@@ -509,10 +572,8 @@ String? _getGuardianMoxIdFromUri(Uri uri) {
 
     debugPrint(
       '🔗 [URL PARSER] SEGMENTS: '
-      '${uri.pathSegments}',
+      '$segments',
     );
-
-    final List<String> segments = uri.pathSegments;
 
     // ========================================================
     // يجب أن يكون:
@@ -530,7 +591,7 @@ String? _getGuardianMoxIdFromUri(Uri uri) {
     }
 
     // ========================================================
-    // الجزء الأول
+    // الجزء الأول يجب أن يكون store
     // ========================================================
 
     if (segments[0].trim().toLowerCase() != 'store') {
@@ -564,8 +625,7 @@ String? _getGuardianMoxIdFromUri(Uri uri) {
     }
 
     debugPrint(
-      '🏪 [URL PARSER] '
-      'guardianMoxId = '
+      '🏪 [URL PARSER] guardianMoxId = '
       '$guardianMoxId',
     );
 
@@ -578,7 +638,7 @@ String? _getGuardianMoxIdFromUri(Uri uri) {
 }
 
 // ============================================================
-// VALIDATE GUARDIAN MOX ID
+// التحقق من guardianMoxId
 // ============================================================
 
 bool _isValidGuardianMoxId(String value) {
@@ -608,20 +668,21 @@ bool _isValidGuardianMoxId(String value) {
 }
 
 // ============================================================
-// CLOUD SEARCH
+// البحث السحابي للمتجر العام
 // ============================================================
 //
-// Flutter
-// ↓
-// Vercel
-// ↓
-// Google Apps Script
-// ↓
-// Google Sheets
-//
-// البحث الوحيد:
+// الرابط العام يعتمد على:
 //
 // guardianMoxId
+//
+// Flutter
+//    ↓
+// Vercel
+//    ↓
+// Google Apps Script
+//    ↓
+// Google Sheets
+//
 // ============================================================
 
 Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
@@ -684,11 +745,12 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
       return null;
     }
 
+    // ========================================================
+    // EMPTY RESPONSE
+    // ========================================================
+
     if (response.body.trim().isEmpty) {
-      debugPrint(
-        '❌ [STORE API] '
-        'الرد فارغ',
-      );
+      debugPrint('❌ [STORE API] الرد فارغ');
 
       return null;
     }
@@ -698,6 +760,10 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     // ========================================================
 
     final String body = response.body.trim();
+
+    // ========================================================
+    // حماية HTML
+    // ========================================================
 
     if (body.startsWith('<!DOCTYPE') ||
         body.startsWith('<html') ||
@@ -710,6 +776,10 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
       return null;
     }
 
+    // ========================================================
+    // JSON DECODE
+    // ========================================================
+
     dynamic decoded;
 
     try {
@@ -721,15 +791,15 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
       );
 
       debugPrint(
-        '❌ [STORE API] '
-        'RESPONSE: $body',
+        '❌ [STORE API] RESPONSE: '
+        '$body',
       );
 
       return null;
     }
 
     // ========================================================
-    // RESPONSE MAP
+    // الرد يجب أن يكون Map
     // ========================================================
 
     if (decoded is! Map) {
@@ -744,7 +814,7 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
 
     // ========================================================
-    // API SUCCESS
+    // success:false
     // ========================================================
 
     if (map['success'] == false) {
@@ -757,9 +827,9 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     }
 
     // ========================================================
-    // USER MAP
+    // تحديد مكان بيانات المستخدم
     //
-    // Google / Vercel قد يعيد:
+    // Google / Vercel يمكن أن يعيدا:
     //
     // {
     //   user: {...}
@@ -772,6 +842,7 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     // }
     //
     // أو البيانات مباشرة.
+    //
     // ========================================================
 
     final Map<String, dynamic> userMap = map['user'] is Map
@@ -779,42 +850,22 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
         : (map['data'] is Map ? Map<String, dynamic>.from(map['data']) : map);
 
     // ========================================================
-    // DEBUG
+    // التحقق من guardianMoxId
+    //
+    // مهم أمنياً:
+    //
+    // لا نقبل بيانات مختلفة عن الرابط.
+    //
     // ========================================================
 
-    debugPrint(
-      '🔍 [MAP KEYS]: '
-      '${userMap.keys.toList()}',
-    );
-
-    debugPrint(
-      '🔍 [RAW guardianMoxId]: '
-      '${userMap['guardianMoxId'] ?? userMap['GuardianMoxId']}',
-    );
-
-    debugPrint(
-      '🔍 [RAW storePublishDate]: '
-      '${userMap['storePublishDate'] ?? userMap['StorePublishDate'] ?? userMap['STORE_PUBLISH_DATE']}',
-    );
-
-    debugPrint(
-      '🔍 [RAW activationDate]: '
-      '${userMap['activationDate'] ?? userMap['ActivationDate'] ?? userMap['ACTIVATION_DATE']}',
-    );
-
-    // ========================================================
-    // بناء UserModel
-    // ========================================================
-
-    final UserModel user = UserModel.fromJson(userMap);
-
-    // ========================================================
-    // التحقق من هوية المتجر
-    // ========================================================
-
-    final String rowGuardianMoxId = (user.guardianMoxId ?? '')
-        .trim()
-        .toUpperCase();
+    final String rowGuardianMoxId =
+        (userMap['guardianMoxId'] ??
+                userMap['GuardianMoxId'] ??
+                userMap['guardian_mox_id'] ??
+                '')
+            .toString()
+            .trim()
+            .toUpperCase();
 
     if (!_isValidGuardianMoxId(rowGuardianMoxId)) {
       debugPrint(
@@ -845,44 +896,67 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
     }
 
     // ========================================================
+    // DEBUG
+    // ========================================================
+
+    debugPrint(
+      '🔍 [MAP KEYS]: '
+      '${userMap.keys.toList()}',
+    );
+
+    debugPrint(
+      '🔍 [RAW storePublishDate]: '
+      '${userMap['storePublishDate'] ?? userMap['StorePublishDate'] ?? userMap['STORE_PUBLISH_DATE']}',
+    );
+
+    debugPrint(
+      '🔍 [RAW activationDate]: '
+      '${userMap['activationDate'] ?? userMap['ActivationDate'] ?? userMap['ACTIVATION_DATE']}',
+    );
+
+    // ========================================================
+    // بناء UserModel
+    // ========================================================
+
+    final UserModel user = UserModel.fromJson(userMap);
+
+    // ========================================================
     // DEBUG USER
     // ========================================================
 
     debugPrint(
-      '✅ [CLOUD SEARCH] MATCH '
-      'العميل: ${user.name}',
+      '✅ [CLOUD SEARCH] '
+      'MATCH العميل: '
+      '${user.name}',
     );
 
     debugPrint(
-      '🆔 [CLOUD SEARCH] '
-      'guardianMoxId: '
+      '🆔 [CLOUD SEARCH] guardianMoxId: '
       '${user.guardianMoxId}',
     );
 
     debugPrint(
-      '📅 [CLOUD SEARCH] '
-      'storePublishDate: '
+      '📅 [CLOUD SEARCH] storePublishDate: '
       '${user.storePublishDate}',
     );
 
     debugPrint(
-      '📅 [CLOUD SEARCH] '
-      'activationDate: '
+      '📅 [CLOUD SEARCH] activationDate: '
       '${user.activationDate}',
     );
 
     debugPrint(
-      '🧾 [CLOUD SEARCH] '
-      'myAssets: '
+      '🧾 [CLOUD SEARCH] myAssets: '
       '${user.myAssets.length}',
     );
 
     // ========================================================
     // تحديث النسخة المحلية
     //
-    // هذا ليس شرطًا لفتح المتجر.
+    // هذا Cache فقط.
     //
-    // مجرد Cache اختياري.
+    // لا نستخدمه لتحديد المتجر قبل البحث السحابي.
+    //
     // ========================================================
 
     try {
@@ -902,16 +976,12 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
 
       debugPrint(
         '💾 [CLOUD SEARCH] '
-        'تم تحديث Cache المحلي',
+        'تم تحديث النسخة المحلية للعميل',
       );
     } catch (e) {
-      // ======================================================
-      // فشل الـ Cache لا يجب أن يمنع فتح المتجر.
-      // ======================================================
-
       debugPrint(
-        '⚠️ [CLOUD SEARCH] '
-        'تعذر تحديث Cache: $e',
+        '⚠️ [CLOUD CACHE] '
+        'فشل تحديث النسخة المحلية: $e',
       );
     }
 
@@ -929,56 +999,19 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
 // MY APP
 // ============================================================
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   final Widget initialScreen;
 
   const MyApp({super.key, required this.initialScreen});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-// ============================================================
-// MY APP STATE
-// ============================================================
-
-class _MyAppState extends State<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-
-    // ========================================================
-    // تشغيل مراقبة App Links
-    //
-    // بعد اكتمال بناء التطبيق.
-    // ========================================================
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-
-      _startAppLinksListener(context);
-    });
-  }
-
-  @override
-  void dispose() {
-    _appLinksSubscription?.cancel();
-
-    _appLinksSubscription = null;
-
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
 
-      navigatorKey: navigatorKey,
-
       title: 'MOX Digital App',
+
+      navigatorKey: navigatorKey,
 
       theme: ThemeData(
         primaryColor: const Color(0xFF28A9CC),
@@ -998,7 +1031,7 @@ class _MyAppState extends State<MyApp> {
         fontFamily: 'Cairo',
       ),
 
-      home: widget.initialScreen,
+      home: initialScreen,
     );
   }
 }
