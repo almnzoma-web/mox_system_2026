@@ -1088,6 +1088,14 @@ class StorageService {
       cleanGuardianMoxId: isMoxId ? cleanInput : null,
     );
 
+    // 👑 الحل الفوري: إذا كان هو المدير، نجعله يدخل محلياً فوراً دون طلب سحابي
+    if (isAdminLogin) {
+      debugPrint(
+        '👑 [Admin Login] تم دخول المدير بنجاح محلياً عبر guardianMoxId',
+      );
+      return adminUser;
+    }
+
     if (!isAdminLogin) {
       try {
         // البحث محلياً: بالهاتف أو بـ guardianMoxId / guardianMoxIdCustomer مع كلمة السر
