@@ -35,7 +35,7 @@ class StorageService {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbxppGdCCQlsg8mPGbIN4JmPfaFp3FnZgjWTKiokhvGCAD4iuKA1sWr5D8T8B7YiwvGa/exec';
+      'https://script.google.com/macros/s/AKfycbx5FDob4HPiz-CY_CaEAQuivLe5kMma52mDI3V8drwseJ9LBZQOs7404KqDgS-92sjk/exec';
 
   // ============================================================
   // VERCEL STORE API
