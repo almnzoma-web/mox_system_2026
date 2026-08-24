@@ -124,7 +124,7 @@ export default async function handler(request) {
     // ========================================================
 
     const scriptUrl =
-      "https://script.google.com/macros/s/AKfycbyCX6UL6zbF1Y-HyRAlAOM7CrjD6TLmGBZLZ5KrdL_V7cB-6ZsEHfXSruJlLHYYFg/exec";
+      "https://script.google.com/macros/s/AKfycbywoqaLuXUa9E8DTsYV6UVBWpqYnMhedxhguot5RWUoBU9Ao4zmLVgQ8IC114KTZupX/exec";
 
     const googleUrl =
       `${scriptUrl}` +
