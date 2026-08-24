@@ -521,30 +521,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color color,
   }) {
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12),
+        border: Border.all(
+          color: Colors.purple.withValues(alpha: 0.2),
+          width: 1,
+        ), // لمسة جمالية خفيفة للبطاقة الأخيرة
       ),
-      child: ExpansionTile(
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-            color: Colors.black87,
-          ),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              content,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Colors.black54,
-                height: 1.4,
-              ),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Color(0xFF2C3E50), // عنوان غامق وواضح
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            content,
+            style: const TextStyle(
+              color: Color(0xFF1A1A1A), // أسود غامق وصريح جداً وغير باهت
+              fontSize: 14,
+              height: 1.45, // مسافة مريحة بين السطور لعدم إجهاد العين
             ),
           ),
         ],
