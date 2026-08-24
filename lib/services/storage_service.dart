@@ -195,8 +195,7 @@ class StorageService {
     final String cleanGuardian = _clean(cleanGuardianMoxId).toUpperCase();
 
     return cleanPhone == adminUser.phone ||
-        cleanGuardian == _clean(adminUser.guardianMoxId).toUpperCase() ||
-        cleanGuardian == _clean(adminUser.guardianMoxIdCustomer).toUpperCase();
+        cleanGuardian == _clean(adminUser.guardianMoxId).toUpperCase();
   }
 
   static bool _isAdminUser(UserModel user) {
