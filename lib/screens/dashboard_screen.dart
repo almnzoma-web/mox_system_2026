@@ -467,7 +467,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   "MOX هي مساحة لبناء هويتك الرقمية.\n\n"
                   "✍️ المنظومة أونلاين | MOX\n"
                   "🤚 المنظومة أونلاين MOX عقل الدولة القادمة",
-              color: Colors.purple[50]!,
+              color: const Color.fromRGBO(243, 229, 245, 1),
             ),
 
             const SizedBox(height: 30),
