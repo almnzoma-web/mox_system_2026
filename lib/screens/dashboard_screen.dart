@@ -306,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 children: [
                   Image.asset(
-                    'assets/logo.png',
+                    'assets/mox_app_icon.ico',
                     height: 55,
                     width: 55,
                     errorBuilder: (context, error, stackTrace) => const Icon(
