@@ -186,16 +186,24 @@ class StorageService {
   // ADMIN ID CHECK
   // ============================================================
 
-  static bool _isAdminIdentity({String? phone, String? moxId}) {
+  static bool _isAdminIdentity({
+    String? phone,
+    String? cleanGuardianMoxId,
+    String? guardianMoxId,
+  }) {
     final String cleanPhone = _clean(phone);
+    final String cleanGuardian = _clean(cleanGuardianMoxId).toUpperCase();
 
-    final String cleanMoxId = _clean(moxId);
-
-    return cleanPhone == adminUser.phone || cleanMoxId == adminUser.moxId;
+    return cleanPhone == adminUser.phone ||
+        cleanGuardian == _clean(adminUser.guardianMoxId).toUpperCase() ||
+        cleanGuardian == _clean(adminUser.guardianMoxIdCustomer).toUpperCase();
   }
 
   static bool _isAdminUser(UserModel user) {
-    return _isAdminIdentity(phone: user.phone, moxId: user.moxId);
+    return _isAdminIdentity(
+      phone: user.phone,
+      guardianMoxId: user.guardianMoxId,
+    );
   }
 
   // ============================================================
@@ -1075,10 +1083,10 @@ class StorageService {
       return null;
     }
 
-    // التحقق هل هو المدير (معتمد على الهاتف أو guardianMoxId الخاص بالمدير إن وجد)
+    // التحقق هل هو المدير عبر الـ guardianMoxId أو الهاتف
     final bool isAdminLogin = _isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
-      moxId: isMoxId ? cleanInput : null,
+      cleanGuardianMoxId: isMoxId ? cleanInput : null,
     );
 
     if (!isAdminLogin) {
@@ -1212,7 +1220,7 @@ class StorageService {
 
     if (_isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
-      moxId: isMoxId ? cleanInput : null,
+      guardianMoxId: isMoxId ? null : cleanInput,
     )) {
       return null;
     }
