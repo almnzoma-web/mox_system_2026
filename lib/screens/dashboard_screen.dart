@@ -71,7 +71,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       "https://almnzoma-mox.blogspot.com/p/blog-page_84.html";
   final String linkZaherGlobalSystem =
       "https://www.facebook.com/AlmnzomaOnline2";
-  final String linkMoxOnline = "https://www.facebook.com/AlmnzomaOnlineMOX";
+  final String linkMoxOnline =
+      "https://almnzoma-mox.blogspot.com/2026/08/mox-2026-digtial-bank-app.html";
   final String linkMoxAgents =
       "https://almnzoma-mox.blogspot.com/p/blog-page_02.html";
 
@@ -265,7 +266,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.link, color: Colors.blue),
-              title: const Text("المنظومة أونلاين MOX"),
+              title: const Text("ترقية حسابك"),
               onTap: () =>
                   _openExternalLink("المنظومة أونلاين MOX", linkMoxOnline),
             ),
