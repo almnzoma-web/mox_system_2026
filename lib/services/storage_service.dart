@@ -696,6 +696,11 @@ class StorageService {
   // ============================================================
 
   static Map<String, String> _userCloudParameters(UserModel user) {
+    // التحقق هل المستخدم موجود مسبقاً في الذاكرة المحلية
+    final UserModel? existingLocalUser = _findLocalUser(user);
+    final bool isNewUser =
+        existingLocalUser == null || _clean(existingLocalUser.password).isEmpty;
+
     final Map<String, String> params = <String, String>{
       'action': 'save',
       'phone': user.phone,
@@ -715,8 +720,13 @@ class StorageService {
       'myAssets': _encodeAssets(user.myAssets),
 
       // ========================================================
+      // 🔐 كلمة السر
+      // ترسل فقط للمستخدم الجديد، ولا ترسل للمستخدم القديم لكي لا يتم تعديلها
+      // ========================================================
+      'password': isNewUser ? user.password : '',
+
+      // ========================================================
       // 🔐 الاشتراك
-      //
       // هذه البيانات للقراءة والحفاظ عليها فقط.
       // لا يتم إنشاء اشتراك جديد من خلال save.
       // ========================================================
@@ -1053,7 +1063,7 @@ class StorageService {
   static Future<UserModel?> authenticateAsync(
     String input,
     String password,
-    bool isMoxId,
+    bool isMoxId, // هنا تعني هل المدخل هو guardianMoxId
   ) async {
     await ensureLoaded();
 
@@ -1065,6 +1075,7 @@ class StorageService {
       return null;
     }
 
+    // التحقق هل هو المدير (معتمد على الهاتف أو guardianMoxId الخاص بالمدير إن وجد)
     final bool isAdminLogin = _isAdminIdentity(
       phone: isMoxId ? null : cleanInput,
       moxId: isMoxId ? cleanInput : null,
@@ -1072,10 +1083,12 @@ class StorageService {
 
     if (!isAdminLogin) {
       try {
+        // البحث محلياً: بالهاتف أو بـ guardianMoxId / guardianMoxIdCustomer مع كلمة السر
         final UserModel foundUser = registeredUsers.firstWhere(
           (u) =>
               (isMoxId
-                  ? u.moxId.trim() == cleanInput
+                  ? (u.guardianMoxId?.trim() == cleanInput ||
+                        u.guardianMoxIdCustomer?.trim() == cleanInput)
                   : u.phone.trim() == cleanInput) &&
               u.password == cleanPassword,
         );
@@ -1084,6 +1097,7 @@ class StorageService {
       } catch (_) {}
     }
 
+    // البحث سحابياً عبر Google Apps Script إذا لم يوجد محلياً
     try {
       final Uri uri = Uri.parse(_scriptUrl).replace(
         queryParameters: {
@@ -1108,78 +1122,78 @@ class StorageService {
 
       final dynamic decoded = json.decode(response.body);
 
-      if (decoded is! Map) {
-        return null;
-      }
+      if (decoded is Map) {
+        final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
 
-      final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
-
-      if (map['status'] != 'success') {
-        return null;
-      }
-
-      final dynamic rawUser = map['user'];
-
-      if (rawUser is! Map) {
-        return null;
-      }
-
-      final UserModel cloudUser = UserModel.fromJson(
-        Map<String, dynamic>.from(rawUser),
-      );
-
-      if (_isAdminUser(cloudUser)) {
-        final UserModel safeAdmin = adminUser.copyWith(
-          name: cloudUser.name,
-          address: cloudUser.address,
-          balance: cloudUser.balance,
-          commission: cloudUser.commission,
-          role: cloudUser.role,
-          guardianMoxId: cloudUser.guardianMoxId,
-          guardianMoxIdCustomer: cloudUser.guardianMoxIdCustomer,
-          points: cloudUser.points,
-          myAssets: cloudUser.myAssets,
-          storeDescription: cloudUser.storeDescription,
-          storePublishDate: cloudUser.storePublishDate,
-          activationDate: cloudUser.activationDate,
-          digitalPublicKey: cloudUser.digitalPublicKey,
-          digitalSignatureAlgorithm: cloudUser.digitalSignatureAlgorithm,
-          digitalSignatureCreatedAt: cloudUser.digitalSignatureCreatedAt,
-          digitalSignatureKeyVersion: cloudUser.digitalSignatureKeyVersion,
-        );
-
-        final int index = registeredUsers.indexWhere((u) => _isAdminUser(u));
-
-        if (index == -1) {
-          registeredUsers.insert(0, safeAdmin);
-        } else {
-          registeredUsers[index] = safeAdmin;
+        if (map['status'] != 'success') {
+          return null;
         }
 
-        await saveUsersList();
+        final dynamic rawUser = map['user'];
 
-        return safeAdmin;
+        if (rawUser is Map) {
+          final UserModel cloudUser = UserModel.fromJson(
+            Map<String, dynamic>.from(rawUser),
+          );
+
+          if (_isAdminUser(cloudUser)) {
+            final UserModel safeAdmin = adminUser.copyWith(
+              name: cloudUser.name,
+              address: cloudUser.address,
+              balance: cloudUser.balance,
+              commission: cloudUser.commission,
+              role: cloudUser.role,
+              guardianMoxId: cloudUser.guardianMoxId,
+              guardianMoxIdCustomer: cloudUser.guardianMoxIdCustomer,
+              points: cloudUser.points,
+              myAssets: cloudUser.myAssets,
+              storeDescription: cloudUser.storeDescription,
+              storePublishDate: cloudUser.storePublishDate,
+              activationDate: cloudUser.activationDate,
+              digitalPublicKey: cloudUser.digitalPublicKey,
+              digitalSignatureAlgorithm: cloudUser.digitalSignatureAlgorithm,
+              digitalSignatureCreatedAt: cloudUser.digitalSignatureCreatedAt,
+              digitalSignatureKeyVersion: cloudUser.digitalSignatureKeyVersion,
+            );
+
+            final int index = registeredUsers.indexWhere(
+              (u) => _isAdminUser(u),
+            );
+
+            if (index == -1) {
+              registeredUsers.insert(0, safeAdmin);
+            } else {
+              registeredUsers[index] = safeAdmin;
+            }
+
+            await saveUsersList();
+
+            return safeAdmin;
+          }
+
+          // إضافة المستخدم للذاكرة المحلية وتحديثها بالهاتف أو guardianMoxId
+          final int index = registeredUsers.indexWhere(
+            (u) =>
+                u.phone == cloudUser.phone ||
+                (u.guardianMoxId != null &&
+                    u.guardianMoxId == cloudUser.guardianMoxId),
+          );
+
+          if (index == -1) {
+            registeredUsers.add(cloudUser);
+          } else {
+            registeredUsers[index] = cloudUser;
+          }
+
+          _ensureAdmin();
+
+          await saveUsersList();
+
+          return cloudUser;
+        }
       }
 
-      if (!_isValidMoxId(cloudUser.moxId)) {
-        return null;
-      }
-
-      final int index = registeredUsers.indexWhere(
-        (u) => u.moxId == cloudUser.moxId || u.phone == cloudUser.phone,
-      );
-
-      if (index == -1) {
-        registeredUsers.add(cloudUser);
-      } else {
-        registeredUsers[index] = cloudUser;
-      }
-
-      _ensureAdmin();
-
-      await saveUsersList();
-
-      return cloudUser;
+      return null;
     } catch (e) {
       debugPrint('❌ [Cloud Login] $e');
 
