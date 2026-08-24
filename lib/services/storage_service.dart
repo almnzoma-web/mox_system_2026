@@ -457,39 +457,79 @@ class StorageService {
   static Map<String, String> _userCloudParameters(UserModel user) {
     final Map<String, String> params = <String, String>{
       'action': 'save',
+
+      // ========================================================
+      // بيانات الدخول
+      // ========================================================
       'phone': user.phone,
+      'password': user.password,
+
+      // ========================================================
+      // البيانات الأساسية
+      // ========================================================
       'name': user.name,
       'address': user.address,
       'storeDescription': user.storeDescription,
+
+      // ========================================================
+      // البيانات المالية
+      // ========================================================
       'balance': user.balance.toString(),
       'commission': user.commission.toString(),
+
+      // ========================================================
+      // بيانات الحساب
+      // ========================================================
       'gender': user.gender,
       'accountType': user.accountType,
       'moxId': user.moxId,
       'role': user.role,
+
+      // ========================================================
+      // WhatsApp
+      // ========================================================
       'customWhatsApp': user.customWhatsApp ?? '',
+
+      // ========================================================
+      // العلاقات
+      // ========================================================
       'guardianMoxId': user.guardianMoxId ?? '',
       'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
+
+      // ========================================================
+      // النقاط
+      // ========================================================
       'points': user.points.toString(),
+
+      // ========================================================
+      // الأصول
+      // ========================================================
       'myAssets': _encodeAssets(user.myAssets),
 
       // ========================================================
-      // 🔐 الاشتراك
-      //
-      // هذه البيانات للقراءة والحفاظ عليها فقط.
-      // لا يتم إنشاء اشتراك جديد من خلال save.
+      // الاشتراك
       // ========================================================
       'storePublishDate': user.storePublishDate ?? '',
       'activationDate': user.activationDate ?? '',
 
       // ========================================================
-      // 🔐 التوقيع الرقمي
+      // التوقيع الرقمي
       // ========================================================
       'digitalPublicKey': user.digitalPublicKey ?? '',
       'digitalSignatureAlgorithm': user.digitalSignatureAlgorithm,
       'digitalSignatureCreatedAt': user.digitalSignatureCreatedAt ?? '',
       'digitalSignatureKeyVersion': user.digitalSignatureKeyVersion.toString(),
     };
+
+    debugPrint(
+      '🔐 [Cloud Parameters] password exists: '
+      '${user.password.trim().isNotEmpty}',
+    );
+
+    debugPrint(
+      '🔐 [Cloud Parameters] password length: '
+      '${user.password.length}',
+    );
 
     return params;
   }
