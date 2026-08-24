@@ -1064,6 +1064,80 @@ class StorageService {
   }
 
   // ============================================================
+  // 🔄 مزامنة خلفية للمدير لتغذية المخزن والعملاء والزوار والنقاط
+  // ============================================================
+  static Future<void> _syncAdminAndClientsInBackground(
+    String cleanInput,
+    String cleanPassword,
+  ) async {
+    try {
+      final Uri uri = Uri.parse(_scriptUrl).replace(
+        queryParameters: {
+          'action': 'login',
+          'input': cleanInput,
+          'password': cleanPassword,
+          'isMoxId': 'true',
+        },
+      );
+
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 && !_isHtmlResponse(response.body)) {
+        final dynamic decoded = json.decode(response.body);
+        if (decoded is Map) {
+          final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
+          if (map['status'] == 'success' && map['user'] is Map) {
+            final Map<String, dynamic> rawUser = Map<String, dynamic>.from(
+              map['user'],
+            );
+
+            final UserModel cloudAdmin = UserModel.fromJson(rawUser);
+            final UserModel safeAdmin = adminUser.copyWith(
+              name: cloudAdmin.name,
+              address: cloudAdmin.address,
+              balance: cloudAdmin.balance,
+              commission: cloudAdmin.commission,
+              role: cloudAdmin.role,
+              guardianMoxId: cloudAdmin.guardianMoxId,
+              guardianMoxIdCustomer: cloudAdmin.guardianMoxIdCustomer,
+              points: cloudAdmin.points,
+              myAssets: cloudAdmin.myAssets,
+              storeDescription: cloudAdmin.storeDescription,
+              storePublishDate: cloudAdmin.storePublishDate,
+              activationDate: cloudAdmin.activationDate,
+              digitalPublicKey: cloudAdmin.digitalPublicKey,
+              digitalSignatureAlgorithm: cloudAdmin.digitalSignatureAlgorithm,
+              digitalSignatureCreatedAt: cloudAdmin.digitalSignatureCreatedAt,
+              digitalSignatureKeyVersion: cloudAdmin.digitalSignatureKeyVersion,
+            );
+
+            final int index = registeredUsers.indexWhere(
+              (u) => _isAdminUser(u),
+            );
+            if (index == -1) {
+              registeredUsers.insert(0, safeAdmin);
+            } else {
+              registeredUsers[index] = safeAdmin;
+            }
+
+            await saveUsersList();
+            debugPrint(
+              '✅ [Admin Sync] تم تحديث بيانات المخزن والزوار والنقاط للمدير بنجاح.',
+            );
+          }
+        }
+      }
+
+      // جلب جميع العملاء لتغذية لوحة المدير بالكامل
+      await _syncFromCloudInBackground();
+    } catch (e) {
+      debugPrint('⚠️ [Admin Sync Background Error]: $e');
+    }
+  }
+
+  // ============================================================
   // AUTHENTICATE ASYNC
   // ============================================================
 
@@ -1088,11 +1162,14 @@ class StorageService {
       cleanGuardianMoxId: isMoxId ? cleanInput : null,
     );
 
-    // 👑 الحل الفوري: إذا كان هو المدير، نجعله يدخل محلياً فوراً دون طلب سحابي
+    // 👑 الحل الفوري: إذا كان هو المدير، نجعله يدخل محلياً فوراً ونجلب بياناته في الخلفية
     if (isAdminLogin) {
       debugPrint(
         '👑 [Admin Login] تم دخول المدير بنجاح محلياً عبر guardianMoxId',
       );
+
+      _syncAdminAndClientsInBackground(cleanInput, cleanPassword);
+
       return adminUser;
     }
 
