@@ -23,7 +23,7 @@ class WelcomeScreen extends StatelessWidget {
             const Text("🛡️", style: TextStyle(fontSize: 80)),
             const SizedBox(height: 20),
             const Text(
-              "أهلاً بك في موكس",
+              "أهلاً بك في بنك موكس",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 32,
