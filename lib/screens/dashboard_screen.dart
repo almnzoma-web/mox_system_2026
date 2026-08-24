@@ -115,7 +115,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          "هل أنت متأكد من رغبتك في تسجيل الخروج من بنك موكس الرقمي الآن؟",
+          "هل أنت متأكد من رغبتك في تسجيل الخروج من بنك موكس الرقمي؟",
           style: TextStyle(fontSize: 12),
         ),
         actions: [
