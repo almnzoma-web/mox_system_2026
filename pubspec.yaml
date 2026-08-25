@@ -40,7 +40,7 @@ dependencies:
   # ============================================================
   # الملفات
   # ============================================================
-  file_picker: ^8.0.0
+  file_picker: ^12.1.0
 
   # ============================================================
   # قاعدة البيانات المحلية
@@ -73,7 +73,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true

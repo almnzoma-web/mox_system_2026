@@ -1,4 +1,4 @@
-package com.example.mox_digital_app
+package com.mox.digital.mox_digital_app
 
 import io.flutter.embedding.android.FlutterActivity
 

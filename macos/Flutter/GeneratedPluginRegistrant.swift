@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import app_links
-import file_picker
+import file_picker_darwin
 import printing
 import shared_preferences_foundation
 import sqflite_darwin
