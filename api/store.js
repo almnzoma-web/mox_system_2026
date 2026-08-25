@@ -24,7 +24,7 @@ export default async function handler(request) {
     // ============================================================
 
     const scriptUrl =
-      "https://script.google.com/macros/s/AKfycbxwEGchNRzCiRtvpQBS8Rai6VkLC4lPym-0fkYoRXFGy6T3apJyJWjY54-C7RVuJRxf/exec";
+      "https://script.google.com/macros/s/AKfycbzqlQEPgt-UxO5fyVq4bEOezHO8fKd7VXnP9v6oIjM8WqIKZuRCOmHdjNrZ8KG_K4wL/exec";
 
     // ============================================================
     // تحديد طلب المتجر
