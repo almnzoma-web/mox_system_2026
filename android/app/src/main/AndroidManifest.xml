@@ -24,21 +24,6 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-
-            <!-- ================================================= -->
-            <!-- 🌐 App Links: استقبال رابط المتجر العام مباشرة      -->
-            <!-- ================================================= -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:scheme="https"
-                    android:host="mox-2026.vercel.app"
-                    android:pathPrefix="/store" />
-            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -55,16 +40,6 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
-        </intent>
-        <!-- إذن فتح روابط الـ https الخارجية (بلوجر وفيسبوك) -->
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" />
-        </intent>
-        <!-- إذن فتح روابط الـ http الخارجية -->
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="http" />
         </intent>
     </queries>
 </manifest>
