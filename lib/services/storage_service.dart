@@ -1565,7 +1565,7 @@ class StorageService {
   }
 
   // ============================================================
-  // ACTIVATE STORE
+  // ACTIVATE STORE (النسخة النهائية المحدثة)
   // ============================================================
 
   static Future<UserModel?> activateStore({
@@ -1599,10 +1599,7 @@ class StorageService {
         },
       );
 
-      debugPrint(
-        '🔐 [Store Activation] '
-        'إرسال طلب التنشيط...',
-      );
+      debugPrint('🔐 [Store Activation] إرسال طلب التنشيط...');
 
       final http.Response response = await http
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -1628,14 +1625,12 @@ class StorageService {
 
       if (status != 'success') {
         final String message = _clean(data['message']?.toString());
-
         throw Exception(
           message.isNotEmpty ? message : 'مفتاح التنشيط غير صالح.',
         );
       }
 
       String publishDate = _clean(data['storePublishDate']?.toString());
-
       String activationDate = _clean(data['activationDate']?.toString());
 
       UserModel activatedUser = user;
@@ -1645,21 +1640,14 @@ class StorageService {
           final Map<String, dynamic> rawUser = Map<String, dynamic>.from(
             data['user'],
           );
-
           final Map<String, dynamic> normalized = _normalizeUserMap(rawUser);
-
           final UserModel cloudUser = UserModel.fromJson(normalized);
 
           activatedUser = _preserveUserState(oldUser: user, newUser: cloudUser);
-
           publishDate = _clean(activatedUser.storePublishDate);
-
           activationDate = _clean(activatedUser.activationDate);
         } catch (e) {
-          debugPrint(
-            '⚠️ [Store Activation] '
-            'تعذر قراءة User: $e',
-          );
+          debugPrint('⚠️ [Store Activation] تعذر قراءة User: $e');
         }
       }
 
@@ -1673,6 +1661,9 @@ class StorageService {
             ? activationDate
             : publishDate,
       );
+
+      // 🚨 إرسال التحديثات للسحابة والشيت فوراً لضمان طباعة التواريخ
+      await _saveToCloud(activatedUser);
 
       final int index = registeredUsers.indexWhere(
         (u) => _sameUser(u, activatedUser),
@@ -1688,27 +1679,19 @@ class StorageService {
       }
 
       _ensureAdmin();
-
       await saveUsersList();
 
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-
       await prefs.setString(userKey, jsonEncode(activatedUser.toJson()));
 
-      debugPrint(
-        '✅ [Store Activation] '
-        'تم تنشيط المتجر لمدة '
-        '$storeSubscriptionDays يوم.',
-      );
+      debugPrint('✅ [Store Activation] تم تنشيط المتجر وحفظ التواريخ بنجاح.');
 
       return activatedUser;
     } catch (e) {
       debugPrint('❌ [Store Activation] $e');
-
       rethrow;
     }
   }
-
   // ============================================================
   // AUTHENTICATE ASYNC
   //

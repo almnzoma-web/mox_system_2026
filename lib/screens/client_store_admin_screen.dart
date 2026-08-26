@@ -1068,7 +1068,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // 🎨 اختيار الأيقونة
+  // 🎨 اختيار الأيقونة (النسخة المحسنة والمضمونة)
   // ============================================================
 
   void _showIconSelectorDialog(String titleKey) {
@@ -1089,51 +1089,58 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           ),
           content: SizedBox(
             width: 320,
-            child: GridView.builder(
-              shrinkWrap: true,
-              itemCount: _availableIcons.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-              ),
-              itemBuilder: (context, index) {
-                final item = _availableIcons[index];
-                final IconData icon = item['icon'];
-                final String name = item['name'];
+            // استخدام SingleChildScrollView مع GridView لمنع أي مشاكل في المساحة أو الاختفاء
+            child: SingleChildScrollView(
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics:
+                    const NeverScrollableScrollPhysics(), // الاعتماد على التمرير الخارجي للنافذة
+                itemCount: _availableIcons.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio:
+                      0.9, // ضبط نسبة العرض إلى الارتفاع لضمان عدم حدوث تداخل
+                ),
+                itemBuilder: (context, index) {
+                  final item = _availableIcons[index];
+                  final IconData icon = item['icon'];
+                  final String name = item['name'];
 
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    setState(() => _cardSelectedIcons[titleKey] = icon);
-                    Navigator.pop(ctx);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _primaryColor),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(icon, color: _darkColor, size: 27),
-                        const SizedBox(height: 4),
-                        Text(
-                          name,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      setState(() => _cardSelectedIcons[titleKey] = icon);
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _primaryColor),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, color: _darkColor, size: 24),
+                          const SizedBox(height: 4),
+                          Text(
+                            name,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
           actions: [
@@ -1146,7 +1153,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       },
     );
   }
-
   // ============================================================
   // 🧱 بناء الأصول الحالية من واجهة المستخدم
   // ============================================================

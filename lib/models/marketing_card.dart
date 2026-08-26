@@ -1,3 +1,6 @@
+// ignore: unused_import
+import 'package:flutter/material.dart';
+
 class MarketingCard {
   final String? id;
 
@@ -77,84 +80,50 @@ class MarketingCard {
     final String key = value.toString().trim();
 
     switch (key) {
-      // ========================================================
-      // المفاتيح الرسمية الجديدة
-      // ========================================================
-
       case 'shopping_bag':
-        return 'shopping_bag';
-
-      case 'store':
-        return 'store';
-
-      case 'local_shipping':
-        return 'local_shipping';
-
-      case 'card_giftcard':
-        return 'card_giftcard';
-
-      case 'star':
-        return 'star';
-
-      case 'credit_card':
-        return 'credit_card';
-
-      case 'local_offer':
-        return 'local_offer';
-
-      case 'headset_mic':
-        return 'headset_mic';
-
-      // ========================================================
-      // المفاتيح القديمة / العربية
-      // ========================================================
-
       case 'حقيبة تسوق':
         return 'shopping_bag';
 
+      case 'store':
       case 'متجر':
         return 'store';
 
+      case 'local_shipping':
       case 'توصيل':
         return 'local_shipping';
 
+      case 'card_giftcard':
       case 'هدية':
         return 'card_giftcard';
 
+      case 'star':
       case 'نجمة':
         return 'star';
 
+      case 'credit_card':
       case 'بطاقة':
         return 'credit_card';
 
+      case 'local_offer':
       case 'عرض':
         return 'local_offer';
 
+      case 'headset_mic':
       case 'خدمة عملاء':
         return 'headset_mic';
 
-      // ========================================================
-      // الأيقونات الرسمية القديمة
-      // ========================================================
-
       case 'food':
         return 'food';
-
       case 'service':
         return 'service';
-
       case 'education':
         return 'education';
-
       case 'health':
         return 'health';
-
       case 'technology':
         return 'technology';
-
       case 'fashion':
         return 'fashion';
-
       case 'other':
         return 'other';
 
@@ -162,6 +131,7 @@ class MarketingCard {
         return 'other';
     }
   }
+
   // ============================================================
   // ICON SYMBOL
   // ============================================================
@@ -183,24 +153,14 @@ class MarketingCard {
   // ============================================================
 
   static double _parsePrice(dynamic value) {
-    if (value == null) {
-      return 0.0;
-    }
-
-    if (value is num) {
-      return value.toDouble();
-    }
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
 
     if (value is String) {
       var val = value.trim();
-
-      if (val.isEmpty) {
-        return 0.0;
-      }
+      if (val.isEmpty) return 0.0;
 
       val = val.replaceAll(RegExp(r'[^\d.,-]'), '');
-
-      // إزالة فواصل الآلاف
       if (val.contains(',')) {
         val = val.replaceAll(',', '');
       }
@@ -218,19 +178,13 @@ class MarketingCard {
   Map<String, dynamic> toJson() {
     return {
       if (id != null) 'id': id,
-
       'title': title,
       'description': description,
-
       'whatsapp': whatsapp,
       'facebookUrl': facebookUrl,
-
       'category': category,
-
       'iconKey': normalizeIconKey(iconKey),
-
       'price': price,
-
       'isApproved': isApproved,
     };
   }
@@ -242,22 +196,14 @@ class MarketingCard {
   factory MarketingCard.fromJson(Map<String, dynamic> json) {
     return MarketingCard(
       id: json['id']?.toString(),
-
       title: json['title']?.toString() ?? '',
-
       description: json['description']?.toString() ?? '',
-
       whatsapp: json['whatsapp']?.toString() ?? '',
-
       facebookUrl:
           json['facebookUrl']?.toString() ?? json['facebook']?.toString() ?? '',
-
       category: json['category']?.toString() ?? 'بطاقة',
-
       iconKey: normalizeIconKey(json['iconKey']),
-
       price: _parsePrice(json['price']),
-
       isApproved:
           json['isApproved'] == true ||
           json['isApproved']?.toString().toLowerCase() == 'true',
@@ -285,21 +231,13 @@ class MarketingCard {
   }) {
     return MarketingCard(
       id: id ?? this.id,
-
       title: title ?? this.title,
-
       description: description ?? this.description,
-
       whatsapp: whatsapp ?? this.whatsapp,
-
       facebookUrl: facebookUrl ?? this.facebookUrl,
-
       category: category ?? this.category,
-
       iconKey: iconKey ?? this.iconKey,
-
       price: price ?? this.price,
-
       isApproved: isApproved ?? this.isApproved,
     );
   }
@@ -313,32 +251,25 @@ class MarketingCard {
       case 'title':
         title = value?.toString() ?? '';
         break;
-
       case 'description':
         description = value?.toString() ?? '';
         break;
-
       case 'whatsapp':
         whatsapp = value?.toString() ?? '';
         break;
-
       case 'facebookUrl':
       case 'facebook':
         facebookUrl = value?.toString() ?? '';
         break;
-
       case 'category':
         category = value?.toString() ?? 'بطاقة';
         break;
-
       case 'iconKey':
         iconKey = normalizeIconKey(value);
         break;
-
       case 'price':
         price = _parsePrice(value);
         break;
-
       case 'isApproved':
         isApproved = value == true || value?.toString().toLowerCase() == 'true';
         break;
@@ -353,31 +284,22 @@ class MarketingCard {
     switch (key) {
       case 'id':
         return id;
-
       case 'title':
         return title;
-
       case 'description':
         return description;
-
       case 'whatsapp':
         return whatsapp;
-
       case 'facebookUrl':
         return facebookUrl;
-
       case 'category':
         return category;
-
       case 'iconKey':
         return normalizeIconKey(iconKey);
-
       case 'price':
         return price;
-
       case 'isApproved':
         return isApproved;
-
       default:
         return null;
     }
