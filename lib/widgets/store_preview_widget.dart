@@ -217,6 +217,31 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
+  // 🛒 الأيقونات وقائمة الخيارات
+  // ============================================================
+
+  static const List<Map<String, dynamic>> _availableIcons = [
+    {"name": "حقيبة تسوق", "icon": Icons.shopping_bag},
+    {"name": "متجر", "icon": Icons.store},
+    {"name": "توصيل", "icon": Icons.local_shipping},
+    {"name": "هدية", "icon": Icons.card_giftcard},
+    {"name": "نجمة", "icon": Icons.star},
+    {"name": "بطاقة", "icon": Icons.credit_card},
+    {"name": "عرض", "icon": Icons.local_offer},
+    {"name": "خدمة عملاء", "icon": Icons.headset_mic},
+  ];
+
+  static IconData getIconData(String iconName) {
+    final item = _availableIcons.firstWhere(
+      (element) =>
+          element['name'] == iconName ||
+          element['icon'].toString().contains(iconName),
+      orElse: () => {"icon": Icons.star},
+    );
+    return item['icon'];
+  }
+
+  // ============================================================
   // 🎨 أيقونة البطاقة
   // ============================================================
 
@@ -224,75 +249,59 @@ class StorePreviewWidget extends StatelessWidget {
     final String rawValue =
         (card.category.isNotEmpty ? card.category : card.iconKey).trim();
 
-    String resolvedKey = 'other';
+    String resolvedKey =
+        'نجمة'; // القيمة الافتراضية بالاسم العربي الموجود في القائمة
 
     switch (rawValue) {
       case 'حقيبة تسوق':
       case 'shopping_bag':
-        resolvedKey = 'shopping_bag';
+        resolvedKey = 'حقيبة تسوق';
         break;
 
       case 'متجر':
       case 'متجر وتجارة':
       case 'store':
-        resolvedKey = 'store';
+        resolvedKey = 'متجر';
         break;
 
       case 'توصيل':
       case 'local_shipping':
-        resolvedKey = 'local_shipping';
+        resolvedKey = 'توصيل';
         break;
 
       case 'هدية':
       case 'card_giftcard':
-        resolvedKey = 'card_giftcard';
+        resolvedKey = 'هدية';
         break;
 
       case 'نجمة':
       case 'star':
-        resolvedKey = 'star';
+        resolvedKey = 'نجمة';
         break;
 
       case 'بطاقة':
       case 'credit_card':
-        resolvedKey = 'credit_card';
+        resolvedKey = 'بطاقة';
         break;
 
       case 'عرض':
       case 'local_offer':
-        resolvedKey = 'local_offer';
+        resolvedKey = 'عرض';
         break;
 
       case 'خدمة عملاء':
       case 'headset_mic':
-        resolvedKey = 'headset_mic';
-        break;
-
-      case 'قسم':
-      case 'service':
-        resolvedKey = 'service';
+        resolvedKey = 'خدمة عملاء';
         break;
 
       default:
-        if (MarketingCard.iconSymbols.containsKey(rawValue)) {
-          resolvedKey = rawValue;
-        }
+        resolvedKey = 'نجمة';
     }
 
-    final String symbol = MarketingCard.iconSymbols[resolvedKey] ?? '⭐';
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: const Color(0xFF28A9CC).withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFF28A9CC).withValues(alpha: 0.20),
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Text(symbol, style: const TextStyle(fontSize: 25)),
+    return Icon(
+      getIconData(resolvedKey),
+      color: const Color(0xFF1B6B80),
+      size: 24,
     );
   }
 

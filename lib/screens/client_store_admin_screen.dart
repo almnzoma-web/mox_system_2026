@@ -519,10 +519,20 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       final DateTime expiryDate = publishDate.add(
         const Duration(days: _subscriptionDays),
       );
-      final Duration difference = expiryDate.difference(DateTime.now());
-      if (difference.isNegative) return 0;
-      final int days = difference.inHours ~/ 24;
-      return days > 0 ? days : 1;
+
+      // 🎯 الحل: توحيد التاريخ بتجاهل الساعات والدقائق والثواني نهائياً
+      final DateTime now = DateTime.now();
+      final DateTime today = DateTime(now.year, now.month, now.day);
+      final DateTime expiryDay = DateTime(
+        expiryDate.year,
+        expiryDate.month,
+        expiryDate.day,
+      );
+
+      final int days = expiryDay.difference(today).inDays;
+
+      if (days < 0) return 0;
+      return days;
     } catch (_) {
       return _subscriptionDays;
     }
