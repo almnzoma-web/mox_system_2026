@@ -253,7 +253,22 @@ class StorageService {
     ]);
 
     setIfFound('myAssets', ['myAssets', 'myassets', 'my_assets']);
+    setIfFound('points', [
+      'points',
+      'Points',
+      'POINTS',
+      'user_points',
+      'USER_POINTS',
+    ]);
 
+    // تأكد من تحويل النقاط إلى قيمة رقمية صحيحة لمنع تلف النوع
+    if (result['points'] != null) {
+      result['points'] =
+          int.tryParse(result['points'].toString()) ??
+          (result['points'] is double
+              ? (result['points'] as double).toInt()
+              : 0);
+    }
     // ----------------------------------------------------------
     // Assets JSON
     // ----------------------------------------------------------
