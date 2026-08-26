@@ -470,7 +470,18 @@ class UserModel {
 
       activationDate: finalActivationDate,
 
-      points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
+      points:
+          int.tryParse(
+            findKey<dynamic>([
+                  'points',
+                  'POINTS',
+                  'Points',
+                  'user_points',
+                  'USER_POINTS',
+                ])?.toString() ??
+                '0',
+          ) ??
+          0,
 
       myAssets: parsedAssets,
 
