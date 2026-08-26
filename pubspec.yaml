@@ -96,12 +96,12 @@ flutter:
           weight: 700
 
 # ==============================================================
-# إعدادات أيقونة التطبيق
+# إعدادات أيقونة التطبيق (موبايل + ويب)
 # ==============================================================
 flutter_launcher_icons:
-  image_path: "assets/mox_app_icon.ico"
+  image_path: "assets/mox_app_icon.png" # الأيقونة العامة للموبايل (تأكد أن تكون بصيغة PNG وبدقة عالية)
   android: true
   ios: true
   web:
     generate: true
-    image_path: "assets/mox_app_icon.ico"
+    image_path: "assets/mox_app_icon.ico" # الحفاظ على أيقونة الويب الخاصة بك كما هي دون تغيير

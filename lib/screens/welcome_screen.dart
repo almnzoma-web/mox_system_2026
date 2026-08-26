@@ -23,7 +23,7 @@ class WelcomeScreen extends StatelessWidget {
             const Text("🛡️", style: TextStyle(fontSize: 80)),
             const SizedBox(height: 20),
             const Text(
-              "أهلاً بك في بنك موكس",
+              "أهلاً بك في",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 32,
@@ -31,7 +31,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
             const Text(
-              "بنك موكس الرقمي - نظامك الرقمي السيادي",
+              "بنك موكس الرقمي",
               style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 50),
@@ -47,7 +47,7 @@ class WelcomeScreen extends StatelessWidget {
             }),
 
             // بوابة الهاتف
-            _buildOptionButton(context, "دخول برقم الهاتف", "📱", () {
+            _buildOptionButton(context, "دخول يالهاتف", "📱", () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
