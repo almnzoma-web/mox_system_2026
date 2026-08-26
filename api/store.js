@@ -7,32 +7,27 @@ export default async function handler(request) {
       `https://${request.headers.host}`
     );
 
-    const method = request.method || "GET";
+    // 1. محاولة استخراج guardianMoxId من الـ Query التقليدي
+    let guardianMoxId = (
+      url.searchParams.get("guardianMoxId") || ""
+    ).trim().toUpperCase();
 
-    // استخراج البارامترات سواء من الـ URL (GET) أو من الـ Body (POST)
-    let queryParams = {};
-    url.searchParams.forEach((val, key) => {
-      queryParams[key] = val;
-    });
-
-    let bodyData = {};
-    if (method === "POST") {
-      try {
-        const contentType = request.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          bodyData = await request.json();
-        } else {
-          const textBody = await request.text();
-          try { bodyData = JSON.parse(textBody); } catch (_) {}
-        }
-      } catch (_) {}
+    // 2. إذا لم يوجد في الـ Query، نستخرجه من مسار الـ URL (Path Segments) مثل /store/MOX249-...
+    if (!guardianMoxId) {
+      const pathSegments = url.pathname.split("/").filter(Boolean);
+      // إذا كان المسار يحتوي على جزء بعد store (مثل /store/MOX249-...)
+      const storeIndex = pathSegments.indexOf("store");
+      if (storeIndex !== -1 && pathSegments[storeIndex + 1]) {
+        guardianMoxId = pathSegments[storeIndex + 1].trim().toUpperCase();
+      } else if (pathSegments.length > 0 && pathSegments[0] !== "api") {
+        // أو إذا كان الرابط موجهاً مباشرة للمعرف
+        guardianMoxId = pathSegments[pathSegments.length - 1].trim().toUpperCase();
+      }
     }
 
-    // دمج البارامترات لضمان شمولية البيانات
-    const params = { ...queryParams, ...bodyData };
-
-    const action = (params.action || "").trim().toLowerCase();
-    const guardianMoxId = (params.guardianMoxId || "").trim().toUpperCase();
+    const action = (
+      url.searchParams.get("action") || ""
+    ).trim().toLowerCase();
 
     // ============================================================
     // GOOGLE APPS SCRIPT
@@ -41,64 +36,46 @@ export default async function handler(request) {
     const scriptUrl =
       "https://script.google.com/macros/s/AKfycbw3wYlv9U3x6U--mFKiv6usAasKEq0T8SQCSuOblQrDn1-X4MZ4iQ850J2YFjasUwtA/exec";
 
-    let googleUrl = scriptUrl;
-    let fetchOptions = {
-      method: method,
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-      },
-      redirect: "follow",
-      cache: "no-store"
-    };
+    let googleUrl = "";
 
-    // ============================================================
-    // تحديد مسار الطلب (GET أو POST) بناءً على منطقك القديم
-    // ============================================================
+    if (guardianMoxId && guardianMoxId.startsWith("MOX")) {
+      googleUrl =
+        `${scriptUrl}?action=getUserByGuardianMoxId&guardianMoxId=${encodeURIComponent(
+          guardianMoxId
+        )}`;
 
-    if (method === "POST") {
-      // طلبات الحفظ والتعديل والتسجيل توجه بالكامل كـ POST مع إرسال البيانات في الـ body
-      fetchOptions.body = JSON.stringify(params);
-      
-      // إذا أُرسل action صراحة نمرره في الرابط لضمان استقباله في doPost
-      if (action) {
-        googleUrl = `${scriptUrl}?action=${encodeURIComponent(action)}`;
-      }
+      console.log(
+        "[MOX VERCEL] MODE: getUserByGuardianMoxId from Path/Query"
+      );
+      console.log(
+        "[MOX VERCEL] guardianMoxId:",
+        guardianMoxId
+      );
+    }
+    else if (action === "getall") {
+      googleUrl =
+        `${scriptUrl}?action=getAll`;
 
-      console.log("[MOX VERCEL] MODE: POST ACTION ->", action || "save");
-    } 
+      console.log(
+        "[MOX VERCEL] MODE: getAll"
+      );
+    }
     else {
-      // منطق الـ GET القديم الأصلي الخاص بك
-      if (guardianMoxId && !action) {
-        googleUrl = `${scriptUrl}?action=getUserByGuardianMoxId&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
-        console.log("[MOX VERCEL] MODE: getUserByGuardianMoxId", guardianMoxId);
-      } 
-      else if (action === "getall" || action === "getalldata") {
-        googleUrl = `${scriptUrl}?action=getAll`;
-        console.log("[MOX VERCEL] MODE: getAll");
-      } 
-      else if (action) {
-        // أي action آخر قادم عبر الـ GET
-        const searchParams = new URLSearchParams();
-        for (const [k, v] of Object.entries(params)) {
-          if (v !== undefined && v !== null) searchParams.append(k, v);
-        }
-        googleUrl = `${scriptUrl}?${searchParams.toString()}`;
-        console.log("[MOX VERCEL] MODE: CUSTOM GET ACTION ->", action);
-      } 
-      else {
-        return json(
-          {
-            success: false,
-            status: "error",
-            message: "guardianMoxId or action is required"
-          },
-          400
-        );
-      }
+      return json(
+        {
+          success: false,
+          status: "error",
+          message: "Valid guardianMoxId or action=getAll is required",
+          pathReceived: url.pathname
+        },
+        400
+      );
     }
 
-    console.log("[MOX VERCEL] GOOGLE URL:", googleUrl);
+    console.log(
+      "[MOX VERCEL] GOOGLE URL:",
+      googleUrl
+    );
 
     // ============================================================
     // GOOGLE REQUEST TIMEOUT
@@ -107,22 +84,29 @@ export default async function handler(request) {
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
-    }, 25000); // 25 ثانية لضمان راحة قوقل سكريبت في معالجة التواريخ
-
-    fetchOptions.signal = controller.signal;
+    }, 20000);
 
     let response;
     try {
-      response = await fetch(googleUrl, fetchOptions);
+      response = await fetch(
+        googleUrl,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json"
+          },
+          signal: controller.signal,
+          redirect: "follow",
+          cache: "no-store"
+        }
+      );
     } finally {
       clearTimeout(timeout);
     }
 
     const elapsed = Date.now() - start;
-    console.log("[MOX VERCEL] GOOGLE RESPONSE:", response.status, elapsed + "ms");
 
     const text = await response.text();
-    console.log("[MOX VERCEL] RESPONSE LENGTH:", text.length);
 
     if (!response.ok) {
       return json(
@@ -166,10 +150,7 @@ export default async function handler(request) {
       );
     }
 
-    // التعامل المرن مع استجابات قوقل (سواء كانت success: true أو ok: true)
-    const isSuccess = data.success === true || data.ok === true || data.status === "success";
-
-    if (data && isSuccess === false) {
+    if (data && data.ok === false) {
       return json(
         {
           success: false,
@@ -182,27 +163,60 @@ export default async function handler(request) {
       );
     }
 
-    // إذا كان طلب بحث عن متجر (GET)
-    if (guardianMoxId && method === "GET") {
-      if (data.user === null || (data.success && !data.user && !data.moxId)) {
-        return json(
-          {
-            success: false,
-            status: "store_not_found",
-            elapsedMs: elapsed,
-            message: "لم يتم العثور على المتجر",
-            guardianMoxId: guardianMoxId
-          },
-          404
-        );
-      }
+    if (
+      data &&
+      data.ok === true &&
+      data.user === null
+    ) {
+      return json(
+        {
+          success: false,
+          status: "store_not_found",
+          elapsedMs: elapsed,
+          message: "لم يتم العثور على المتجر",
+          guardianMoxId: guardianMoxId
+        },
+        404
+      );
     }
 
-    // إعادة النتيجة مباشرة كما هي للعميل لضمان التوافق التام مع main
+    const user =
+      data &&
+      typeof data.user === "object" &&
+      data.user !== null
+        ? data.user
+        : null;
+
+    if (!user) {
+      return json(
+        {
+          success: false,
+          status: "invalid_user_response",
+          elapsedMs: elapsed,
+          message: "Google returned a response without a valid user object",
+          google: data
+        },
+        502
+      );
+    }
+
+    const returnedGuardian =
+      String(
+        user.guardianMoxId ||
+        user.GuardianMoxId ||
+        user.guardian_mox_id ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
     return json(
       {
-        ...data,
         success: true,
+        status: "success",
+        guardianMoxId: returnedGuardian || guardianMoxId,
+        user: user,
+        data: user,
         vercel: {
           success: true,
           elapsedMs: elapsed
@@ -221,7 +235,7 @@ export default async function handler(request) {
           success: false,
           status: "timeout",
           elapsedMs: elapsed,
-          message: "Google Apps Script did not respond within 25 seconds"
+          message: "Google Apps Script did not respond within 20 seconds"
         },
         504
       );
@@ -238,10 +252,6 @@ export default async function handler(request) {
     );
   }
 }
-
-// ================================================================
-// JSON RESPONSE
-// ================================================================
 
 function json(data, status = 200) {
   return new Response(
