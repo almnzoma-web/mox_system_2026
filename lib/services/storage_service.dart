@@ -356,15 +356,16 @@ class StorageService {
       return newUser;
     }
 
-    _clean(oldUser.password);
+    final String oldPassword = _clean(oldUser.password);
 
-    _clean(newUser.password);
+    final String newPassword = _clean(newUser.password);
 
     final String oldPublishDate = _clean(oldUser.storePublishDate);
 
     final String oldActivationDate = _clean(oldUser.activationDate);
 
     return newUser.copyWith(
+      password: newPassword.isNotEmpty ? newPassword : oldPassword,
       storePublishDate: oldPublishDate.isNotEmpty
           ? oldPublishDate
           : newUser.storePublishDate,
@@ -2083,15 +2084,13 @@ class StorageService {
 
       final UserModel? oldUser = _findLocalUser(cloudUser);
 
-      final UserModel updatedCloudUser = cloudUser.copyWith();
-
-      updatedCloudUser.password = cloudUser.password.trim().isNotEmpty
-          ? cloudUser.password
-          : cleanPassword;
-
       final UserModel protectedUser = _preserveUserState(
         oldUser: oldUser,
-        newUser: updatedCloudUser,
+        newUser: cloudUser.copyWith(
+          password: cloudUser.password.trim().isNotEmpty
+              ? cloudUser.password
+              : cleanPassword,
+        ),
       );
 
       // --------------------------------------------------------

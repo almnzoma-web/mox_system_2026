@@ -58,6 +58,10 @@ class UserModel {
   /// المستندات القديمة.
   int digitalSignatureKeyVersion;
 
+  // ============================================================
+  // CONSTRUCTOR
+  // ============================================================
+
   UserModel({
     required this.phone,
     required this.password,
@@ -78,6 +82,7 @@ class UserModel {
     this.points = 0,
     this.myAssets = const [],
     this.signedDocuments = const [],
+
     // ==========================================================
     // التوقيع الرقمي
     // ==========================================================
@@ -92,22 +97,44 @@ class UserModel {
   // ============================================================
 
   UserModel copyWith({
+    // ----------------------------------------------------------
+    // الحساب
+    // ----------------------------------------------------------
     int? points,
     double? balance,
     double? commission,
+
+    String? phone,
+
+    // 🔐 مهم جداً:
+    // أضفنا password هنا حتى نستطيع حماية كلمة السر
+    // وعدم استبدالها بقيمة فارغة.
+    String? password,
+
     String? name,
     String? address,
     String? storeDescription,
-    String? phone,
+
+    String? gender,
+    String? accountType,
+
+    String? moxId,
     String? role,
+
+    String? customWhatsApp,
+
     String? guardianMoxId,
     String? guardianMoxIdCustomer,
+
     String? storePublishDate,
     String? activationDate,
+
     List<MarketingCard>? myAssets,
-    // ==========================================================
+    List<SignedDocument>? signedDocuments,
+
+    // ----------------------------------------------------------
     // التوقيع الرقمي
-    // ==========================================================
+    // ----------------------------------------------------------
     String? digitalPublicKey,
     String? digitalSignatureAlgorithm,
     String? digitalSignatureCreatedAt,
@@ -115,39 +142,68 @@ class UserModel {
   }) {
     return UserModel(
       phone: phone ?? this.phone,
-      password: password,
+
+      // 🔐 إذا لم نرسل password:
+      // احتفظ بكلمة السر القديمة.
+      password: password ?? this.password,
+
       name: name ?? this.name,
       address: address ?? this.address,
+
       storeDescription: storeDescription ?? this.storeDescription,
+
       balance: balance ?? this.balance,
       commission: commission ?? this.commission,
-      gender: gender,
-      accountType: accountType,
-      moxId: moxId,
+
+      gender: gender ?? this.gender,
+      accountType: accountType ?? this.accountType,
+
+      moxId: moxId ?? this.moxId,
       role: role ?? this.role,
-      customWhatsApp: customWhatsApp,
+
+      customWhatsApp: customWhatsApp ?? this.customWhatsApp,
+
       guardianMoxId: guardianMoxId ?? this.guardianMoxId,
+
       guardianMoxIdCustomer:
           guardianMoxIdCustomer ?? this.guardianMoxIdCustomer,
+
       storePublishDate: storePublishDate ?? this.storePublishDate,
+
       activationDate: activationDate ?? this.activationDate,
+
       points: points ?? this.points,
+
       myAssets: myAssets ?? this.myAssets,
+
+      // 🔐 مهم:
+      // المحافظة على المستندات الموقعة.
+      signedDocuments: signedDocuments ?? this.signedDocuments,
+
       // ========================================================
       // التوقيع الرقمي
       // ========================================================
       digitalPublicKey: digitalPublicKey ?? this.digitalPublicKey,
+
       digitalSignatureAlgorithm:
           digitalSignatureAlgorithm ?? this.digitalSignatureAlgorithm,
+
       digitalSignatureCreatedAt:
           digitalSignatureCreatedAt ?? this.digitalSignatureCreatedAt,
+
       digitalSignatureKeyVersion:
           digitalSignatureKeyVersion ?? this.digitalSignatureKeyVersion,
     );
   }
 
+  // ============================================================
+  // TO JSON
+  // ============================================================
+
   Map<String, dynamic> toJson() {
-    // ✨ ضمان أن activationDate ينسخ storePublishDate تلقائياً عند الرفع لقوقل إذا لم يكن موجوداً
+    // ✨ ضمان أن activationDate ينسخ
+    // storePublishDate تلقائياً إذا لم يكن موجوداً.
+
     final String effectiveActivation =
         (activationDate != null &&
             activationDate!.trim().isNotEmpty &&
@@ -157,26 +213,51 @@ class UserModel {
 
     return {
       'phone': phone,
+
+      // 🔐 كلمة السر محفوظة كما هي.
       'password': password,
+
       'name': name,
       'address': address,
+
       'storeDescription': storeDescription,
+
       'balance': balance,
       'commission': commission,
+
       'gender': gender,
       'accountType': accountType,
+
       'moxId': moxId,
       'role': role,
+
       'customWhatsApp': customWhatsApp ?? '',
+
       'guardianMoxId': guardianMoxId ?? '',
+
       'guardianMoxIdCustomer': guardianMoxIdCustomer ?? '',
+
       'points': points,
+
       'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
+
+      'signedDocuments': jsonEncode(
+        signedDocuments.map((e) => e.toJson()).toList(),
+      ),
+
       'storePublishDate': storePublishDate ?? '',
+
       'activationDate': effectiveActivation,
+
+      // ========================================================
+      // الهوية الرقمية
+      // ========================================================
       'digitalPublicKey': digitalPublicKey ?? '',
+
       'digitalSignatureAlgorithm': digitalSignatureAlgorithm,
+
       'digitalSignatureCreatedAt': digitalSignatureCreatedAt ?? '',
+
       'digitalSignatureKeyVersion': digitalSignatureKeyVersion,
     };
   }
@@ -186,35 +267,58 @@ class UserModel {
   // ============================================================
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    // دالة مساعدة للبحث عن المفتاح بغض النظر عن حالة الأحرف
+    // ==========================================================
+    // FIND KEY
+    // ==========================================================
+
     T? findKey<T>(List<String> keys) {
-      for (final key in keys) {
+      for (final String key in keys) {
         if (json.containsKey(key) && json[key] != null) {
-          final val = json[key];
-          if (val is T) return val;
-          if (T == String) return val.toString() as T;
+          final dynamic val = json[key];
+
+          if (val is T) {
+            return val;
+          }
+
+          if (T == String) {
+            return val.toString() as T;
+          }
         }
       }
-      for (final entry in json.entries) {
-        for (final key in keys) {
+
+      for (final MapEntry<String, dynamic> entry in json.entries) {
+        for (final String key in keys) {
           if (entry.key.toLowerCase() == key.toLowerCase() &&
               entry.value != null) {
-            final val = entry.value;
-            if (T == String) return val.toString() as T;
+            final dynamic val = entry.value;
+
+            if (T == String) {
+              return val.toString() as T;
+            }
+
             return val as T;
           }
         }
       }
+
       return null;
     }
+
+    // ==========================================================
+    // MARKETING ASSETS
+    // ==========================================================
 
     final List<MarketingCard> parsedAssets = [];
 
     try {
-      final rawAssets = findKey<dynamic>(['myAssets', 'myassets', 'MYASSETS']);
+      final dynamic rawAssets = findKey<dynamic>([
+        'myAssets',
+        'myassets',
+        'MYASSETS',
+      ]);
 
       if (rawAssets is String && rawAssets.trim().isNotEmpty) {
-        final decoded = jsonDecode(rawAssets);
+        final dynamic decoded = jsonDecode(rawAssets);
 
         if (decoded is List) {
           parsedAssets.addAll(
@@ -233,16 +337,49 @@ class UserModel {
     } catch (_) {}
 
     // ==========================================================
-    // DATES (باستخدام البحث المرن والتوريث السيادي)
+    // SIGNED DOCUMENTS
     // ==========================================================
 
-    final rawPublishDate = findKey<String>([
+    final List<SignedDocument> parsedSignedDocuments = [];
+
+    try {
+      final dynamic rawDocuments = findKey<dynamic>([
+        'signedDocuments',
+        'signeddocuments',
+        'SIGNEDDOCUMENTS',
+        'signed_documents',
+      ]);
+
+      if (rawDocuments is String && rawDocuments.trim().isNotEmpty) {
+        final dynamic decoded = jsonDecode(rawDocuments);
+
+        if (decoded is List) {
+          parsedSignedDocuments.addAll(
+            decoded.whereType<Map>().map(
+              (e) => SignedDocument.fromJson(Map<String, dynamic>.from(e)),
+            ),
+          );
+        }
+      } else if (rawDocuments is List) {
+        parsedSignedDocuments.addAll(
+          rawDocuments.whereType<Map>().map(
+            (e) => SignedDocument.fromJson(Map<String, dynamic>.from(e)),
+          ),
+        );
+      }
+    } catch (_) {}
+
+    // ==========================================================
+    // DATES
+    // ==========================================================
+
+    final String? rawPublishDate = findKey<String>([
       'storePublishDate',
       'storepublishdate',
       'STORE_PUBLISH_DATE',
     ])?.trim();
 
-    final rawActivationDate = findKey<String>([
+    final String? rawActivationDate = findKey<String>([
       'activationDate',
       'activationdate',
       'ACTIVATION_DATE',
@@ -256,17 +393,17 @@ class UserModel {
         : null;
 
     final String? finalActivationDate =
-        (rawActivationDate != null &&
+        rawActivationDate != null &&
             rawActivationDate.isNotEmpty &&
-            rawActivationDate != 'null')
+            rawActivationDate != 'null'
         ? rawActivationDate
         : finalPublishDate;
 
     // ==========================================================
-    // الهوية الرقمية
+    // DIGITAL IDENTITY
     // ==========================================================
 
-    final rawPublicKey = json['digitalPublicKey']?.toString().trim();
+    final String? rawPublicKey = json['digitalPublicKey']?.toString().trim();
 
     final String? publicKey =
         rawPublicKey != null &&
@@ -275,7 +412,7 @@ class UserModel {
         ? rawPublicKey
         : null;
 
-    final rawSignatureCreatedAt = json['digitalSignatureCreatedAt']
+    final String? rawSignatureCreatedAt = json['digitalSignatureCreatedAt']
         ?.toString()
         .trim();
 
@@ -286,12 +423,12 @@ class UserModel {
         ? rawSignatureCreatedAt
         : null;
 
-    final algorithm =
+    final String algorithm =
         json['digitalSignatureAlgorithm']?.toString().trim().isNotEmpty == true
         ? json['digitalSignatureAlgorithm'].toString()
         : 'Ed25519';
 
-    final keyVersion =
+    final int keyVersion =
         int.tryParse(json['digitalSignatureKeyVersion']?.toString() ?? '1') ??
         1;
 
@@ -301,30 +438,53 @@ class UserModel {
 
     return UserModel(
       phone: json['phone']?.toString() ?? '',
+
       password: json['password']?.toString() ?? '',
+
       name: json['name']?.toString() ?? '',
+
       address: json['address']?.toString() ?? '',
+
       storeDescription: json['storeDescription']?.toString() ?? '',
+
       balance: double.tryParse(json['balance']?.toString() ?? '0') ?? 0.0,
+
       commission: double.tryParse(json['commission']?.toString() ?? '0') ?? 0.0,
+
       gender: json['gender']?.toString() ?? '',
+
       accountType: json['accountType']?.toString() ?? '',
+
       moxId: json['moxId']?.toString() ?? 'لم يحدد',
+
       role: json['role']?.toString() ?? 'free',
+
       customWhatsApp: json['customWhatsApp']?.toString(),
+
       guardianMoxId: json['guardianMoxId']?.toString() ?? '',
+
       guardianMoxIdCustomer:
           json['guardianMoxIdCustomer']?.toString() ?? 'MOX249-00010001',
+
       storePublishDate: finalPublishDate,
+
       activationDate: finalActivationDate,
+
       points: int.tryParse(json['points']?.toString() ?? '0') ?? 0,
+
       myAssets: parsedAssets,
+
+      signedDocuments: parsedSignedDocuments,
+
       // ========================================================
       // الهوية الرقمية
       // ========================================================
       digitalPublicKey: publicKey,
+
       digitalSignatureAlgorithm: algorithm,
+
       digitalSignatureCreatedAt: signatureCreatedAt,
+
       digitalSignatureKeyVersion: keyVersion,
     );
   }

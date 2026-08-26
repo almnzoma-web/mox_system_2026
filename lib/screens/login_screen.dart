@@ -1,5 +1,3 @@
-// ignore_for_file: unnecessary_null_comparison
-
 import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
@@ -18,16 +16,24 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
 
-  final TextEditingController _inputController = TextEditingController();
+  // ============================================================
+  // CONTROLLERS
+  // ============================================================
+
+  final TextEditingController _phoneController = TextEditingController();
+
+  final TextEditingController _guardianMoxIdController =
+      TextEditingController();
 
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _isPasswordVisible = false;
-  bool _isLoading = false;
+  // ============================================================
+  // STATE
+  // ============================================================
 
-  // ============================================================
-  // حفظ تسجيل الدخول
-  // ============================================================
+  bool _isPasswordVisible = false;
+
+  bool _isLoading = false;
 
   bool _rememberLoginSession = false;
 
@@ -36,37 +42,100 @@ class _LoginScreenState extends State<LoginScreen> {
   // ============================================================
 
   Future<void> _validateAndLogin() async {
-    final String input = _inputController.text.trim();
+    final String phone = _phoneController.text.trim();
+
+    final String guardianMoxId = _guardianMoxIdController.text.trim();
 
     final String password = _passwordController.text.trim();
 
-    // ----------------------------------------------------------
-    // التحقق من البيانات
-    // ----------------------------------------------------------
+    // ==========================================================
+    // 1. تحديد هل البيانات تخص المدير
+    //
+    // مهم:
+    // منطق المدير يبقى كما هو.
+    //
+    // المدير يستطيع الدخول بهويته الحالية.
+    // ==========================================================
 
-    if (input.isEmpty || password.isEmpty) {
+    final bool isAdminPhone = phone == StorageService.adminUser.phone;
+
+    final bool isAdminGuardian =
+        guardianMoxId.toUpperCase() ==
+        (StorageService.adminUser.guardianMoxId ?? '').toUpperCase();
+
+    final bool isAdmin = isAdminPhone || isAdminGuardian;
+
+    // ==========================================================
+    // 2. المدير
+    //
+    // لا نفرض عليه وجود الهاتف والـ guardian معاً.
+    // ==========================================================
+
+    if (isAdmin) {
+      if (password.isEmpty) {
+        _showError("⚠️ يرجى إدخال كلمة السر.");
+        return;
+      }
+
+      if (!isAdminPhone && !isAdminGuardian) {
+        _showError("❌ بيانات المدير غير صحيحة.");
+        return;
+      }
+
+      await _loginAdmin(
+        phone: phone,
+        guardianMoxId: guardianMoxId,
+        password: password,
+      );
+
+      return;
+    }
+
+    // ==========================================================
+    // 3. العملاء
+    //
+    // العميل يجب أن يدخل:
+    //
+    // الهاتف + guardianMoxId + كلمة السر
+    //
+    // الثلاثة معاً.
+    // ==========================================================
+
+    if (phone.isEmpty || guardianMoxId.isEmpty || password.isEmpty) {
+      _showError("⚠️ يرجى إدخال رقم الهاتف و guardianMoxId وكلمة السر كاملة.");
+      return;
+    }
+
+    // ==========================================================
+    // 4. التحقق من الهاتف
+    // ==========================================================
+
+    final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phone);
+
+    if (!isPhoneValid) {
+      _showError("⚠️ رقم الهاتف يجب أن يبدأ بـ 249 ويتكون من 12 رقماً.");
+      return;
+    }
+
+    // ==========================================================
+    // 5. التحقق من guardianMoxId
+    // ==========================================================
+
+    final bool isGuardianValid = RegExp(
+      r'^MOX249-\d{8}$',
+    ).hasMatch(guardianMoxId.toUpperCase());
+
+    if (!isGuardianValid) {
       _showError(
-        "⚠️ تنبيه: يرجى إدخال البيانات كاملة (المعرف/الهاتف وكلمة السر)",
+        "⚠️ guardianMoxId غير مطابق للمعايير.\n"
+        "مثال: MOX249-12345678",
       );
       return;
     }
 
-    // ----------------------------------------------------------
-    // التحقق من الصيغة
-    // ----------------------------------------------------------
-
-    final bool isFormatValid = widget.isMoxIdLogin
-        ? RegExp(r'^MOX249-\d{8}$').hasMatch(input)
-        : RegExp(r'^249\d{9}$').hasMatch(input);
-
-    if (!isFormatValid) {
-      _showError(
-        widget.isMoxIdLogin
-            ? "رقم MOX غير مطابق للمعايير (مثال: MOX249-12345678)"
-            : "رقم الهاتف يجب أن يبدأ بـ 249 ويتكون من 12 رقماً",
-      );
-      return;
-    }
+    // ==========================================================
+    // 6. بدء التحميل
+    // ==========================================================
 
     setState(() {
       _isLoading = true;
@@ -74,18 +143,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // ========================================================
-      // المصادقة
+      // المصادقة الجديدة للعملاء
+      //
+      // الهاتف + guardianMoxId + كلمة السر
       // ========================================================
 
-      UserModel? authenticatedUser = await StorageService.authenticateAsync(
-        input,
-        password,
-        widget.isMoxIdLogin,
-      );
+      final UserModel? authenticatedUser =
+          await StorageService.authenticateCustomerAsync(
+            phone: phone,
+            guardianMoxId: guardianMoxId,
+            password: password,
+          );
 
-      // --------------------------------------------------------
-      // فشل تسجيل الدخول
-      // --------------------------------------------------------
+      // ========================================================
+      // فشل المصادقة
+      // ========================================================
 
       if (authenticatedUser == null) {
         if (mounted) {
@@ -95,48 +167,44 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         _showError(
-          "❌ خطأ أمني: البيانات المدخلة غير مسجلة أو كلمة السر غير صحيحة!",
+          "❌ خطأ أمني:\n"
+          "رقم الهاتف أو guardianMoxId أو كلمة السر غير صحيحة.",
         );
 
         return;
       }
 
       // ========================================================
-      // حماية MoxId
+      // حماية إضافية
+      //
+      // نتأكد أن الحساب الذي عاد من السيرفر هو نفس الحساب
+      // المطلوب تسجيل دخوله.
       // ========================================================
 
-      if (authenticatedUser.moxId == null ||
-          authenticatedUser.moxId.trim().isEmpty) {
-        if (widget.isMoxIdLogin) {
-          authenticatedUser.moxId = input;
-        } else if (authenticatedUser.phone != null &&
-            authenticatedUser.phone.isNotEmpty) {
-          final String digits = authenticatedUser.phone.replaceAll(
-            RegExp(r'\D'),
-            '',
-          );
+      final bool phoneMatches = authenticatedUser.phone.trim() == phone;
 
-          if (digits.length >= 8) {
-            authenticatedUser.moxId =
-                "MOX249-${digits.substring(digits.length - 8)}";
-          } else {
-            authenticatedUser.moxId = "ID-005000";
-          }
-        } else {
-          authenticatedUser.moxId = "ID-005001";
+      final bool guardianMatches =
+          (authenticatedUser.guardianMoxId ?? '').trim().toUpperCase() ==
+              guardianMoxId.toUpperCase() ||
+          (authenticatedUser.guardianMoxIdCustomer ?? '')
+                  .trim()
+                  .toUpperCase() ==
+              guardianMoxId.toUpperCase();
+
+      if (!phoneMatches || !guardianMatches) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
         }
+
+        _showError("❌ رفض أمني: بيانات الهوية لا تتطابق مع سجل العميل.");
+
+        return;
       }
 
       // ========================================================
-      // حفظ أو عدم حفظ الجلسة
-      // ========================================================
-      //
-      // ✔️ المربع مفعل:
-      //    نحفظ المستخدم في SharedPreferences
-      //
-      // ⬜ المربع غير مفعل:
-      //    نحذف أي جلسة محفوظة سابقاً
-      //
+      // حفظ الجلسة
       // ========================================================
 
       if (_rememberLoginSession) {
@@ -146,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // ========================================================
-      // دخول لوحة التحكم
+      // فتح لوحة التحكم
       // ========================================================
 
       if (!mounted) {
@@ -171,7 +239,120 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
 
-      _showError("⚠️ حدث خطأ أثناء الاتصال بالخزينة السيادية: $e");
+      _showError("⚠️ حدث خطأ أثناء الاتصال بالخزينة السيادية:\n$e");
+    }
+  }
+
+  // ============================================================
+  // ADMIN LOGIN
+  //
+  // نحافظ على منطق المدير منفصلاً.
+  // ============================================================
+
+  Future<void> _loginAdmin({
+    required String phone,
+    required String guardianMoxId,
+    required String password,
+  }) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String adminInput = '';
+
+      bool isMoxId = false;
+
+      // --------------------------------------------------------
+      // إذا أُدخل guardianMoxId للمدير
+      // --------------------------------------------------------
+
+      if (guardianMoxId.isNotEmpty &&
+          guardianMoxId.toUpperCase() ==
+              (StorageService.adminUser.guardianMoxId ?? '').toUpperCase()) {
+        adminInput = guardianMoxId;
+
+        isMoxId = true;
+      }
+      // --------------------------------------------------------
+      // وإلا استخدم الهاتف
+      // --------------------------------------------------------
+      else if (phone.isNotEmpty && phone == StorageService.adminUser.phone) {
+        adminInput = phone;
+
+        isMoxId = false;
+      }
+
+      if (adminInput.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+
+        _showError("❌ بيانات المدير غير صحيحة.");
+
+        return;
+      }
+
+      // ========================================================
+      // المصادقة القديمة للمدير
+      //
+      // لا نغيّر طريقة المدير.
+      // ========================================================
+
+      final UserModel? authenticatedAdmin =
+          await StorageService.authenticateAsync(adminInput, password, isMoxId);
+
+      if (authenticatedAdmin == null) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+
+        _showError("❌ كلمة السر أو بيانات المدير غير صحيحة.");
+
+        return;
+      }
+
+      // ========================================================
+      // حفظ الجلسة
+      // ========================================================
+
+      if (_rememberLoginSession) {
+        await StorageService.saveUser(authenticatedAdmin);
+      } else {
+        await StorageService.logout();
+      }
+
+      // ========================================================
+      // فتح لوحة المدير
+      // ========================================================
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardScreen(user: authenticatedAdmin),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      _showError("⚠️ حدث خطأ أثناء دخول المدير:\n$e");
     }
   }
 
@@ -204,7 +385,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _inputController.dispose();
+    _phoneController.dispose();
+
+    _guardianMoxIdController.dispose();
+
     _passwordController.dispose();
 
     super.dispose();
@@ -268,25 +452,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
               child: Column(
                 children: [
-                  // ------------------------------------------------
-                  // INPUT
-                  // ------------------------------------------------
+                  // =================================================
+                  // PHONE
+                  // =================================================
                   TextField(
-                    controller: _inputController,
+                    controller: _phoneController,
 
-                    keyboardType: widget.isMoxIdLogin
-                        ? TextInputType.text
-                        : TextInputType.phone,
+                    keyboardType: TextInputType.phone,
 
                     decoration: InputDecoration(
-                      labelText: widget.isMoxIdLogin
-                          ? "رقم موكس"
-                          : "رقم الهاتف",
+                      labelText: "رقم الهاتف",
 
-                      prefixIcon: Icon(
-                        widget.isMoxIdLogin ? Icons.badge : Icons.phone_android,
-                        color: moxBlue,
-                      ),
+                      prefixIcon: Icon(Icons.phone_android, color: moxBlue),
 
                       border: const OutlineInputBorder(),
 
@@ -298,9 +475,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ------------------------------------------------
+                  // =================================================
+                  // GUARDIAN MOX ID
+                  // =================================================
+                  TextField(
+                    controller: _guardianMoxIdController,
+
+                    keyboardType: TextInputType.text,
+
+                    textCapitalization: TextCapitalization.characters,
+
+                    decoration: InputDecoration(
+                      labelText: "guardianMoxId",
+
+                      hintText: "مثال: MOX249-12345678",
+
+                      prefixIcon: Icon(Icons.badge, color: moxBlue),
+
+                      border: const OutlineInputBorder(),
+
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: moxBlue, width: 2),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // =================================================
                   // PASSWORD
-                  // ------------------------------------------------
+                  // =================================================
                   TextField(
                     controller: _passwordController,
 
