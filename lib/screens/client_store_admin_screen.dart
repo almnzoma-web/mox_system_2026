@@ -845,7 +845,8 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
         storeDescription: _descriptionController.text.trim(),
-        myAssets: updatedAssets,
+        // 🛡️ التعديل الآمن هنا لحماية الأصول من الحذف:
+        myAssets: updatedAssets.isNotEmpty ? updatedAssets : _liveUser.myAssets,
         storePublishDate: finalPublishTimestamp,
         role: 'reviewed_active',
       );

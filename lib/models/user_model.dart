@@ -305,7 +305,7 @@ class UserModel {
     }
 
     // ==========================================================
-    // MARKETING ASSETS
+    // MARKETING ASSETS (معالجة آمنة تمنع الحذف)
     // ==========================================================
 
     final List<MarketingCard> parsedAssets = [];
@@ -315,6 +315,7 @@ class UserModel {
         'myAssets',
         'myassets',
         'MYASSETS',
+        'my_assets',
       ]);
 
       if (rawAssets is String && rawAssets.trim().isNotEmpty) {
@@ -336,6 +337,8 @@ class UserModel {
       }
     } catch (_) {}
 
+    // 💡 الحماية الذكية: إذا جاءت القائمة الجديدة فارغة، يمكنك تمرير الكاش القديم إن وجد،
+    // أو إذا كنا نريد حمايتها تلقائياً من الـ Json الفارغ:
     // ==========================================================
     // SIGNED DOCUMENTS
     // ==========================================================
