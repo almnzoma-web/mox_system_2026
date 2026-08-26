@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
@@ -478,7 +479,28 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   // ⏳ الاشتراك وإدارته
   // ============================================================
 
-  void _initializeSubscription() {
+  void _initializeSubscription() async {
+    // 🎯 الخطوة الأولى: محاولة استرجاع التاريخ المخزن محلياً أولاً لضمان عدم ضياعه عند الخروج
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? localPubDate = prefs.getString(
+        'store_pub_date_$_publicGuardianMoxId',
+      );
+      if (localPubDate != null &&
+          localPubDate.trim().isNotEmpty &&
+          localPubDate != "null") {
+        if (_liveUser.storePublishDate == null ||
+            _liveUser.storePublishDate!.trim().isEmpty ||
+            _liveUser.storePublishDate == "null") {
+          _liveUser = _liveUser.copyWith(
+            storePublishDate: localPubDate,
+            activationDate: localPubDate,
+            role: 'reviewed_active',
+          );
+        }
+      }
+    } catch (_) {}
+
     final String? publishDate = _liveUser.storePublishDate;
     if (publishDate == null ||
         publishDate.trim().isEmpty ||
@@ -560,7 +582,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   // ============================================================
-  // ⏳ الاشتراك وإدارته (محدث لضمان استمرار ظهور زر النشر طوال العام)
+  // ⏳ الاشتراك وإدارته (محدث لضمان استمرار ظهور زر النشر طوال العام وحفظ الجلسة)
   // ============================================================
 
   Future<void> _startSubscription() async {
@@ -584,6 +606,15 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       await StorageService.updateUserPartial(activatedUser);
       _liveUser = activatedUser;
 
+      // 🎯 حفظ التاريخ محلياً لضمان بقاء الجلسة ثابتة حتى بعد الخروج والتسجيل
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'store_pub_date_$_publicGuardianMoxId',
+          startDate,
+        );
+      } catch (_) {}
+
       if (!mounted) return;
 
       // استدعاء دالة المزامنة الموحدة لتحديث الواجهة وزر النشر بثبات تام
@@ -605,7 +636,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
   }
-
   // ============================================================
   // 🔗 رابط المتجر العام
   // ============================================================
