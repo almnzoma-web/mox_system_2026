@@ -294,7 +294,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   // ============================================================
-  // ADD USER + REFERRAL
+  // ADD USER + REFERRAL (الكود النظيف والآمن 100%)
   // ============================================================
 
   Future<bool> _addUserWithReferral(
@@ -304,32 +304,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     await StorageService.ensureLoaded();
 
     // ==========================================================
-    // CHECK DUPLICATE PHONE
+    // CHECK EXISTING PHONE (التحقق الآمن من وجود الهاتف مسبقاً)
     // ==========================================================
 
-    final bool phoneExists = StorageService.registeredUsers.any(
+    final int existingIndex = StorageService.registeredUsers.indexWhere(
       (u) => u.phone.trim() == newUser.phone.trim(),
     );
-
-    if (phoneExists) {
-      debugPrint("❌ رقم الهاتف موجود مسبقاً.");
-
-      return false;
-    }
-
-    // ==========================================================
-    // CHECK DUPLICATE MOX ID
-    // ==========================================================
-
-    final bool moxIdExists = StorageService.registeredUsers.any(
-      (u) => u.moxId.trim() == newUser.moxId.trim(),
-    );
-
-    if (moxIdExists) {
-      debugPrint("❌ MoxId موجود مسبقاً.");
-
-      return false;
-    }
 
     // ==========================================================
     // FIND GUARDIAN
@@ -351,14 +331,32 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     // ==========================================================
-    // SAVE NEW USER FIRST
+    // SAVE OR REPLACE USER (الحفظ الآمن أو الاستبدال السليم)
     // ==========================================================
 
     try {
-      await StorageService.addUser(newUser);
+      if (existingIndex != -1) {
+        // إذا كان العميل موجوداً، نقوم بتحديث كائنه مباشرة في القائمة السيادية
+        StorageService.registeredUsers[existingIndex] = newUser;
+
+        // استدعاء دالة التحديث الشاملة لضمان حفظ التواريخ وتحديث الشيت
+        await StorageService.addUser(newUser);
+      } else {
+        // التحقق من تكرار الـ MoxId فقط إذا كان عميلاً جديداً
+        final bool moxIdExists = StorageService.registeredUsers.any(
+          (u) => u.moxId.trim() == newUser.moxId.trim(),
+        );
+
+        if (moxIdExists) {
+          debugPrint("❌ MoxId موجود مسبقاً.");
+          return false;
+        }
+
+        // إضافة العميل الجديد عبر الدالة الأصلية للمنظومة
+        await StorageService.addUser(newUser);
+      }
     } catch (e) {
       debugPrint("❌ فشل حفظ العميل: $e");
-
       return false;
     }
 
@@ -382,7 +380,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     return true;
   }
-
   // ============================================================
   // CERTIFICATE
   // ============================================================

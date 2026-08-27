@@ -44,8 +44,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   //
   // ============================================================
 
-  static const String _vercelStoreUrl = 'https://mox-2026.vercel.app/api/store';
-
   // ============================================================
   // 🔗 رابط العميل العام
   //
@@ -248,7 +246,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
 
   // ============================================================
-  // ☁️ جلب أحدث بيانات العميل من Vercel (محدث ليشمل تاريخ التفعيل)
+  // ☁️ جلب أحدث بيانات العميل من الرابط السيادي المحدث
   // ============================================================
 
   Future<void> _refreshClientFromVercel(UserModel user) async {
@@ -256,27 +254,32 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       final String guardianId = (user.guardianMoxId ?? '').trim().toUpperCase();
 
       if (guardianId.isEmpty) {
-        debugPrint(
-          '⚠️ [Vercel Store] لا يوجد guardianMoxId للعميل ${user.name}',
-        );
+        debugPrint('⚠️ [Store API] لا يوجد guardianMoxId للعميل ${user.name}');
         return;
       }
 
-      final Uri uri = Uri.parse(
-        _vercelStoreUrl,
-      ).replace(queryParameters: {'guardianMoxId': guardianId});
+      // استخدام الرابط السيادي الصحيح مع تمرير المعاملات المطلوبة
+      final Uri uri =
+          Uri.parse(
+            'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec',
+          ).replace(
+            queryParameters: {
+              'action': 'getUserByGuardianMoxId',
+              'guardianMoxId': guardianId,
+            },
+          );
 
-      debugPrint('🌐 [Vercel Store] GET: $uri');
+      debugPrint('🌐 [Store API] GET: $uri');
 
       final http.Response cloudResponse = await http
           .get(uri, headers: {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 20));
 
-      debugPrint('☁️ [Vercel Store] HTTP Status: ${cloudResponse.statusCode}');
+      debugPrint('☁️ [Store API] HTTP Status: ${cloudResponse.statusCode}');
 
       if (cloudResponse.statusCode != 200) {
         debugPrint(
-          '⚠️ [Vercel Store] السيرفر رفض الطلب برمز: ${cloudResponse.statusCode}',
+          '⚠️ [Store API] السيرفر رفض الطلب برمز: ${cloudResponse.statusCode}',
         );
         return;
       }
@@ -286,14 +289,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       if (body.isEmpty ||
           body.startsWith('<') ||
           body.toLowerCase().contains('<html')) {
-        debugPrint('❌ [Vercel Store] الاستجابة فارغة أو عبارة عن HTML');
+        debugPrint('❌ [Store API] الاستجابة فارغة أو عبارة عن HTML');
         return;
       }
 
       final dynamic decoded = json.decode(body);
 
       if (decoded is! Map) {
-        debugPrint('❌ [Vercel Store] الاستجابة ليست خريطة (Map)');
+        debugPrint('❌ [Store API] الاستجابة ليست خريطة (Map)');
         return;
       }
 
@@ -311,7 +314,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       }
 
       if (cloudUser == null) {
-        debugPrint('⚠️ [Vercel Store] لم يتم العثور على بيانات المستخدم');
+        debugPrint('⚠️ [Store API] لم يتم العثور على بيانات المستخدم');
         return;
       }
 
@@ -349,6 +352,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         user.password = cloudPassword;
       }
 
+      // 📅 حفظ تاريخ النشر بدقة تامة
       final String cloudPublishDate =
           (normalizedCloudUser['STOREPUBLISHDATE'] ?? '').toString().trim();
       if (cloudPublishDate.isNotEmpty &&
@@ -356,14 +360,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         user.storePublishDate = cloudPublishDate;
       }
 
-      // ✨ الإضافة السيادية: معالجة وقراءة تاريخ التفعيل (activationDate) وتمريره للعميل
+      // 📅 حفظ وتفعيل تاريخ التفعيل بدقة تامة
       final String cloudActivationDate =
           (normalizedCloudUser['ACTIVATIONDATE'] ?? '').toString().trim();
       if (cloudActivationDate.isNotEmpty &&
           cloudActivationDate.toLowerCase() != 'null') {
         user.activationDate = cloudActivationDate;
-      } else {
-        // إذا كان فارغاً في القوقل ولكن تاريخ النشر موجود، نجعله يطابقه تلقائياً
+      } else if (user.storePublishDate!.isNotEmpty) {
         user.activationDate = user.storePublishDate;
       }
 
@@ -397,10 +400,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       }
 
       debugPrint(
-        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام وتثبيت تاريخ التفعيل.',
+        '✅ [Store API] تم تحديث بيانات العميل وتثبيت تواريخ النشر والتفعيل بنجاح تام.',
       );
     } catch (e, stackTrace) {
-      debugPrint('❌ [Vercel Store Exception] $e');
+      debugPrint('❌ [Store API Exception] $e');
       debugPrint('📍 StackTrace: $stackTrace');
     }
   }
