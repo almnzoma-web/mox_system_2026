@@ -41,7 +41,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   static const String _defaultGuardianId = "MOX249-00010001";
 
   // ============================================================
-  // GENERATE MOX ID (الجزئية المحسوبة بدقة لقراءة الشيت ومنع التداخل)
+  // GENERATE MOX ID (الدالة المعدلة والمصححة لقراءة الشيت بدقة)
   // ============================================================
   Future<String> _generateSequentialMoxId() async {
     try {
@@ -51,20 +51,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       debugPrint("⚠️ تعذر تحديث بيانات المخزن أثناء توليد الهوية: $e");
     }
 
-    int nextNumber = 5003;
+    int nextNumber = 5001;
     final Set<int> existingNumbers = {};
 
     for (final user in StorageService.registeredUsers) {
       final id = user.moxId.trim();
-      if (!id.startsWith("ID-")) {
-        continue;
-      }
 
-      final numericPart = id.substring(3);
-      final parsed = int.tryParse(numericPart);
-
-      if (parsed != null && parsed >= 5000) {
-        existingNumbers.add(parsed);
+      // التعامل مع الصيغتين لضمان عدم وجود أي تعارض
+      if (id.startsWith("ID-")) {
+        final numericPart = id.substring(3);
+        final parsed = int.tryParse(numericPart);
+        if (parsed != null && parsed >= 5000) {
+          existingNumbers.add(parsed);
+        }
+      } else if (id.startsWith("MOX249-")) {
+        final numericPart = id.substring(7);
+        final parsed = int.tryParse(numericPart);
+        if (parsed != null && parsed >= 5000) {
+          existingNumbers.add(parsed);
+        }
       }
     }
 
@@ -183,8 +188,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     try {
       // ========================================================
-      // GENERATE MOX ID
+      // ENSURE LOADED & GENERATE MOX ID
       // ========================================================
+      await StorageService.ensureLoaded();
 
       final String newMoxId = await _generateSequentialMoxId();
 
@@ -463,7 +469,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF28A9CC),
+                      backgroundColor: const Color(0xFF28A9CC),
                       minimumSize: const Size(double.infinity, 48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
