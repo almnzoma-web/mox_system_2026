@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-// ignore: unused_import
 import 'package:mox_digital_app/models/marketing_card.dart';
 
 import '../models/user_model.dart';
@@ -44,6 +43,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ?guardianMoxId=MOX249-00010001
   //
   // ============================================================
+
+  static const String _vercelStoreUrl = 'https://mox-2026.vercel.app/api/store';
 
   // ============================================================
   // 🔗 رابط العميل العام
@@ -247,60 +248,207 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   // ============================================================
 
   // ============================================================
-  // ☁️ جلب أحدث بيانات العميل من الرابط السيادي المحدث
+  // ☁️ جلب أحدث بيانات العميل من Vercel (محدث ليشمل تاريخ التفعيل)
   // ============================================================
 
+  Future<void> _refreshClientFromVercel(UserModel user) async {
+    try {
+      final String guardianId = (user.guardianMoxId ?? '').trim().toUpperCase();
+
+      if (guardianId.isEmpty) {
+        debugPrint(
+          '⚠️ [Vercel Store] لا يوجد guardianMoxId للعميل ${user.name}',
+        );
+        return;
+      }
+
+      final Uri uri = Uri.parse(
+        _vercelStoreUrl,
+      ).replace(queryParameters: {'guardianMoxId': guardianId});
+
+      debugPrint('🌐 [Vercel Store] GET: $uri');
+
+      final http.Response cloudResponse = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 20));
+
+      debugPrint('☁️ [Vercel Store] HTTP Status: ${cloudResponse.statusCode}');
+
+      if (cloudResponse.statusCode != 200) {
+        debugPrint(
+          '⚠️ [Vercel Store] السيرفر رفض الطلب برمز: ${cloudResponse.statusCode}',
+        );
+        return;
+      }
+
+      final String body = cloudResponse.body.trim();
+
+      if (body.isEmpty ||
+          body.startsWith('<') ||
+          body.toLowerCase().contains('<html')) {
+        debugPrint('❌ [Vercel Store] الاستجابة فارغة أو عبارة عن HTML');
+        return;
+      }
+
+      final dynamic decoded = json.decode(body);
+
+      if (decoded is! Map) {
+        debugPrint('❌ [Vercel Store] الاستجابة ليست خريطة (Map)');
+        return;
+      }
+
+      final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+
+      Map<String, dynamic>? cloudUser;
+      if (data['user'] is Map) {
+        cloudUser = Map<String, dynamic>.from(data['user']);
+      } else if (data['data'] is Map) {
+        cloudUser = Map<String, dynamic>.from(data['data']);
+      } else if (data.containsKey('moxId') ||
+          data.containsKey('MOXID') ||
+          data.containsKey('phone')) {
+        cloudUser = data;
+      }
+
+      if (cloudUser == null) {
+        debugPrint('⚠️ [Vercel Store] لم يتم العثور على بيانات المستخدم');
+        return;
+      }
+
+      // ========================================================
+      // التوحيد: تحويل جميع المفاتيح إلى أحرف كبيرة (UPPERCASE)
+      // ========================================================
+      final Map<String, dynamic> normalizedCloudUser = cloudUser.map((
+        key,
+        value,
+      ) {
+        return MapEntry(key.trim().toUpperCase(), value);
+      });
+
+      final String cloudPhone = (normalizedCloudUser['PHONE'] ?? '')
+          .toString()
+          .trim();
+      final String cloudMoxId = (normalizedCloudUser['MOXID'] ?? '')
+          .toString()
+          .trim();
+
+      if (cloudPhone.isNotEmpty) user.phone = cloudPhone;
+      if (cloudMoxId.isNotEmpty) user.moxId = cloudMoxId.toUpperCase();
+
+      final String cloudGuardian = (normalizedCloudUser['GUARDIANMOXID'] ?? '')
+          .toString()
+          .trim();
+      if (cloudGuardian.isNotEmpty && cloudGuardian.toLowerCase() != 'null') {
+        user.guardianMoxId = cloudGuardian.toUpperCase();
+      }
+
+      final String cloudPassword = (normalizedCloudUser['PASSWORD'] ?? '')
+          .toString()
+          .trim();
+      if (cloudPassword.isNotEmpty && cloudPassword.toLowerCase() != 'null') {
+        user.password = cloudPassword;
+      }
+
+      final String cloudPublishDate =
+          (normalizedCloudUser['STOREPUBLISHDATE'] ?? '').toString().trim();
+      if (cloudPublishDate.isNotEmpty &&
+          cloudPublishDate.toLowerCase() != 'null') {
+        user.storePublishDate = cloudPublishDate;
+      }
+
+      // ✨ الإضافة السيادية: معالجة وقراءة تاريخ التفعيل (activationDate) وتمريره للعميل
+      final String cloudActivationDate =
+          (normalizedCloudUser['ACTIVATIONDATE'] ?? '').toString().trim();
+      if (cloudActivationDate.isNotEmpty &&
+          cloudActivationDate.toLowerCase() != 'null') {
+        user.activationDate = cloudActivationDate;
+      } else {
+        // إذا كان فارغاً في القوقل ولكن تاريخ النشر موجود، نجعله يطابقه تلقائياً
+        user.activationDate = user.storePublishDate;
+      }
+
+      // ========================================================
+      // معالجة MYASSETS بدقة تامة
+      // ========================================================
+      final dynamic rawAssets = normalizedCloudUser['MYASSETS'];
+      if (rawAssets != null) {
+        if (rawAssets is List) {
+          user.myAssets = rawAssets
+              .map((e) => e.toString())
+              .cast<MarketingCard>()
+              .toList();
+        } else if (rawAssets is String && rawAssets.trim().isNotEmpty) {
+          try {
+            final parsedList = json.decode(rawAssets);
+            if (parsedList is List) {
+              user.myAssets = parsedList
+                  .map((e) => e.toString())
+                  .cast<MarketingCard>()
+                  .toList();
+            }
+          } catch (_) {
+            user.myAssets = rawAssets
+                .split(',')
+                .map((e) => e.trim())
+                .cast<MarketingCard>()
+                .toList();
+          }
+        }
+      }
+
+      debugPrint(
+        '✅ [Vercel Store] تم تحديث بيانات العميل بنجاح تام وتثبيت تاريخ التفعيل.',
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ [Vercel Store Exception] $e');
+      debugPrint('📍 StackTrace: $stackTrace');
+    }
+  }
   // ============================================================
-  // ☁️ حفظ العميل (الحل خارج الصندوق: فرض التواريخ والتحديث الفوري)
+  // ☁️ حفظ العميل
   // ============================================================
 
   Future<void> _syncClientToCloud(UserModel user) async {
     try {
-      // 1. توليد وختم تاريخ النشر والتفعيل محلياً إذا كانا فارغين لضمان عدم ضياعهم أبداً
-      final String currentNow = DateTime.now().toIso8601String();
+      // --------------------------------------------------------
+      // 1. محاولة تحديث بيانات العميل من Vercel
+      // --------------------------------------------------------
 
-      if (user.storePublishDate == null ||
-          user.storePublishDate!.trim().isEmpty) {
-        user.storePublishDate = currentNow;
-      }
+      await _refreshClientFromVercel(user);
 
-      if (user.activationDate == null || user.activationDate!.trim().isEmpty) {
-        user.activationDate = currentNow;
-      }
+      // --------------------------------------------------------
+      // 2. حفظ UserModel بالكامل في Google Sheets
+      // --------------------------------------------------------
 
-      debugPrint(
-        "📅 [Local Force] تم فرض وتثبيت تاريخ النشر والتفعيل للعميل ${user.name}: ${user.activationDate}",
-      );
-
-      // 2. تحديث البيانات السحابية والمحلية عبر StorageService مباشرة لتجاوز مشاكل الـ API البطيء
       await StorageService.updateUserPartial(user);
 
       if (!mounted) {
         return;
       }
 
-      // 3. بناء الرابط النهائي والتأكد من ظهوره
+      // --------------------------------------------------------
+      // 3. إنشاء الرابط النهائي
+      // --------------------------------------------------------
+
       final String clientLink = _buildClientStoreLink(user);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             clientLink.isNotEmpty
-                ? '✅ تم حفظ وثبيت تواريخ ${user.name} وتحديث الرابط بنجاح.'
-                : '⚠️ تم الحفظ وتثبيت التواريخ، لكن guardianMoxId غير موجود.',
+                ? '✅ تم حفظ ${user.name} وتحديث رابط العميل.'
+                : '⚠️ تم حفظ ${user.name}، لكن guardianMoxId غير موجود.',
           ),
           backgroundColor: clientLink.isNotEmpty ? Colors.green : Colors.orange,
           duration: const Duration(seconds: 3),
         ),
       );
 
-      // 4. تحديث الـ State المحلية للجدول فوراً بدون انتظار إعادة تحميل ثقيلة
-      setState(() {
-        final index = _clients.indexWhere((c) => c.moxId == user.moxId);
-        if (index != -1) {
-          _clients[index] = user;
-        }
-      });
+      // --------------------------------------------------------
+      // 4. تحديث جدول المدير
+      // --------------------------------------------------------
+
+      await _fetchFromCloud();
     } catch (e) {
       if (!mounted) {
         return;
@@ -314,6 +462,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       );
     }
   }
+
   // ============================================================
   // 🔐 نافذة الفحص المنبثقة
   // ============================================================

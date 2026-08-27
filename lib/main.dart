@@ -44,7 +44,7 @@ import 'widgets/store_preview_widget.dart';
 // ============================================================
 
 const String publicStoreApi =
-    'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec?action=getUserByGuardianMoxId';
+    'https://script.google.com/macros/s/AKfycbyzEYwnIHwG_wip_fHaRXMFz88hkCX83CXS3sO_Xw2Oxu5NxlmwIl0JxFPDLNj3CT8/exec?action=getUserByGuardianMoxId';
 
 // ============================================================
 // APP LINKS
@@ -315,23 +315,16 @@ Future<Widget> _loadPublicStoreScreen(String guardianMoxId) async {
     UserModel? user;
 
     // 1. محاولة البحث المحلي السريع أولاً (Cache) لتفادي الـ Timeout
-    // 1. محاولة البحث المحلي السريع أولاً (Cache) بشرط التطابق الدقيق حصرياً
     try {
       await StorageService.loadUsers();
-
-      // التعديل الحاسم: البحث بالتطابق الدقيق والمزدوج لمنع تداخل الصفوف
       final int index = StorageService.registeredUsers.indexWhere(
         (u) =>
-            (u.guardianMoxId ?? '').trim().toUpperCase() ==
-                cleanGuardianMoxId &&
-            u.guardianMoxId != null &&
-            u.guardianMoxId!.trim().isNotEmpty,
+            (u.guardianMoxId ?? '').trim().toUpperCase() == cleanGuardianMoxId,
       );
-
       if (index != -1) {
         user = StorageService.registeredUsers[index];
         debugPrint(
-          '⚡ [PUBLIC STORE] تم العثور على العميل محلياً بدقة مطابقة تامة',
+          '⚡ [PUBLIC STORE] تم العثور على العميل محلياً (بدون انتظار السحابة)',
         );
       }
     } catch (e) {
@@ -636,7 +629,7 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
 
     // بناء الرابط المباشر لجوجل مع المعرف تماماً مثل المتصفح
     final Uri uri = Uri.parse(
-      'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec?action=getUserByGuardianMoxId&guardianMoxId=$cleanGuardianMoxId',
+      'https://script.google.com/macros/s/AKfycbyzEYwnIHwG_wip_fHaRXMFz88hkCX83CXS3sO_Xw2Oxu5NxlmwIl0JxFPDLNj3CT8/exec?action=getUserByGuardianMoxId&guardianMoxId=$cleanGuardianMoxId',
     );
 
     debugPrint('🌐 [STORE API DIRECT] URL: $uri');

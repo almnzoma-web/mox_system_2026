@@ -46,7 +46,7 @@ class StorageService {
   // ============================================================
 
   static const String _scriptUrl =
-      'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec';
+      'https://script.google.com/macros/s/AKfycbyzEYwnIHwG_wip_fHaRXMFz88hkCX83CXS3sO_Xw2Oxu5NxlmwIl0JxFPDLNj3CT8/exec';
 
   // ============================================================
   // VERCEL STORE API
@@ -324,21 +324,21 @@ class StorageService {
 
   static bool _sameUser(UserModel a, UserModel b) {
     final String aMox = _clean(a.moxId).toUpperCase();
+
     final String bMox = _clean(b.moxId).toUpperCase();
 
-    // إذا كان للطرفين MoxId صالح ومطابق تماماً
-    if (_isValidMoxId(aMox) && _isValidMoxId(bMox)) {
-      return aMox == bMox;
+    if (_isValidMoxId(aMox) && _isValidMoxId(bMox) && aMox == bMox) {
+      return true;
     }
 
     final String aPhone = _clean(a.phone);
+
     final String bPhone = _clean(b.phone);
 
     if (aPhone.isEmpty || bPhone.isEmpty || aPhone != bPhone) {
       return false;
     }
 
-    // مطابقة الـ Guardian لمنع تداخل العملاء الذين يشتركون في رقم الهاتف
     final String aGuardian = _clean(
       a.guardianMoxId ?? a.guardianMoxIdCustomer,
     ).toUpperCase();
@@ -351,8 +351,7 @@ class StorageService {
       return aGuardian == bGuardian;
     }
 
-    // إذا تساوى الهاتف وكان الـ Guardian فارغاً في الاثنين فقط نعتبرهم نفس المستخدم
-    return aGuardian.isEmpty && bGuardian.isEmpty;
+    return true;
   }
 
   // ============================================================
