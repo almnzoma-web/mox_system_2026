@@ -869,40 +869,55 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     setState(() => _isPublishing = true);
 
     try {
-      // 🛡️ الحفاظ على تاريخ التنشيط الحالي للمتجر طالما أنه ساري ولم تنتهِ الـ 365 يوماً
+      // 🛡️ التحقق من وجود تاريخ ساري مسبقاً، وإلا يتم توليد توقيت سيادي جديد ودقيق بصيغة ISO
       final String existingPublishDate = _liveUser.storePublishDate ?? '';
       final bool isAlreadyActive =
           existingPublishDate.isNotEmpty &&
           existingPublishDate != "null" &&
           !_checkIf365DaysExpired(existingPublishDate);
 
+      // 🎯 الحسم هنا: تثبيت توقيت اللحظة الحالية بدقة تامة لإرساله لقوقل
       final String finalPublishTimestamp = isAlreadyActive
           ? existingPublishDate
           : DateTime.now().toIso8601String();
+
+      debugPrint(
+        '📅 [STORE PUBLISH] جاري إرسال تاريخ النشر إلى قوقل: $finalPublishTimestamp',
+      );
 
       final UserModel updatedUser = _liveUser.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
         storeDescription: _descriptionController.text.trim(),
-        // 🛡️ التعديل الآمن هنا لحماية الأصول من الحذف:
         myAssets: updatedAssets.isNotEmpty ? updatedAssets : _liveUser.myAssets,
         storePublishDate: finalPublishTimestamp,
+        activationDate:
+            finalPublishTimestamp, // ضمان تطابق تاريخ التنشيط مع النشر
         role: 'reviewed_active',
       );
 
-      // الحفظ عبر المعمارية السليمة المعتمدة
+      // 🚀 الحفظ الفعلي والسحابي عبر المعمارية المعتمدة
       await StorageService.updateUserPartial(updatedUser);
 
+      // 🔄 جلب البيانات المؤكدة من السيرفر لضمان مطابقة قوقل الحقيقية
       final UserModel? confirmedUser = await StorageService.getUserByMoxId(
         updatedUser.moxId,
       );
       _liveUser = confirmedUser ?? updatedUser;
 
+      // 💾 حفظ احتياطي محلي سريع لضمان عدم ضياع التوقيت تحت أي ظرف
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'store_pub_date_${_liveUser.guardianMoxId ?? _liveUser.moxId}',
+          finalPublishTimestamp,
+        );
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _isPublishing = false;
-        // 🔒 الحفاظ على حالة الاشتراك نشطاً طالما لم تنتهِ المدة، لكي لا يعود زر التنشيط أبداً
         _isSubscriptionExpired = _checkIf365DaysExpired(
           _liveUser.storePublishDate,
         );
@@ -914,7 +929,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("🚀 تم حفظ ونشر المتجر بنجاح."),
+          content: Text("🚀 تم حفظ وتوثيق ونشر تاريخ المتجر في قوقل بنجاح."),
           backgroundColor: Colors.green,
         ),
       );
