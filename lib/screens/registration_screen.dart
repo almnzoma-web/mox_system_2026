@@ -30,46 +30,51 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isPasswordVisible = false;
 
   // ============================================================
-  // LEGAL AGREEMENT STATE (الغطاء القانوني الإلزامي)
-  // ============================================================
-  bool _agreedToTerms = false;
-
-  // ============================================================
   // ADMIN REFERRAL ID
   // ============================================================
 
   static const String _defaultGuardianId = "MOX249-00010001";
 
   // ============================================================
-  // GENERATE MOX ID (الدالة المعدلة والمصححة لقراءة الشيت بدقة)
+  // GENERATE MOX ID
   // ============================================================
+  //
+  // moxId يتم توليده من شاشة التسجيل.
+  //
+  // المدير:
+  // ID-005000
+  //
+  // أول عميل:
+  // ID-005001
+  //
+  // ============================================================
+
   Future<String> _generateSequentialMoxId() async {
+    /*
+     * نحاول أولاً تحديث البيانات من السحابة
+     * حتى لا نعتمد على ذاكرة الجهاز القديمة.
+     */
     try {
-      // ضمان جلب أحدث بيانات العملاء من السحابة/الشيت أولاً وقبل أي خطوة
-      await StorageService.ensureLoaded();
-    } catch (e) {
-      debugPrint("⚠️ تعذر تحديث بيانات المخزن أثناء توليد الهوية: $e");
-    }
+      await StorageService.loadUsers();
+    } catch (_) {}
 
     int nextNumber = 5001;
+
     final Set<int> existingNumbers = {};
 
     for (final user in StorageService.registeredUsers) {
       final id = user.moxId.trim();
 
-      // التعامل مع الصيغتين لضمان عدم وجود أي تعارض
-      if (id.startsWith("ID-")) {
-        final numericPart = id.substring(3);
-        final parsed = int.tryParse(numericPart);
-        if (parsed != null && parsed >= 5000) {
-          existingNumbers.add(parsed);
-        }
-      } else if (id.startsWith("MOX249-")) {
-        final numericPart = id.substring(7);
-        final parsed = int.tryParse(numericPart);
-        if (parsed != null && parsed >= 5000) {
-          existingNumbers.add(parsed);
-        }
+      if (!id.startsWith("ID-")) {
+        continue;
+      }
+
+      final numericPart = id.substring(3);
+
+      final parsed = int.tryParse(numericPart);
+
+      if (parsed != null && parsed >= 5000) {
+        existingNumbers.add(parsed);
       }
     }
 
@@ -78,6 +83,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     final formattedNum = nextNumber.toString().padLeft(6, '0');
+
     return "ID-$formattedNum";
   }
 
@@ -165,22 +171,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     // ==========================================================
-    // LEGAL AGREEMENT VALIDATION (التحقق من الغطاء القانوني)
-    // ==========================================================
-    if (!_agreedToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "⚠️ يجب الموافقة على الالتزام بلوائح وقواعد بنك موكس لإتمام التسجيل.",
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-
-      return;
-    }
-
-    // ==========================================================
     // SHOW LOADING
     // ==========================================================
 
@@ -188,9 +178,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     try {
       // ========================================================
-      // ENSURE LOADED & GENERATE MOX ID
+      // GENERATE MOX ID
       // ========================================================
-      await StorageService.ensureLoaded();
 
       final String newMoxId = await _generateSequentialMoxId();
 
@@ -294,7 +283,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   // ============================================================
-  // ADD USER + REFERRAL (الكود النظيف والآمن 100%)
+  // ADD USER + REFERRAL
   // ============================================================
 
   Future<bool> _addUserWithReferral(
@@ -304,12 +293,32 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     await StorageService.ensureLoaded();
 
     // ==========================================================
-    // CHECK EXISTING PHONE (التحقق الآمن من وجود الهاتف مسبقاً)
+    // CHECK DUPLICATE PHONE
     // ==========================================================
 
-    final int existingIndex = StorageService.registeredUsers.indexWhere(
+    final bool phoneExists = StorageService.registeredUsers.any(
       (u) => u.phone.trim() == newUser.phone.trim(),
     );
+
+    if (phoneExists) {
+      debugPrint("❌ رقم الهاتف موجود مسبقاً.");
+
+      return false;
+    }
+
+    // ==========================================================
+    // CHECK DUPLICATE MOX ID
+    // ==========================================================
+
+    final bool moxIdExists = StorageService.registeredUsers.any(
+      (u) => u.moxId.trim() == newUser.moxId.trim(),
+    );
+
+    if (moxIdExists) {
+      debugPrint("❌ MoxId موجود مسبقاً.");
+
+      return false;
+    }
 
     // ==========================================================
     // FIND GUARDIAN
@@ -331,32 +340,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     // ==========================================================
-    // SAVE OR REPLACE USER (الحفظ الآمن أو الاستبدال السليم)
+    // SAVE NEW USER FIRST
     // ==========================================================
 
     try {
-      if (existingIndex != -1) {
-        // إذا كان العميل موجوداً، نقوم بتحديث كائنه مباشرة في القائمة السيادية
-        StorageService.registeredUsers[existingIndex] = newUser;
-
-        // استدعاء دالة التحديث الشاملة لضمان حفظ التواريخ وتحديث الشيت
-        await StorageService.addUser(newUser);
-      } else {
-        // التحقق من تكرار الـ MoxId فقط إذا كان عميلاً جديداً
-        final bool moxIdExists = StorageService.registeredUsers.any(
-          (u) => u.moxId.trim() == newUser.moxId.trim(),
-        );
-
-        if (moxIdExists) {
-          debugPrint("❌ MoxId موجود مسبقاً.");
-          return false;
-        }
-
-        // إضافة العميل الجديد عبر الدالة الأصلية للمنظومة
-        await StorageService.addUser(newUser);
-      }
+      await StorageService.addUser(newUser);
     } catch (e) {
       debugPrint("❌ فشل حفظ العميل: $e");
+
       return false;
     }
 
@@ -368,6 +359,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       final updatedGuardian = guardian.copyWith(points: guardian.points + 100);
 
       try {
+        /*
+         * هنا كان الخطأ في النسخة السابقة:
+         * كانت النقاط تتغير محلياً فقط.
+         *
+         * الآن نرسل الوصي نفسه إلى Google Sheet.
+         */
         await StorageService.updateUserPartial(updatedGuardian);
 
         debugPrint("🎁 تم منح الوصي 100 نقطة.");
@@ -380,6 +377,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     return true;
   }
+
   // ============================================================
   // CERTIFICATE
   // ============================================================
@@ -466,7 +464,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF28A9CC),
+                      backgroundColor: Color(0xFF28A9CC),
                       minimumSize: const Size(double.infinity, 48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -698,41 +696,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
-
-            // ==================================================
-            // LEGAL AGREEMENT CHECKBOX (الغطاء القانوني السيادي)
-            // ==================================================
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: moxBlue.withValues(alpha: 0.3)),
-              ),
-              child: CheckboxListTile(
-                title: const Text(
-                  "أقر وأوافق على الالتزام بلوائح وقواعد بنك موكس الرقمي في إدارة الحسابات والتشغيل السيادي.",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                    height: 1.3,
-                  ),
-                ),
-                value: _agreedToTerms,
-                activeColor: moxBlue,
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: EdgeInsets.zero,
-                onChanged: (bool? value) {
-                  setState(() {
-                    _agreedToTerms = value ?? false;
-                  });
-                },
-              ),
-            ),
-
-            const SizedBox(height: 25),
+            const SizedBox(height: 30),
 
             // ==================================================
             // REGISTER BUTTON
