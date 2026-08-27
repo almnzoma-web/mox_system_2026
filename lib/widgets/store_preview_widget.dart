@@ -9,7 +9,8 @@ import '../models/marketing_card.dart';
 class StorePreviewWidget extends StatefulWidget {
   final UserModel user;
 
-  // أبقيتها في الواجهة كدعم متوافق مع الاستدعاءات القديمة
+  // أبقيتها في الواجهة حتى لا تنكسر الاستدعاءات القديمة،
+  // لكن مصدر الحقيقة للمتجر هو user.myAssets.
   final List<Map<String, dynamic>> allCards;
   final Map<String, bool> activeStatus;
 
@@ -30,40 +31,76 @@ class StorePreviewWidget extends StatefulWidget {
 class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // ⏱️ TIMER
+  //
+  // يعيد بناء الواجهة تلقائياً حتى لا يبقى عداد الأيام ثابتاً.
   // ============================================================
+
   Timer? _refreshTimer;
+
+  // ============================================================
+  // USER
+  // ============================================================
+
+  UserModel get user => widget.user;
+
+  // ============================================================
+  // 🆔 معرف المتجر
+  // ============================================================
+
+  String get guardianMoxId {
+    return user.guardianMoxId?.trim() ?? '';
+  }
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
+
     _startRefreshTimer();
   }
 
+  // ============================================================
+  // TIMER
+  //
+  // نعيد بناء الواجهة كل ساعة كشبكة أمان.
+  //
+  // والحساب نفسه يعتمد على تاريخ اليوم، لذلك لا نعتمد على
+  // قيمة محفوظة للعداد.
+  // ============================================================
+
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
+
     _refreshTimer = Timer.periodic(const Duration(hours: 1), (_) {
       if (!mounted) {
         return;
       }
+
       setState(() {});
     });
   }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
+
     super.dispose();
   }
 
   // ============================================================
-  // 🔗 المصدر السيادي الأوحد المباشر بلا أي وسيط
-  // ============================================================
-  UserModel get user => widget.user;
-
-  // ============================================================
   // 📅 تاريخ نشر المتجر
+  //
+  // المصدر السيادي الثابت للاشتراك.
   // ============================================================
+
   DateTime? _getPublishDate() {
     final String value = user.storePublishDate?.trim() ?? '';
 
@@ -73,16 +110,31 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
 
     try {
       final DateTime parsed = DateTime.parse(value);
+
+      // نستخدم اليوم فقط في حساب الاشتراك.
       return DateTime(parsed.year, parsed.month, parsed.day);
     } catch (_) {
       return null;
     }
   }
 
+  // ============================================================
+  // 📅 تاريخ اليوم
+  //
+  // بدون ساعات ودقائق وثواني.
+  // ============================================================
+
   DateTime _today() {
     final DateTime now = DateTime.now();
+
     return DateTime(now.year, now.month, now.day);
   }
+
+  // ============================================================
+  // ⏳ تاريخ انتهاء الاشتراك
+  //
+  // 365 يوماً من تاريخ النشر.
+  // ============================================================
 
   DateTime? _getExpiryDate() {
     final DateTime? publishDate = _getPublishDate();
@@ -94,6 +146,12 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
     return publishDate.add(const Duration(days: 365));
   }
 
+  // ============================================================
+  // 🔴 هل الاشتراك منتهي؟
+  //
+  // يعتمد فقط على تاريخ النشر.
+  // ============================================================
+
   bool _isSubscriptionExpired() {
     final DateTime? expiryDate = _getExpiryDate();
 
@@ -102,8 +160,23 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
     }
 
     final DateTime today = _today();
+
     return !today.isBefore(expiryDate);
   }
+
+  // ============================================================
+  // 📊 الأيام المتبقية
+  //
+  // مهم:
+  //
+  // لا نستخدم:
+  //
+  // expiryDate.difference(DateTime.now()).inDays
+  //
+  // لأن ذلك يحسب الساعات أيضاً.
+  //
+  // هنا نحسب الفرق بين يومين تقويميين فقط.
+  // ============================================================
 
   int _getRemainingDays() {
     final DateTime? expiryDate = _getExpiryDate();
@@ -113,6 +186,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
     }
 
     final DateTime today = _today();
+
     final int difference = expiryDate.difference(today).inDays;
 
     if (difference <= 0) {
@@ -121,6 +195,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
 
     return difference;
   }
+
+  // ============================================================
+  // 🏪 حالة المتجر
+  // ============================================================
 
   String _getStatusLabel() {
     if (_isSubscriptionExpired()) {
@@ -136,6 +214,13 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
     return 'متبقي $remainingDays يوم';
   }
 
+  // ============================================================
+  // 📅 تنسيق التاريخ للعرض
+  //
+  // activationDate عرض فقط.
+  // لا يدخل في أي شرط.
+  // ============================================================
+
   String _formatDisplayDate(String? value) {
     final String date = value?.trim() ?? '';
 
@@ -145,8 +230,11 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
 
     try {
       final DateTime parsed = DateTime.parse(date);
+
       final String day = parsed.day.toString().padLeft(2, '0');
+
       final String month = parsed.month.toString().padLeft(2, '0');
+
       final String year = parsed.year.toString();
 
       return '$year-$month-$day';
@@ -156,8 +244,11 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   }
 
   // ============================================================
-  // 🛒 الأصول / البطاقات (مرتبطة حصرياً بـ user.myAssets المباشر)
+  // 🛒 الأصول / البطاقات
+  //
+  // المصدر الحقيقي الوحيد = user.myAssets
   // ============================================================
+
   List<MarketingCard> _getPublicCards() {
     return user.myAssets
         .where((MarketingCard card) => card.isApproved)
@@ -166,7 +257,11 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
 
   // ============================================================
   // 📱 واتساب
+  //
+  // الاشتراك المنتهي يوقف الطلب فقط.
+  // المتجر نفسه لا يختفي.
   // ============================================================
+
   Future<void> _openWhatsApp(String phone) async {
     if (_isSubscriptionExpired()) {
       return;
@@ -198,6 +293,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // 📘 فيسبوك
   // ============================================================
+
   Future<void> _openFacebook(String urlString) async {
     final String value = urlString.trim();
 
@@ -221,6 +317,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // 🛒 الأيقونات وقائمة الخيارات
   // ============================================================
+
   static const List<Map<String, dynamic>> _availableIcons = [
     {"name": "حقيبة تسوق", "icon": Icons.shopping_bag},
     {"name": "متجر", "icon": Icons.store},
@@ -243,6 +340,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
     return item['icon'];
   }
 
+  // ============================================================
+  // 🎨 أيقونة البطاقة
+  // ============================================================
+
   Widget _buildCardIcon(MarketingCard card) {
     final String rawValue =
         (card.category.isNotEmpty ? card.category : card.iconKey).trim();
@@ -254,35 +355,43 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
       case 'shopping_bag':
         resolvedKey = 'حقيبة تسوق';
         break;
+
       case 'متجر':
       case 'متجر وتجارة':
       case 'store':
         resolvedKey = 'متجر';
         break;
+
       case 'توصيل':
       case 'local_shipping':
         resolvedKey = 'توصيل';
         break;
+
       case 'هدية':
       case 'card_giftcard':
         resolvedKey = 'هدية';
         break;
+
       case 'نجمة':
       case 'star':
         resolvedKey = 'نجمة';
         break;
+
       case 'بطاقة':
       case 'credit_card':
         resolvedKey = 'بطاقة';
         break;
+
       case 'عرض':
       case 'local_offer':
         resolvedKey = 'عرض';
         break;
+
       case 'خدمة عملاء':
       case 'headset_mic':
         resolvedKey = 'خدمة عملاء';
         break;
+
       default:
         resolvedKey = 'نجمة';
     }
@@ -297,6 +406,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // 📦 بطاقة المنتج / الخدمة
   // ============================================================
+
   Widget _buildProductCard(
     BuildContext context,
     MarketingCard card,
@@ -319,7 +429,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildCardIcon(card),
+
                 const SizedBox(width: 12),
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,7 +444,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                           color: Color(0xFF1B6B80),
                         ),
                       ),
+
                       const SizedBox(height: 4),
+
                       if (card.iconLabel.isNotEmpty)
                         Row(
                           children: [
@@ -340,7 +454,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                               card.iconSymbol,
                               style: const TextStyle(fontSize: 12),
                             ),
+
                             const SizedBox(width: 4),
+
                             Text(
                               card.iconLabel,
                               style: const TextStyle(
@@ -353,6 +469,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                     ],
                   ),
                 ),
+
                 if (card.price > 0)
                   Text(
                     '${card.price}',
@@ -364,8 +481,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                   ),
               ],
             ),
+
             if (card.category.isNotEmpty) ...[
               const SizedBox(height: 8),
+
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -382,8 +501,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                 ),
               ),
             ],
+
             if (card.description.isNotEmpty) ...[
               const SizedBox(height: 8),
+
               Text(
                 card.description,
                 style: const TextStyle(
@@ -393,7 +514,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                 ),
               ),
             ],
+
             const SizedBox(height: 12),
+
             Row(
               children: [
                 Expanded(
@@ -417,8 +540,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                     ),
                   ),
                 ),
+
                 if (card.facebookUrl.isNotEmpty) ...[
                   const SizedBox(width: 8),
+
                   IconButton(
                     tooltip: 'فيسبوك',
                     onPressed: () => _openFacebook(card.facebookUrl),
@@ -436,11 +561,13 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // 🏪 جسم المتجر الكامل
   // ============================================================
+
   Widget _buildStoreContent(
     BuildContext context,
     List<MarketingCard> publicCards,
   ) {
     final bool isExpired = _isSubscriptionExpired();
+
     // ignore: unused_local_variable
     final int remainingDays = _getRemainingDays();
 
@@ -451,7 +578,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
         child: Column(
           children: [
             // ==================================================
-            // 🏪 رأس المتجر (يقرأ حصرياً ومباشرة من user المباشر)
+            // 🏪 رأس المتجر
             // ==================================================
             Container(
               width: double.infinity,
@@ -479,7 +606,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                           size: 30,
                         ),
                       ),
+
                       const SizedBox(width: 12),
+
                       Expanded(
                         child: Text(
                           user.name.isNotEmpty ? user.name : 'المتجر الرقمي',
@@ -492,7 +621,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 12),
+
                   if (user.address.isNotEmpty)
                     Text(
                       'المجال: ${user.address}',
@@ -501,8 +632,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                         fontSize: 13,
                       ),
                     ),
+
                   if (user.storeDescription.isNotEmpty) ...[
                     const SizedBox(height: 8),
+
                     Text(
                       user.storeDescription,
                       style: const TextStyle(
@@ -518,6 +651,8 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
 
             // ==================================================
             // 📅 تاريخ التفعيل
+            //
+            // عرض فقط.
             // ==================================================
             if (user.activationDate != null &&
                 user.activationDate!.trim().isNotEmpty &&
@@ -545,6 +680,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                           fontSize: 12,
                         ),
                       ),
+
                       Text(
                         _formatDisplayDate(user.activationDate),
                         style: const TextStyle(
@@ -561,6 +697,8 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
 
             // ==================================================
             // 🚦 حالة المتجر
+            //
+            // تعتمد فقط على storePublishDate.
             // ==================================================
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -585,6 +723,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                         fontSize: 12,
                       ),
                     ),
+
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -678,10 +817,15 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                         color: Colors.red,
                         size: 28,
                       ),
+
                       SizedBox(width: 10),
+
                       Expanded(
                         child: Text(
-                          'انتهت مدة الاشتراك. المتجر ظاهر للزوار، لكن استقبال الطلبات متوقف حالياً.',
+                          'انتهت مدة الاشتراك. '
+                          'المتجر ظاهر للزوار، '
+                          'لكن استقبال الطلبات '
+                          'متوقف حالياً.',
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             color: Colors.red,
@@ -743,6 +887,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // 🔒 المعاينة الخاصة
   // ============================================================
+
   Widget _buildPrivatePreview(BuildContext context) {
     final List<MarketingCard> cards = _getPublicCards();
 
@@ -765,7 +910,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                         color: Color(0xFF28A9CC),
                         size: 22,
                       ),
+
                       SizedBox(width: 8),
+
                       Text(
                         'معاينة المتجر الرقمي السيادي',
                         style: TextStyle(
@@ -776,6 +923,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                       ),
                     ],
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.grey),
                     onPressed: () => Navigator.pop(context),
@@ -783,7 +931,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                 ],
               ),
             ),
+
             const Divider(height: 1),
+
             Expanded(
               child: SingleChildScrollView(
                 child: _buildStoreContent(context, cards),
@@ -798,6 +948,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   // BUILD
   // ============================================================
+
   @override
   Widget build(BuildContext context) {
     if (widget.isPublicView) {

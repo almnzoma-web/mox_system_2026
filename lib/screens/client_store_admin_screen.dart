@@ -170,20 +170,23 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   late UserModel _liveUser;
 
   // ============================================================
-  // 🚀 INIT & التهيئة الذكية
+  // 🚀 INIT & التهيئة الذكية (مصحح ومحصن)
   // ============================================================
 
   @override
   void initState() {
     super.initState();
 
+    // الخطأ 1: ضمان تحديث الكائن الحي فوراً لمنع التفرغ
     _liveUser = widget.user;
 
+    // الخطأ 2: تأمين جلب المعرف السيادي بدقة متناهية ودون انقطاع
     _publicGuardianMoxId =
         widget.directMoxId?.trim().toUpperCase() ??
         StoreUrlHelper.extractGuardianMoxId()?.trim().toUpperCase() ??
         widget.user.guardianMoxId?.trim().toUpperCase();
 
+    // الخطأ 3: إطلاق بوابة التهيئة المتكاملة
     _initializeStore();
   }
 
@@ -199,6 +202,24 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
   }
 
+  // ============================================================
+  // 🔄 حراسة دورة الحياة لتحديث الحقول بعد الخروج والعودة
+  // ============================================================
+  @override
+  void didUpdateWidget(covariant ClientStoreAdminScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.user != oldWidget.user ||
+        widget.isPublic != oldWidget.isPublic ||
+        widget.directMoxId != oldWidget.directMoxId) {
+      _liveUser = widget.user;
+      _publicGuardianMoxId =
+          widget.directMoxId?.trim().toUpperCase() ??
+          StoreUrlHelper.extractGuardianMoxId()?.trim().toUpperCase() ??
+          widget.user.guardianMoxId?.trim().toUpperCase();
+      _initializeStore();
+    }
+  }
   // ============================================================
   // 🌐 تحميل المتجر العام
   // المتجر هنا كائن واحد كامل
