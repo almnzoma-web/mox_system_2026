@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/user_model.dart';
 import '../models/marketing_card.dart';
 
-class StorePreviewWidget extends StatelessWidget {
+class StorePreviewWidget extends StatefulWidget {
   final UserModel user;
 
   // أبقيتها في الواجهة حتى لا تنكسر الاستدعاءات القديمة،
@@ -22,6 +24,25 @@ class StorePreviewWidget extends StatelessWidget {
     this.isPublicView = false,
   });
 
+  @override
+  State<StorePreviewWidget> createState() => _StorePreviewWidgetState();
+}
+
+class _StorePreviewWidgetState extends State<StorePreviewWidget> {
+  // ============================================================
+  // ⏱️ TIMER
+  //
+  // يعيد بناء الواجهة تلقائياً حتى لا يبقى عداد الأيام ثابتاً.
+  // ============================================================
+
+  Timer? _refreshTimer;
+
+  // ============================================================
+  // USER
+  // ============================================================
+
+  UserModel get user => widget.user;
+
   // ============================================================
   // 🆔 معرف المتجر
   // ============================================================
@@ -31,25 +52,88 @@ class StorePreviewWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // 📅 تاريخ نشر المتجر (المصدر السيادي الثابت للاشتراك)
+  // INIT
+  // ============================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    _startRefreshTimer();
+  }
+
+  // ============================================================
+  // TIMER
+  //
+  // نعيد بناء الواجهة كل ساعة كشبكة أمان.
+  //
+  // والحساب نفسه يعتمد على تاريخ اليوم، لذلك لا نعتمد على
+  // قيمة محفوظة للعداد.
+  // ============================================================
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+
+    _refreshTimer = Timer.periodic(const Duration(hours: 1), (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {});
+    });
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+
+    super.dispose();
+  }
+
+  // ============================================================
+  // 📅 تاريخ نشر المتجر
+  //
+  // المصدر السيادي الثابت للاشتراك.
   // ============================================================
 
   DateTime? _getPublishDate() {
     final String value = user.storePublishDate?.trim() ?? '';
 
-    if (value.isEmpty || value == 'null') {
+    if (value.isEmpty || value.toLowerCase() == 'null') {
       return null;
     }
 
     try {
-      return DateTime.parse(value);
+      final DateTime parsed = DateTime.parse(value);
+
+      // نستخدم اليوم فقط في حساب الاشتراك.
+      return DateTime(parsed.year, parsed.month, parsed.day);
     } catch (_) {
       return null;
     }
   }
 
   // ============================================================
-  // ⏳ تاريخ انتهاء الاشتراك (365 يوماً ثابتة لا تتأثر بتحديث المنتجات)
+  // 📅 تاريخ اليوم
+  //
+  // بدون ساعات ودقائق وثواني.
+  // ============================================================
+
+  DateTime _today() {
+    final DateTime now = DateTime.now();
+
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  // ============================================================
+  // ⏳ تاريخ انتهاء الاشتراك
+  //
+  // 365 يوماً من تاريخ النشر.
   // ============================================================
 
   DateTime? _getExpiryDate() {
@@ -64,20 +148,34 @@ class StorePreviewWidget extends StatelessWidget {
 
   // ============================================================
   // 🔴 هل الاشتراك منتهي؟
+  //
+  // يعتمد فقط على تاريخ النشر.
   // ============================================================
 
   bool _isSubscriptionExpired() {
     final DateTime? expiryDate = _getExpiryDate();
 
     if (expiryDate == null) {
-      return false; // إذا لم يُفعل أصلاً، يُدار عبر زر البدء في لوحة الإدارة
+      return false;
     }
 
-    return !DateTime.now().isBefore(expiryDate);
+    final DateTime today = _today();
+
+    return !today.isBefore(expiryDate);
   }
 
   // ============================================================
-  // 📊 الأيام المتبقية (تُحسب بدقة لضمان استمرار ظهور بطاقة التفعيل)
+  // 📊 الأيام المتبقية
+  //
+  // مهم:
+  //
+  // لا نستخدم:
+  //
+  // expiryDate.difference(DateTime.now()).inDays
+  //
+  // لأن ذلك يحسب الساعات أيضاً.
+  //
+  // هنا نحسب الفرق بين يومين تقويميين فقط.
   // ============================================================
 
   int _getRemainingDays() {
@@ -87,15 +185,15 @@ class StorePreviewWidget extends StatelessWidget {
       return 365;
     }
 
-    final Duration difference = expiryDate.difference(DateTime.now());
+    final DateTime today = _today();
 
-    if (difference.isNegative) {
+    final int difference = expiryDate.difference(today).inDays;
+
+    if (difference <= 0) {
       return 0;
     }
 
-    final int days = difference.inDays;
-
-    return days > 0 ? days : 1;
+    return difference;
   }
 
   // ============================================================
@@ -109,8 +207,8 @@ class StorePreviewWidget extends StatelessWidget {
 
     final int remainingDays = _getRemainingDays();
 
-    if (remainingDays < 0) {
-      return 'نشط';
+    if (remainingDays <= 0) {
+      return 'منتهي';
     }
 
     return 'متبقي $remainingDays يوم';
@@ -126,7 +224,7 @@ class StorePreviewWidget extends StatelessWidget {
   String _formatDisplayDate(String? value) {
     final String date = value?.trim() ?? '';
 
-    if (date.isEmpty || date == 'null') {
+    if (date.isEmpty || date.toLowerCase() == 'null') {
       return 'غير محدد';
     }
 
@@ -232,12 +330,13 @@ class StorePreviewWidget extends StatelessWidget {
   ];
 
   static IconData getIconData(String iconName) {
-    final item = _availableIcons.firstWhere(
+    final Map<String, dynamic> item = _availableIcons.firstWhere(
       (element) =>
           element['name'] == iconName ||
           element['icon'].toString().contains(iconName),
       orElse: () => {"icon": Icons.star},
     );
+
     return item['icon'];
   }
 
@@ -249,8 +348,7 @@ class StorePreviewWidget extends StatelessWidget {
     final String rawValue =
         (card.category.isNotEmpty ? card.category : card.iconKey).trim();
 
-    String resolvedKey =
-        'نجمة'; // القيمة الافتراضية بالاسم العربي الموجود في القائمة
+    String resolvedKey = 'نجمة';
 
     switch (rawValue) {
       case 'حقيبة تسوق':
@@ -356,7 +454,9 @@ class StorePreviewWidget extends StatelessWidget {
                               card.iconSymbol,
                               style: const TextStyle(fontSize: 12),
                             ),
+
                             const SizedBox(width: 4),
+
                             Text(
                               card.iconLabel,
                               style: const TextStyle(
@@ -468,6 +568,9 @@ class StorePreviewWidget extends StatelessWidget {
   ) {
     final bool isExpired = _isSubscriptionExpired();
 
+    // ignore: unused_local_variable
+    final int remainingDays = _getRemainingDays();
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -550,12 +653,10 @@ class StorePreviewWidget extends StatelessWidget {
             // 📅 تاريخ التفعيل
             //
             // عرض فقط.
-            // لا يدخل في حالة المتجر.
-            // لا يدخل في الاشتراك.
             // ==================================================
             if (user.activationDate != null &&
                 user.activationDate!.trim().isNotEmpty &&
-                user.activationDate != 'null') ...[
+                user.activationDate!.toLowerCase() != 'null') ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Container(
@@ -697,10 +798,6 @@ class StorePreviewWidget extends StatelessWidget {
 
             // ==================================================
             // 🔴 انتهاء الاشتراك
-            //
-            // لا نخفي المتجر.
-            // لا نخفي الأصول.
-            // نوقف الطلب فقط.
             // ==================================================
             if (isExpired)
               Padding(
@@ -744,8 +841,6 @@ class StorePreviewWidget extends StatelessWidget {
 
             // ==================================================
             // 🛒 الأصول
-            //
-            // المصدر الوحيد = user.myAssets
             // ==================================================
             if (publicCards.isEmpty)
               const Padding(
@@ -762,7 +857,7 @@ class StorePreviewWidget extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: publicCards.length,
-                itemBuilder: (context, index) {
+                itemBuilder: (BuildContext context, int index) {
                   return _buildProductCard(
                     context,
                     publicCards[index],
@@ -856,7 +951,7 @@ class StorePreviewWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isPublicView) {
+    if (widget.isPublicView) {
       return Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
