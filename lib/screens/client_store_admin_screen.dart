@@ -866,80 +866,252 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
   }
 
   Future<void> _executeStorePublish(List<MarketingCard> updatedAssets) async {
-    setState(() => _isPublishing = true);
+    if (!mounted) return;
+
+    setState(() {
+      _isPublishing = true;
+    });
 
     try {
-      // 🛡️ التحقق من وجود تاريخ ساري مسبقاً، وإلا يتم توليد توقيت سيادي جديد ودقيق بصيغة ISO
-      final String existingPublishDate = _liveUser.storePublishDate ?? '';
-      final bool isAlreadyActive =
+      // ============================================================
+      // 📅 تحديد تاريخ النشر الحالي
+      // ============================================================
+
+      final String existingPublishDate = (_liveUser.storePublishDate ?? '')
+          .trim();
+
+      // التحقق هل يوجد تاريخ نشر سابق وما زال صالحًا
+      final bool hasValidExistingPublishDate =
           existingPublishDate.isNotEmpty &&
-          existingPublishDate != "null" &&
+          existingPublishDate.toLowerCase() != 'null' &&
           !_checkIf365DaysExpired(existingPublishDate);
 
-      // 🎯 الحسم هنا: تثبيت توقيت اللحظة الحالية بدقة تامة لإرساله لقوقل
-      final String finalPublishTimestamp = isAlreadyActive
+      // ============================================================
+      // 🕐 تاريخ النشر الجديد
+      // ============================================================
+      //
+      // نستخدم تاريخ اليوم فقط:
+      //
+      // 2026-08-27
+      //
+      // بدل:
+      //
+      // 2026-08-27T18:42:31.123456
+      //
+      // لأن النظام عندك يتعامل مع تاريخ الاشتراك بالأيام.
+      // ============================================================
+
+      final String finalPublishDate = hasValidExistingPublishDate
           ? existingPublishDate
-          : DateTime.now().toIso8601String();
+          : DateTime.now().toIso8601String().split('T').first;
 
       debugPrint(
-        '📅 [STORE PUBLISH] جاري إرسال تاريخ النشر إلى قوقل: $finalPublishTimestamp',
+        '============================================================',
       );
+      debugPrint('🏪 [STORE PUBLISH] بدء عملية نشر المتجر');
+      debugPrint('📅 [STORE PUBLISH] التاريخ السابق: $existingPublishDate');
+      debugPrint('📅 [STORE PUBLISH] التاريخ النهائي: $finalPublishDate');
+      debugPrint(
+        '============================================================',
+      );
+
+      // ============================================================
+      // 👤 إنشاء نسخة المستخدم الجديدة
+      // ============================================================
 
       final UserModel updatedUser = _liveUser.copyWith(
         name: _storeNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _businessCategoryController.text.trim(),
         storeDescription: _descriptionController.text.trim(),
+
+        // الاحتفاظ بالأصول القديمة إذا لم توجد أصول جديدة
         myAssets: updatedAssets.isNotEmpty ? updatedAssets : _liveUser.myAssets,
-        storePublishDate: finalPublishTimestamp,
-        activationDate:
-            finalPublishTimestamp, // ضمان تطابق تاريخ التنشيط مع النشر
+
+        // ==========================================================
+        // 📅 تاريخ النشر
+        // ==========================================================
+        storePublishDate: finalPublishDate,
+
+        // ==========================================================
+        // 📅 تاريخ التفعيل
+        // ==========================================================
+        activationDate: finalPublishDate,
+
+        // ==========================================================
+        // 🔓 تفعيل المتجر
+        // ==========================================================
         role: 'reviewed_active',
       );
 
-      // 🚀 الحفظ الفعلي والسحابي عبر المعمارية المعتمدة
+      // ============================================================
+      // 🔎 تأكيد داخلي قبل الإرسال
+      // ============================================================
+
+      debugPrint('📤 [STORE PUBLISH] البيانات التي سيتم إرسالها:');
+
+      debugPrint('   moxId = ${updatedUser.moxId}');
+
+      debugPrint('   role = ${updatedUser.role}');
+
+      debugPrint('   storePublishDate = ${updatedUser.storePublishDate}');
+
+      debugPrint('   activationDate = ${updatedUser.activationDate}');
+
+      // ============================================================
+      // ☁️ الحفظ الفعلي في Google Sheets
+      // ============================================================
+
       await StorageService.updateUserPartial(updatedUser);
 
-      // 🔄 جلب البيانات المؤكدة من السيرفر لضمان مطابقة قوقل الحقيقية
+      debugPrint('✅ [STORE PUBLISH] تم إرسال بيانات المتجر إلى Google Sheets');
+
+      // ============================================================
+      // 🔄 إعادة القراءة من Google
+      // ============================================================
+      //
+      // هذه الخطوة مهمة جدًا:
+      // لا نفترض أن الحفظ نجح.
+      // نقرأ السجل مرة أخرى ونتأكد أن Google أعاد التاريخ.
+      // ============================================================
+
       final UserModel? confirmedUser = await StorageService.getUserByMoxId(
         updatedUser.moxId,
       );
-      _liveUser = confirmedUser ?? updatedUser;
 
-      // 💾 حفظ احتياطي محلي سريع لضمان عدم ضياع التوقيت تحت أي ظرف
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          'store_pub_date_${_liveUser.guardianMoxId ?? _liveUser.moxId}',
-          finalPublishTimestamp,
+      // ============================================================
+      // 🛡️ التأكد من وجود البيانات المسترجعة
+      // ============================================================
+
+      if (confirmedUser == null) {
+        throw Exception(
+          'تم إرسال البيانات ولكن تعذر إعادة قراءة بيانات المتجر من Google.',
         );
-      } catch (_) {}
+      }
+
+      debugPrint(
+        '============================================================',
+      );
+      debugPrint('🔄 [STORE PUBLISH] البيانات المؤكدة من Google:');
+      debugPrint('   moxId = ${confirmedUser.moxId}');
+      debugPrint('   role = ${confirmedUser.role}');
+      debugPrint('   storePublishDate = ${confirmedUser.storePublishDate}');
+      debugPrint('   activationDate = ${confirmedUser.activationDate}');
+      debugPrint(
+        '============================================================',
+      );
+
+      // ============================================================
+      // 🚨 تحقق صريح من تاريخ النشر
+      // ============================================================
+
+      final String confirmedPublishDate = (confirmedUser.storePublishDate ?? '')
+          .trim();
+
+      if (confirmedPublishDate.isEmpty ||
+          confirmedPublishDate.toLowerCase() == 'null') {
+        throw Exception('تم حفظ المتجر ولكن Google لم يُرجع storePublishDate.');
+      }
+
+      // ============================================================
+      // 🚨 تحقق صريح من تاريخ التفعيل
+      // ============================================================
+
+      final String confirmedActivationDate =
+          (confirmedUser.activationDate ?? '').trim();
+
+      if (confirmedActivationDate.isEmpty ||
+          confirmedActivationDate.toLowerCase() == 'null') {
+        throw Exception('تم حفظ المتجر ولكن Google لم يُرجع activationDate.');
+      }
+
+      // ============================================================
+      // 💾 اعتماد البيانات المؤكدة
+      // ============================================================
+
+      _liveUser = confirmedUser;
+
+      // ============================================================
+      // 💾 نسخة احتياطية محلية
+      // ============================================================
+
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+        final String storageKey =
+            'store_pub_date_${_liveUser.guardianMoxId ?? _liveUser.moxId}';
+
+        await prefs.setString(storageKey, confirmedPublishDate);
+
+        debugPrint(
+          '💾 [STORE PUBLISH] تم حفظ نسخة محلية من التاريخ: '
+          '$confirmedPublishDate',
+        );
+      } catch (e) {
+        debugPrint('⚠️ [STORE PUBLISH] تعذر حفظ النسخة المحلية: $e');
+      }
+
+      // ============================================================
+      // 🎯 تحديث حالة الواجهة
+      // ============================================================
 
       if (!mounted) return;
+
       setState(() {
         _isPublishing = false;
+
         _isSubscriptionExpired = _checkIf365DaysExpired(
           _liveUser.storePublishDate,
         );
+
         _activationButtonState = _isSubscriptionExpired ? 0 : 1;
+
         _isAuthorized = true;
       });
 
+      // ============================================================
+      // 🔗 تحديث رابط المتجر
+      // ============================================================
+
       _updateStoreLink();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("🚀 تم حفظ وتوثيق ونشر تاريخ المتجر في قوقل بنجاح."),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isPublishing = false);
+      // ============================================================
+      // ✅ رسالة النجاح
+      // ============================================================
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("❌ حدث خطأ أثناء نشر المتجر: $e"),
+          content: Text(
+            '🚀 تم نشر المتجر بنجاح\n'
+            '📅 تاريخ النشر: $confirmedPublishDate\n'
+            '📅 تاريخ التفعيل: $confirmedActivationDate',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint(
+        '============================================================',
+      );
+      debugPrint('❌ [STORE PUBLISH] فشل نشر المتجر');
+      debugPrint('❌ الخطأ: $e');
+      debugPrint('📚 StackTrace: $stackTrace');
+      debugPrint(
+        '============================================================',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isPublishing = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ حدث خطأ أثناء نشر المتجر:\n$e'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
         ),
       );
     }
@@ -947,6 +1119,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   void _showLuxuryErrorDialog() {
     if (!mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -978,7 +1151,9 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: () {
+                Navigator.pop(ctx);
+              },
               child: const Text("حسناً", style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -986,7 +1161,6 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       },
     );
   }
-
   // ============================================================
   // 🔑 التنشيط والتجديد
   // ============================================================

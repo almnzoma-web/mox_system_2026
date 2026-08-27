@@ -169,18 +169,36 @@ class UserModel {
       'accountType': accountType,
       'moxId': moxId,
       'role': role,
+
       'customWhatsApp': customWhatsApp ?? '',
       'guardianMoxId': guardianMoxId ?? '',
       'guardianMoxIdCustomer': guardianMoxIdCustomer ?? '',
+
       'points': points,
+
+      // ==========================================================
+      // 🏪 تواريخ المتجر
+      // ==========================================================
+      // مهم جدًا:
+      // لا نحذف هذه الحقول، لأنها يجب أن تصل إلى Google Sheets.
+      'storePublishDate': storePublishDate ?? '',
+      'activationDate': activationDate ?? '',
+
+      // ==========================================================
+      // 🖼️ MARKETING ASSETS
+      // ==========================================================
       'myAssets': jsonEncode(myAssets.map((e) => e.toJson()).toList()),
+
+      // ==========================================================
+      // 📄 SIGNED DOCUMENTS
+      // ==========================================================
       'signedDocuments': jsonEncode(
         signedDocuments.map((e) => e.toJson()).toList(),
       ),
-      // ملاحظة: تم استبعاد storePublishDate و activationDate بناءً على التعليمات السيادية
-      // لكي لا تطبع في الشيت وتسبب أزمة Vercel.
 
-      // الهوية الرقمية الأساسية
+      // ==========================================================
+      // 🔐 الهوية الرقمية
+      // ==========================================================
       'digitalPublicKey': digitalPublicKey ?? '',
       'digitalSignatureAlgorithm': digitalSignatureAlgorithm,
       'digitalSignatureCreatedAt': digitalSignatureCreatedAt ?? '',
