@@ -51,7 +51,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       debugPrint("⚠️ تعذر تحديث بيانات المخزن أثناء توليد الهوية: $e");
     }
 
-    int nextNumber = 5001;
+    int nextNumber = 5003;
     final Set<int> existingNumbers = {};
 
     for (final user in StorageService.registeredUsers) {
