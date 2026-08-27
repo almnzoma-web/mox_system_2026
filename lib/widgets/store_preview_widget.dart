@@ -9,7 +9,7 @@ import '../models/marketing_card.dart';
 class StorePreviewWidget extends StatefulWidget {
   final UserModel user;
 
-  // أبقيتها في الواجهة كدعم متوافق مع الاستدعاءات القديمة، لكن المصدر السيادي الأوحد هو user.myAssets
+  // أبقيتها في الواجهة كدعم متوافق مع الاستدعاءات القديمة
   final List<Map<String, dynamic>> allCards;
   final Map<String, bool> activeStatus;
 
@@ -33,25 +33,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   // ============================================================
   Timer? _refreshTimer;
 
-  // 🛡️ الكائن الموحد الحيي والمتزامن داخل الحالة
-  late UserModel _currentUser;
-
   @override
   void initState() {
     super.initState();
-    _currentUser = widget.user;
     _startRefreshTimer();
-  }
-
-  // 🎯 الحسم الهندسي الأهم: تحديث الكائن الموحد فوراً عند أي إعادة بناء أو دخول جديد للوحة
-  @override
-  void didUpdateWidget(covariant StorePreviewWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.user != oldWidget.user) {
-      setState(() {
-        _currentUser = widget.user;
-      });
-    }
   }
 
   void _startRefreshTimer() {
@@ -72,10 +57,15 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   }
 
   // ============================================================
+  // 🔗 المصدر السيادي الأوحد المباشر بلا أي وسيط
+  // ============================================================
+  UserModel get user => widget.user;
+
+  // ============================================================
   // 📅 تاريخ نشر المتجر
   // ============================================================
   DateTime? _getPublishDate() {
-    final String value = _currentUser.storePublishDate?.trim() ?? '';
+    final String value = user.storePublishDate?.trim() ?? '';
 
     if (value.isEmpty || value.toLowerCase() == 'null') {
       return null;
@@ -166,10 +156,10 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   }
 
   // ============================================================
-  // 🛒 الأصول / البطاقات (المصدر السيادي المطلق)
+  // 🛒 الأصول / البطاقات (مرتبطة حصرياً بـ user.myAssets المباشر)
   // ============================================================
   List<MarketingCard> _getPublicCards() {
-    return _currentUser.myAssets
+    return user.myAssets
         .where((MarketingCard card) => card.isApproved)
         .toList();
   }
@@ -185,14 +175,11 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
     String cleanPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
 
     if (cleanPhone.isEmpty) {
-      cleanPhone = (_currentUser.customWhatsApp ?? '').replaceAll(
-        RegExp(r'[^\d]'),
-        '',
-      );
+      cleanPhone = (user.customWhatsApp ?? '').replaceAll(RegExp(r'[^\d]'), '');
     }
 
     if (cleanPhone.isEmpty) {
-      cleanPhone = _currentUser.phone.replaceAll(RegExp(r'[^\d]'), '');
+      cleanPhone = user.phone.replaceAll(RegExp(r'[^\d]'), '');
     }
 
     if (cleanPhone.isEmpty) {
@@ -317,7 +304,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
   ) {
     final String whatsapp = card.whatsapp.isNotEmpty
         ? card.whatsapp
-        : (_currentUser.customWhatsApp ?? _currentUser.phone);
+        : (user.customWhatsApp ?? user.phone);
 
     return Card(
       elevation: 2,
@@ -464,7 +451,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
         child: Column(
           children: [
             // ==================================================
-            // 🏪 رأس المتجر
+            // 🏪 رأس المتجر (يقرأ حصرياً ومباشرة من user المباشر)
             // ==================================================
             Container(
               width: double.infinity,
@@ -495,9 +482,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          _currentUser.name.isNotEmpty
-                              ? _currentUser.name
-                              : 'المتجر الرقمي',
+                          user.name.isNotEmpty ? user.name : 'المتجر الرقمي',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -508,18 +493,18 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (_currentUser.address.isNotEmpty)
+                  if (user.address.isNotEmpty)
                     Text(
-                      'المجال: ${_currentUser.address}',
+                      'المجال: ${user.address}',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 13,
                       ),
                     ),
-                  if (_currentUser.storeDescription.isNotEmpty) ...[
+                  if (user.storeDescription.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
-                      _currentUser.storeDescription,
+                      user.storeDescription,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -534,9 +519,9 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
             // ==================================================
             // 📅 تاريخ التفعيل
             // ==================================================
-            if (_currentUser.activationDate != null &&
-                _currentUser.activationDate!.trim().isNotEmpty &&
-                _currentUser.activationDate!.toLowerCase() != 'null') ...[
+            if (user.activationDate != null &&
+                user.activationDate!.trim().isNotEmpty &&
+                user.activationDate!.toLowerCase() != 'null') ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Container(
@@ -561,7 +546,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                         ),
                       ),
                       Text(
-                        _formatDisplayDate(_currentUser.activationDate),
+                        _formatDisplayDate(user.activationDate),
                         style: const TextStyle(
                           color: Color(0xFF1B6B80),
                           fontWeight: FontWeight.bold,
@@ -633,9 +618,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                 child: OutlinedButton.icon(
                   onPressed: isExpired
                       ? null
-                      : () => _openWhatsApp(
-                          _currentUser.customWhatsApp ?? _currentUser.phone,
-                        ),
+                      : () => _openWhatsApp(user.customWhatsApp ?? user.phone),
                   icon: Icon(
                     Icons.chat,
                     color: isExpired ? Colors.grey : Colors.green,
