@@ -41,27 +41,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   static const String _defaultGuardianId = "MOX249-00010001";
 
   // ============================================================
-  // GENERATE MOX ID
+  // GENERATE MOX ID (الجزئية المحسوبة بدقة لقراءة الشيت ومنع التداخل)
   // ============================================================
-
   Future<String> _generateSequentialMoxId() async {
     try {
-      await StorageService.loadUsers();
-    } catch (_) {}
+      // ضمان جلب أحدث بيانات العملاء من السحابة/الشيت أولاً وقبل أي خطوة
+      await StorageService.ensureLoaded();
+    } catch (e) {
+      debugPrint("⚠️ تعذر تحديث بيانات المخزن أثناء توليد الهوية: $e");
+    }
 
     int nextNumber = 5001;
-
     final Set<int> existingNumbers = {};
 
     for (final user in StorageService.registeredUsers) {
       final id = user.moxId.trim();
-
       if (!id.startsWith("ID-")) {
         continue;
       }
 
       final numericPart = id.substring(3);
-
       final parsed = int.tryParse(numericPart);
 
       if (parsed != null && parsed >= 5000) {
@@ -74,7 +73,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     final formattedNum = nextNumber.toString().padLeft(6, '0');
-
     return "ID-$formattedNum";
   }
 
