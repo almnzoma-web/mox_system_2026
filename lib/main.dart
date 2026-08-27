@@ -315,16 +315,23 @@ Future<Widget> _loadPublicStoreScreen(String guardianMoxId) async {
     UserModel? user;
 
     // 1. محاولة البحث المحلي السريع أولاً (Cache) لتفادي الـ Timeout
+    // 1. محاولة البحث المحلي السريع أولاً (Cache) بشرط التطابق الدقيق حصرياً
     try {
       await StorageService.loadUsers();
+
+      // التعديل الحاسم: البحث بالتطابق الدقيق والمزدوج لمنع تداخل الصفوف
       final int index = StorageService.registeredUsers.indexWhere(
         (u) =>
-            (u.guardianMoxId ?? '').trim().toUpperCase() == cleanGuardianMoxId,
+            (u.guardianMoxId ?? '').trim().toUpperCase() ==
+                cleanGuardianMoxId &&
+            u.guardianMoxId != null &&
+            u.guardianMoxId!.trim().isNotEmpty,
       );
+
       if (index != -1) {
         user = StorageService.registeredUsers[index];
         debugPrint(
-          '⚡ [PUBLIC STORE] تم العثور على العميل محلياً (بدون انتظار السحابة)',
+          '⚡ [PUBLIC STORE] تم العثور على العميل محلياً بدقة مطابقة تامة',
         );
       }
     } catch (e) {
