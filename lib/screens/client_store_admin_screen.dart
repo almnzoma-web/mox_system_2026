@@ -1089,6 +1089,16 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
         _isAuthorized = true;
       });
+      // ============================================================
+      // 💾 اعتماد البيانات المؤكدة وتحديث الواجهة والبطاقات فوراً
+      // ============================================================
+
+      _liveUser = confirmedUser;
+
+      // 🔄 إعادة تهيئة الحقول والبطاقات بالبيانات الحية الجديدة
+      _initializeControllers();
+      _initializeCards();
+      _updateStoreLink();
 
       // ============================================================
       // 🔗 تحديث رابط المتجر
