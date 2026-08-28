@@ -914,7 +914,7 @@ class _StorePreviewWidgetState extends State<StorePreviewWidget> {
                       SizedBox(width: 8),
 
                       Text(
-                        'معاينة المتجر الرقمي السيادي',
+                        'معاينة المتجر الرقمي',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF1B6B80),
