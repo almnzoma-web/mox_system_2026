@@ -2294,7 +2294,7 @@ class StorageService {
   // GET USER BY GUARDIAN MOX ID
   // ============================================================
 
-  static Future<UserModel?> getUserByGuardianMoxId(String guardianMoxId) async {
+  static Future<UserModel?> getByGuardianMoxId(String guardianMoxId) async {
     return getUserByMoxId(guardianMoxId);
   }
 }

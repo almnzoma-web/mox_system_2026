@@ -44,7 +44,7 @@ import 'widgets/store_preview_widget.dart';
 // ============================================================
 
 const String publicStoreApi =
-    'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec?action=getUserByGuardianMoxId';
+    'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec?action=getByGuardianMoxId';
 
 // ============================================================
 // APP LINKS
@@ -629,7 +629,7 @@ Future<UserModel?> _findPublicUserFromCloud(String guardianMoxId) async {
 
     // بناء الرابط المباشر لجوجل مع المعرف تماماً مثل المتصفح
     final Uri uri = Uri.parse(
-      'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec?action=getUserByGuardianMoxId&guardianMoxId=$cleanGuardianMoxId',
+      'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec?action=getByGuardianMoxId&guardianMoxId=$cleanGuardianMoxId',
     );
 
     debugPrint('🌐 [STORE API DIRECT] URL: $uri');

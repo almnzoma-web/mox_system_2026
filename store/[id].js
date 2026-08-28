@@ -79,8 +79,8 @@ export default async function handler(request) {
     // 3. معالجة طلبات القراءة (GET)
     else {
       if (guardianMoxId && guardianMoxId.startsWith("MOX")) {
-        googleUrl = `${scriptUrl}?action=getUserByGuardianMoxId&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
-        console.log("[MOX VERCEL] GET MODE: getUserByGuardianMoxId ->", guardianMoxId);
+        googleUrl = `${scriptUrl}?action=getByGuardianMoxId&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
+        console.log("[MOX VERCEL] GET MODE: getByGuardianMoxId ->", guardianMoxId);
       } 
       else if (action === "getall") {
         googleUrl = `${scriptUrl}?action=getAll`;
