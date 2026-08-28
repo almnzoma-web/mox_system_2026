@@ -249,7 +249,7 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     }
 
     try {
-      final UserModel? user = await StorageService.getByGuardianMoxId(
+      final UserModel? user = await StorageService.getUserByGuardianMoxId(
         guardianId,
       );
 

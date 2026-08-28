@@ -128,7 +128,7 @@ export default async function handler(request) {
 
     const googleUrl =
       `${scriptUrl}` +
-      `?action=getByGuardianMoxId` +
+      `?action=getUserByGuardianMoxId` +
       `&guardianMoxId=${encodeURIComponent(guardianMoxId)}`;
 
     console.log(
