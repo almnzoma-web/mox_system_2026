@@ -324,20 +324,30 @@ class StorageService {
 
   static bool _sameUser(UserModel a, UserModel b) {
     final String aMox = _clean(a.moxId).toUpperCase();
-
     final String bMox = _clean(b.moxId).toUpperCase();
 
-    if (_isValidMoxId(aMox) && _isValidMoxId(bMox) && aMox == bMox) {
-      return true;
+    // ----------------------------------------------------------
+    // 1. إذا كان لدى الاثنين MOX ID صالح ومتطابق
+    // ----------------------------------------------------------
+
+    if (_isValidMoxId(aMox) && _isValidMoxId(bMox)) {
+      return aMox == bMox;
     }
 
-    final String aPhone = _clean(a.phone);
+    // ----------------------------------------------------------
+    // 2. الهاتف يجب أن يكون موجوداً ومتطابقاً
+    // ----------------------------------------------------------
 
+    final String aPhone = _clean(a.phone);
     final String bPhone = _clean(b.phone);
 
     if (aPhone.isEmpty || bPhone.isEmpty || aPhone != bPhone) {
       return false;
     }
+
+    // ----------------------------------------------------------
+    // 3. هوية العميل = phone + guardianMoxId
+    // ----------------------------------------------------------
 
     final String aGuardian = _clean(
       a.guardianMoxId ?? a.guardianMoxIdCustomer,
@@ -347,11 +357,16 @@ class StorageService {
       b.guardianMoxId ?? b.guardianMoxIdCustomer,
     ).toUpperCase();
 
-    if (aGuardian.isNotEmpty && bGuardian.isNotEmpty) {
-      return aGuardian == bGuardian;
+    // ----------------------------------------------------------
+    // إذا كان أحدهما لديه Guardian والآخر لا:
+    // لا نعتبرهما نفس المستخدم.
+    // ----------------------------------------------------------
+
+    if (aGuardian.isEmpty || bGuardian.isEmpty) {
+      return false;
     }
 
-    return true;
+    return aGuardian == bGuardian;
   }
 
   // ============================================================

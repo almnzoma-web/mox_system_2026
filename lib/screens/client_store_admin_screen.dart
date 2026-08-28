@@ -390,10 +390,22 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
 
   // ============================================================
   // 🛒 توحيد تحميل البطاقات والأصول
+  //
+  // المصدر الحقيقي للأصول:
+  // _liveUser.myAssets
+  //
+  // القاعدة:
+  // 1. نحافظ على كل أصل موجود في myAssets.
+  // 2. نضيف البطاقات الافتراضية الموجودة في _resolvedCards.
+  // 3. لا نحذف أصلًا فقط لأنه غير موجود في _resolvedCards.
+  // 4. لا نعتمد على العنوان وحده لإسقاط الأصل.
   // ============================================================
 
   void _initializeCards() {
-    // تنظيف الحالة القديمة
+    // ==========================================================
+    // 1. تنظيف الحالة السابقة
+    // ==========================================================
+
     _cardActivationStatus.clear();
     _cardCategories.clear();
     _cardSelectedIcons.clear();
@@ -425,38 +437,75 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
     _cardDetailsLinkControllers.clear();
 
     // ==========================================================
-    // 📦 الأصول الحقيقية القادمة مع UserModel
+    // 2. قراءة الأصول الحقيقية من UserModel
     // ==========================================================
 
     final List<MarketingCard> assets = List<MarketingCard>.from(
       _liveUser.myAssets,
     );
 
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    debugPrint('📦 [CARDS INIT] myAssets count = ${assets.length}');
+
+    for (final MarketingCard asset in assets) {
+      debugPrint(
+        '📦 [CARDS INIT] Asset: '
+        'title="${asset.title}" '
+        'category="${asset.category}" '
+        'price="${asset.price}"',
+      );
+    }
+
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     // ==========================================================
-    // 🧠 خريطة الأصول حسب العنوان
+    // 3. خريطة الأصول حسب العنوان
+    //
+    // نستخدمها فقط للمطابقة مع القوالب.
+    // الأصل نفسه لا يتم حذفه إذا لم نجد قالبًا مطابقًا.
     // ==========================================================
 
     final Map<String, MarketingCard> assetsByTitle = {};
 
     for (final MarketingCard asset in assets) {
-      final String key = asset.title.trim();
+      final String title = asset.title.trim();
 
-      if (key.isEmpty) continue;
+      if (title.isEmpty) {
+        debugPrint('⚠️ [CARDS INIT] تم تجاهل أصل بدون عنوان');
+        continue;
+      }
 
-      assetsByTitle[key.toUpperCase()] = asset;
+      final String key = title.toUpperCase();
+
+      assetsByTitle[key] = asset;
     }
 
     // ==========================================================
-    // 🛒 بناء البطاقات من نفس المصدر
+    // 4. مجموعة العناوين التي تم تحميلها
     // ==========================================================
 
-    for (final cardData in _resolvedCards) {
-      final String titleKey = cardData['title'].toString().trim();
+    final Set<String> initializedTitles = {};
 
-      final MarketingCard? existingAsset =
-          assetsByTitle[titleKey.toUpperCase()];
+    // ==========================================================
+    // 5. أولًا:
+    // بناء البطاقات الموجودة في _resolvedCards
+    // ==========================================================
+
+    for (final dynamic cardData in _resolvedCards) {
+      final String titleKey = (cardData['title'] ?? '').toString().trim();
+
+      if (titleKey.isEmpty) {
+        continue;
+      }
+
+      final String normalizedTitle = titleKey.toUpperCase();
+
+      final MarketingCard? existingAsset = assetsByTitle[normalizedTitle];
 
       final bool isActive = existingAsset != null;
+
+      initializedTitles.add(normalizedTitle);
 
       _cardActivationStatus[titleKey] = isActive;
 
@@ -479,7 +528,10 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
 
       _cardPriceControllers[titleKey] = TextEditingController(
-        text: (existingAsset?.price ?? cardData['price'] ?? 0.0).toString(),
+        text:
+            existingAsset?.price.toString() ??
+            cardData['price']?.toString() ??
+            '0.0',
       );
 
       _cardWhatsappControllers[titleKey] = TextEditingController(
@@ -493,9 +545,96 @@ class _ClientStoreAdminScreenState extends State<ClientStoreAdminScreen> {
       );
     }
 
-    debugPrint('📦 [CARDS INIT] تم توحيد ${assets.length} أصل مع البطاقات.');
-  }
+    // ==========================================================
+    // 6. حماية مهمة جدًا
+    //
+    // أي Asset موجود فعليًا في UserModel
+    // لكنه غير موجود في _resolvedCards
+    // يجب ألا يختفي.
+    //
+    // نضيفه تلقائيًا إلى الحالة.
+    // ==========================================================
 
+    for (final MarketingCard asset in assets) {
+      final String titleKey = asset.title.trim();
+
+      if (titleKey.isEmpty) {
+        continue;
+      }
+
+      final String normalizedTitle = titleKey.toUpperCase();
+
+      if (initializedTitles.contains(normalizedTitle)) {
+        continue;
+      }
+
+      debugPrint(
+        '🛡️ [CARDS INIT] '
+        'Asset موجود بدون قالب resolvedCard: '
+        '$titleKey',
+      );
+
+      _cardActivationStatus[titleKey] = true;
+
+      _cardCategories[titleKey] = asset.category.trim().isNotEmpty
+          ? asset.category
+          : 'بطاقة';
+
+      _cardSelectedIcons[titleKey] = Icons.shopping_bag;
+
+      _cardTitleControllers[titleKey] = TextEditingController(
+        text: asset.title,
+      );
+
+      _cardDescControllers[titleKey] = TextEditingController(
+        text: asset.description,
+      );
+
+      _cardPriceControllers[titleKey] = TextEditingController(
+        text: asset.price.toString(),
+      );
+
+      _cardWhatsappControllers[titleKey] = TextEditingController(
+        text: asset.whatsapp.trim().isNotEmpty
+            ? asset.whatsapp
+            : (_liveUser.customWhatsApp ?? _liveUser.phone),
+      );
+
+      _cardDetailsLinkControllers[titleKey] = TextEditingController(
+        text: asset.facebookUrl,
+      );
+
+      initializedTitles.add(normalizedTitle);
+    }
+
+    // ==========================================================
+    // 7. تشخيص نهائي
+    // ==========================================================
+
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    debugPrint(
+      '📦 [CARDS INIT] '
+      'Assets from UserModel : ${assets.length}',
+    );
+
+    debugPrint(
+      '🛒 [CARDS INIT] '
+      'Resolved cards        : ${_resolvedCards.length}',
+    );
+
+    debugPrint(
+      '🎯 [CARDS INIT] '
+      'Initialized cards     : ${initializedTitles.length}',
+    );
+
+    debugPrint(
+      '🎯 [CARDS INIT] '
+      'Controllers           : ${_cardTitleControllers.length}',
+    );
+
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }
   // ============================================================
   // ⏳ الاشتراك وإدارته
   // ============================================================

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../models/marketing_card.dart';
 import '../models/signed_document.dart';
+import 'package:flutter/foundation.dart';
 
 class UserModel {
   String phone;
@@ -80,8 +81,8 @@ class UserModel {
     this.storePublishDate,
     this.activationDate,
     this.points = 0,
-    this.myAssets = const [],
-    this.signedDocuments = const [],
+    List<MarketingCard>? myAssets,
+    List<SignedDocument>? signedDocuments,
 
     // ==========================================================
     // التوقيع الرقمي
@@ -90,7 +91,10 @@ class UserModel {
     this.digitalSignatureAlgorithm = 'Ed25519',
     this.digitalSignatureCreatedAt,
     this.digitalSignatureKeyVersion = 1,
-  });
+  }) : myAssets = myAssets != null ? List<MarketingCard>.from(myAssets) : [],
+       signedDocuments = signedDocuments != null
+           ? List<SignedDocument>.from(signedDocuments)
+           : [];
 
   // ============================================================
   // COPY WITH
@@ -140,8 +144,12 @@ class UserModel {
       storePublishDate: storePublishDate ?? this.storePublishDate,
       activationDate: activationDate ?? this.activationDate,
       points: points ?? this.points,
-      myAssets: myAssets ?? this.myAssets,
-      signedDocuments: signedDocuments ?? this.signedDocuments,
+      myAssets: myAssets != null
+          ? List<MarketingCard>.from(myAssets)
+          : this.myAssets,
+      signedDocuments: signedDocuments != null
+          ? List<SignedDocument>.from(signedDocuments)
+          : this.signedDocuments,
       digitalPublicKey: digitalPublicKey ?? this.digitalPublicKey,
       digitalSignatureAlgorithm:
           digitalSignatureAlgorithm ?? this.digitalSignatureAlgorithm,
@@ -207,7 +215,7 @@ class UserModel {
   }
 
   // ============================================================
-  // FROM JSON (معالجة الأيام فقط بدون ساعات)
+  // FROM JSON (معالجة قوية ومحصنة للأصول والتاريخ)
   // ============================================================
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -233,11 +241,10 @@ class UserModel {
       return null;
     }
 
-    // تنظيف التاريخ ليقتصر على الأيام فقط (قص أي جزء خاص بالساعات إن وجد مثل YYYY-MM-DD)
+    // تنظيف التاريخ ليقتصر على الأيام فقط
     String? cleanDate(String? raw) {
       if (raw == null || raw.trim().isEmpty || raw == 'null') return null;
       final trimmed = raw.trim();
-      // إذا كان يحتوي على مسافة أو حرف T (ساعات)، نقوم بأخذ الجزء الخاص باليوم فقط قبلها
       if (trimmed.contains('T')) {
         return trimmed.split('T').first;
       }
@@ -248,7 +255,7 @@ class UserModel {
     }
 
     // ==========================================================
-    // MARKETING ASSETS
+    // 🖼️ MARKETING ASSETS (معالجة آمنة ومحصنة ضد الأخطاء الفردية)
     // ==========================================================
     final List<MarketingCard> parsedAssets = [];
     try {
@@ -258,26 +265,47 @@ class UserModel {
         'MYASSETS',
         'my_assets',
       ]);
-      if (rawAssets is String && rawAssets.trim().isNotEmpty) {
-        final dynamic decoded = jsonDecode(rawAssets);
-        if (decoded is List) {
-          parsedAssets.addAll(
-            decoded.whereType<Map>().map(
-              (e) => MarketingCard.fromJson(Map<String, dynamic>.from(e)),
-            ),
-          );
+
+      if (rawAssets != null) {
+        dynamic decodedList;
+        if (rawAssets is String && rawAssets.trim().isNotEmpty) {
+          try {
+            decodedList = jsonDecode(rawAssets);
+            // معالجة حالة الـ JSON المزدوج (إذا تم ترميز النص مرتين)
+            if (decodedList is String) {
+              decodedList = jsonDecode(decodedList);
+            }
+          } catch (e) {
+            debugPrint('⚠️ [UserModel] خطأ في فك تشفير نص myAssets: $e');
+          }
+        } else if (rawAssets is List) {
+          decodedList = rawAssets;
         }
-      } else if (rawAssets is List) {
-        parsedAssets.addAll(
-          rawAssets.whereType<Map>().map(
-            (e) => MarketingCard.fromJson(Map<String, dynamic>.from(e)),
-          ),
-        );
+
+        if (decodedList is List) {
+          for (final item in decodedList) {
+            try {
+              if (item is Map) {
+                parsedAssets.add(
+                  MarketingCard.fromJson(Map<String, dynamic>.from(item)),
+                );
+              } else if (item is String && item.trim().isNotEmpty) {
+                final Map<String, dynamic> itemMap = jsonDecode(item);
+                parsedAssets.add(MarketingCard.fromJson(itemMap));
+              }
+            } catch (cardError) {
+              // تخطي البطاقة التالفة فقط دون إسقاط بقية البطاقات!
+              debugPrint('⚠️ [UserModel] تم تخطي بطاقة تالفة: $cardError');
+            }
+          }
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('❌ [UserModel] خطأ عام أثناء معالجة myAssets: $e');
+    }
 
     // ==========================================================
-    // SIGNED DOCUMENTS
+    // 📄 SIGNED DOCUMENTS (معالجة آمنة ومحصنة)
     // ==========================================================
     final List<SignedDocument> parsedSignedDocuments = [];
     try {
@@ -287,21 +315,31 @@ class UserModel {
         'SIGNEDDOCUMENTS',
         'signed_documents',
       ]);
-      if (rawDocuments is String && rawDocuments.trim().isNotEmpty) {
-        final dynamic decoded = jsonDecode(rawDocuments);
-        if (decoded is List) {
-          parsedSignedDocuments.addAll(
-            decoded.whereType<Map>().map(
-              (e) => SignedDocument.fromJson(Map<String, dynamic>.from(e)),
-            ),
-          );
+
+      if (rawDocuments != null) {
+        dynamic decodedDocs;
+        if (rawDocuments is String && rawDocuments.trim().isNotEmpty) {
+          try {
+            decodedDocs = jsonDecode(rawDocuments);
+            if (decodedDocs is String) {
+              decodedDocs = jsonDecode(decodedDocs);
+            }
+          } catch (_) {}
+        } else if (rawDocuments is List) {
+          decodedDocs = rawDocuments;
         }
-      } else if (rawDocuments is List) {
-        parsedSignedDocuments.addAll(
-          rawDocuments.whereType<Map>().map(
-            (e) => SignedDocument.fromJson(Map<String, dynamic>.from(e)),
-          ),
-        );
+
+        if (decodedDocs is List) {
+          for (final item in decodedDocs) {
+            try {
+              if (item is Map) {
+                parsedSignedDocuments.add(
+                  SignedDocument.fromJson(Map<String, dynamic>.from(item)),
+                );
+              }
+            } catch (_) {}
+          }
+        }
       }
     } catch (_) {}
 
