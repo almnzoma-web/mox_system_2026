@@ -60,7 +60,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   Future<String> _generateSequentialMoxId() async {
     final Uri uri = Uri.parse(
-      'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec',
+      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
     ).replace(queryParameters: {'action': 'getNextMoxId'});
 
     debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google...');
