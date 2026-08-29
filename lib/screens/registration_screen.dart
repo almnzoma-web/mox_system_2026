@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'dart:io' show Platform;
 
 class RegistrationScreen extends StatefulWidget {
@@ -34,18 +34,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isRegistering = false;
 
   void _checkPlatformAndRegister() {
-    // فحص شامل لضمان كشف نظام الوندوز بكل أشكاله (سواء عبر الـ Platform أو البيئة المكتبية)
     bool isWindowsDevice = false;
-    try {
-      if (!kIsWeb) {
-        String operatingSystemStr = Platform.operatingSystem.toLowerCase();
-        if (operatingSystemStr.contains('windows') || Platform.isWindows) {
-          isWindowsDevice = true;
-        }
-      }
-    } catch (_) {
-      // احتياطاً في حال حدوث أي استثناء
+
+    // الطريقة الأولى الفحص المباشر عبر تارجت الفلاتر
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      isWindowsDevice = true;
     }
+
+    // الطريقة الثانية الفحص التقليدي إن وجد
+    try {
+      if (!kIsWeb && Platform.isWindows) {
+        isWindowsDevice = true;
+      }
+    } catch (_) {}
 
     if (isWindowsDevice) {
       showDialog(
@@ -63,7 +64,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
             content: const Text(
-              "عذراً، التسجيل عبر نسخة الوندوز محظور تماماً. يُرجى إتمام عملية التسجيل حصرياً عبر الهاتف المحمول أو متصفح الويب.",
+              "عذراً، التسجيل عبر نسخة الوندوز محظور تماماً. يُرجى إتمام التسجيل عبر الهاتف المحمول.",
               style: TextStyle(fontSize: 15, height: 1.4),
             ),
             actions: [
@@ -84,10 +85,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           );
         },
       );
-      return; // إيقاف التسجيل فورا ولن يمر أبداً
+      return;
     }
 
-    // متابعة التسجيل للأندرويد والويب
     _register();
   }
   // ============================================================
