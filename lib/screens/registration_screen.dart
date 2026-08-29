@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
 
@@ -28,7 +29,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String _selectedAccountType = "فردي";
 
   bool _isPasswordVisible = false;
-
+  bool _isRegistering = false;
   // ============================================================
   // موافقة المستخدم على لائحة إدارة بنك موكس
   // ============================================================
@@ -58,101 +59,50 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    // ============================================================
-    // 1. تأكد أن الذاكرة المحلية محملة
-    // ============================================================
+    final Uri uri = Uri.parse(
+      'https://script.google.com/macros/s/AKfycbxvpSQ4lKhKkakGQ8jUGSUppC2Q5AIF5dzdWG-mbb99daQx_neMzlhzmPbCBZEYnUfS/exec',
+    ).replace(queryParameters: {'action': 'getNextMoxId'});
 
-    await StorageService.ensureLoaded();
+    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google...');
 
-    // ============================================================
-    // 2. تحديث العملاء من السحابة قبل توليد الرقم
-    //
-    // Local + Cloud
-    //
-    // وليس:
-    // Cloud = Local
-    // ============================================================
+    final http.Response response = await http
+        .get(uri, headers: const {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 15));
 
-    try {
-      final bool synced = await StorageService.syncClientsFromCloud(
-        saveLocal: true,
-      );
-
-      debugPrint(
-        synced
-            ? '☁️ [MOX ID] تم تحديث العملاء من السحابة قبل توليد الرقم.'
-            : '⚠️ [MOX ID] تعذر تحديث السحابة، سيتم الاعتماد على البيانات المحلية.',
-      );
-    } catch (e) {
-      debugPrint('⚠️ [MOX ID] Cloud Sync Exception: $e');
+    if (response.statusCode != 200) {
+      throw Exception('تعذر الحصول على رقم MOX جديد من Google.');
     }
 
-    // ============================================================
-    // 3. جمع كل أرقام MOX الموجودة
-    // ============================================================
+    final String body = response.body.trim();
 
-    // 3. جمع كل أرقام MOX الموجودة مع حماية ضد القوائم الفارغة في الويب
-    final Set<int> existingNumbers = <int>{};
-
-    for (final UserModel user in StorageService.registeredUsers) {
-      final String id = user.moxId.trim().toUpperCase();
-
-      if (!id.startsWith('ID-')) {
-        continue;
-      }
-
-      final String numericPart = id.substring(3).trim();
-      final int? number = int.tryParse(numericPart);
-
-      if (number != null && number >= 5000) {
-        existingNumbers.add(number);
-      }
+    if (body.isEmpty ||
+        body.startsWith('<') ||
+        body.toLowerCase().contains('<html')) {
+      throw Exception('Google أعاد استجابة غير صالحة أثناء توليد MOX ID.');
     }
 
-    // 💡 حماية إضافية للويب: إذا كانت القائمة فارغة مؤقتمآ، نجبر النظام على عدم النزول تحت آخر رقم معروف أو افتراض رقم آمن
-    int nextNumber = 5001;
+    final dynamic decoded = jsonDecode(body);
 
-    if (existingNumbers.isNotEmpty) {
-      nextNumber = existingNumbers.reduce((int a, int b) => a > b ? a : b) + 1;
-    } else {
-      // إذا لم يجد بيانات محملة محلياً في الويب، نحاول قراءة أقصى حد آمن أو نتأكد من الانتظار
-      debugPrint(
-        '⚠️ [MOX ID] تنبيه: القائمة المحلية فارغة، سيتم تطبيق حماية الأرقام التسلسلية.',
-      );
-    }
-    // ============================================================
-    // 5. البحث عن أعلى رقم
-    // ============================================================
-
-    if (existingNumbers.isNotEmpty) {
-      nextNumber = existingNumbers.reduce((int a, int b) => a > b ? a : b) + 1;
+    if (decoded is! Map) {
+      throw Exception('استجابة Google غير صالحة.');
     }
 
-    // ============================================================
-    // 6. حماية إضافية من التكرار
-    // ============================================================
+    final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
 
-    while (existingNumbers.contains(nextNumber)) {
-      nextNumber++;
+    if (data['success'] != true || data['status'] != 'success') {
+      throw Exception(data['message']?.toString() ?? 'فشل توليد رقم MOX.');
     }
 
-    // ============================================================
-    // 7. تكوين MOX ID
-    // ============================================================
+    final String moxId = data['moxId']?.toString().trim().toUpperCase() ?? '';
 
-    final String formattedNumber = nextNumber.toString().padLeft(6, '0');
+    if (!RegExp(r'^ID-\d{6}$').hasMatch(moxId)) {
+      throw Exception('Google أعاد MOX ID غير صالح: $moxId');
+    }
 
-    final String newMoxId = 'ID-$formattedNumber';
+    debugPrint('✅ [MOX ID] Google منح الرقم: $moxId');
 
-    debugPrint(
-      '🆔 [MOX ID] '
-      'Existing IDs: ${existingNumbers.length} '
-      '| Generated: $newMoxId',
-    );
-
-    return newMoxId;
+    return moxId;
   }
-
   // ============================================================
   // LOADING
   // ============================================================
@@ -198,72 +148,78 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<void> _register() async {
-    final phoneInput = _phoneController.text.trim();
-
-    final password = _passwordController.text.trim();
-
-    final name = _nameController.text.trim();
-
-    final address = _addressController.text.trim();
-
-    // ============================================================
-    // موافقة اللائحة
-    // ============================================================
-
-    if (!_acceptedMoxRules) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "⚠️ يجب الإقرار بالموافقة على لائحة إدارة بنك موكس والموافقة على موجهات الإدارة قبل إتمام التسجيل.",
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-
+    if (_isRegistering) {
       return;
     }
 
-    // ============================================================
-    // PHONE VALIDATION
-    // ============================================================
-
-    final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
-
-    if (name.isEmpty || !isPhoneValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249xxxxxxxxx).",
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-
-      return;
-    }
-
-    // ============================================================
-    // PASSWORD VALIDATION
-    // ============================================================
-
-    if (password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("⚠️ يرجى إدخال كلمة السر."),
-          backgroundColor: Colors.red,
-        ),
-      );
-
-      return;
-    }
-
-    // ============================================================
-    // SHOW LOADING
-    // ============================================================
-
-    _showLoadingDialog();
+    _isRegistering = true;
 
     try {
+      final phoneInput = _phoneController.text.trim();
+
+      final password = _passwordController.text.trim();
+
+      final name = _nameController.text.trim();
+
+      final address = _addressController.text.trim();
+
+      // ============================================================
+      // موافقة اللائحة
+      // ============================================================
+
+      if (!_acceptedMoxRules) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "⚠️ يجب الإقرار بالموافقة على لائحة إدارة بنك موكس والموافقة على موجهات الإدارة قبل إتمام التسجيل.",
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        return;
+      }
+
+      // ============================================================
+      // PHONE VALIDATION
+      // ============================================================
+
+      final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
+
+      if (name.isEmpty || !isPhoneValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249xxxxxxxxx).",
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        return;
+      }
+
+      // ============================================================
+      // PASSWORD VALIDATION
+      // ============================================================
+
+      if (password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ يرجى إدخال كلمة السر."),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        return;
+      }
+
+      // ============================================================
+      // SHOW LOADING
+      // ============================================================
+
+      _showLoadingDialog();
+
       // ========================================================
       // GENERATE MOX ID
       // ========================================================
@@ -366,9 +322,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
         );
       }
+    } finally {
+      _isRegistering = false;
     }
   }
-
   // ============================================================
   // ADD USER + REFERRAL
   // ============================================================
