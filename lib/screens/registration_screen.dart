@@ -34,12 +34,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isRegistering = false;
 
   void _checkPlatformAndRegister() {
+    // فحص شامل لضمان كشف نظام الوندوز بكل أشكاله (سواء عبر الـ Platform أو البيئة المكتبية)
     bool isWindowsDevice = false;
     try {
-      if (!kIsWeb && Platform.isWindows) {
-        isWindowsDevice = true;
+      if (!kIsWeb) {
+        String operatingSystemStr = Platform.operatingSystem.toLowerCase();
+        if (operatingSystemStr.contains('windows') || Platform.isWindows) {
+          isWindowsDevice = true;
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      // احتياطاً في حال حدوث أي استثناء
+    }
 
     if (isWindowsDevice) {
       showDialog(
@@ -57,7 +63,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
             content: const Text(
-              "عذراً، التسجيل عبر نسخة الوندوز محظور. يُرجى إتمام عملية التسجيل حصرياً عبر تطبيق الهاتف المحمول (أندرويد).",
+              "عذراً، التسجيل عبر نسخة الوندوز محظور تماماً. يُرجى إتمام عملية التسجيل حصرياً عبر الهاتف المحمول أو متصفح الويب.",
               style: TextStyle(fontSize: 15, height: 1.4),
             ),
             actions: [
@@ -78,9 +84,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           );
         },
       );
-      return;
+      return; // إيقاف التسجيل فورا ولن يمر أبداً
     }
 
+    // متابعة التسجيل للأندرويد والويب
     _register();
   }
   // ============================================================
