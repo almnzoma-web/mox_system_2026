@@ -59,25 +59,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    // 👈 ضعه هنا في البداية لتجاوز قيود CORS على الويب
     final Uri uri = Uri.parse(
-      // ignore: prefer_interpolation_to_compose_strings
-      'https://corsproxy.io/?' +
-          Uri.encodeComponent(
-            'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec?action=getNextMoxId',
-          ),
-    );
+      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
+    ).replace(queryParameters: {'action': 'getNextMoxId'});
 
-    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد عبر الوكيل...');
+    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google...');
 
     final http.Response response = await http
-        .get(uri)
+        .get(uri, headers: const {'Accept': 'application/json'})
         .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
-      throw Exception(
-        'تعذر الحصول على رقم MOX جديد. كود الخطأ: ${response.statusCode}',
-      );
+      throw Exception('تعذر الحصول على رقم MOX جديد من Google.');
     }
 
     final String body = response.body.trim();
@@ -85,7 +78,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     if (body.isEmpty ||
         body.startsWith('<') ||
         body.toLowerCase().contains('<html')) {
-      throw Exception('Google أعاد استجابة غير صالحة.');
+      throw Exception('Google أعاد استجابة غير صالحة أثناء توليد MOX ID.');
     }
 
     final dynamic decoded = jsonDecode(body);
@@ -104,6 +97,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     if (!RegExp(r'^ID-\d{6}$').hasMatch(moxId)) {
       throw Exception('Google أعاد MOX ID غير صالح: $moxId');
+    }
+
+    if (response.statusCode != 200) {
+      // 👈 اطبع استجابة قوقل الفعلية لنعرف سبب الرفض
+      debugPrint('🚨 خطأ من قوقل: ${response.statusCode} - ${response.body}');
+      throw Exception(
+        'تعذر الحصول على رقم MOX. كود الخطأ: ${response.statusCode}',
+      );
     }
 
     debugPrint('✅ [MOX ID] Google منح الرقم: $moxId');
