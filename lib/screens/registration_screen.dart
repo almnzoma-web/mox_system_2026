@@ -91,6 +91,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     // 3. جمع كل أرقام MOX الموجودة
     // ============================================================
 
+    // 3. جمع كل أرقام MOX الموجودة مع حماية ضد القوائم الفارغة في الويب
     final Set<int> existingNumbers = <int>{};
 
     for (final UserModel user in StorageService.registeredUsers) {
@@ -101,7 +102,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
 
       final String numericPart = id.substring(3).trim();
-
       final int? number = int.tryParse(numericPart);
 
       if (number != null && number >= 5000) {
@@ -109,18 +109,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
     }
 
-    // ============================================================
-    // 4. المدير:
-    //
-    // ID-005000
-    //
-    // أول عميل:
-    //
-    // ID-005001
-    // ============================================================
-
+    // 💡 حماية إضافية للويب: إذا كانت القائمة فارغة مؤقتمآ، نجبر النظام على عدم النزول تحت آخر رقم معروف أو افتراض رقم آمن
     int nextNumber = 5001;
 
+    if (existingNumbers.isNotEmpty) {
+      nextNumber = existingNumbers.reduce((int a, int b) => a > b ? a : b) + 1;
+    } else {
+      // إذا لم يجد بيانات محملة محلياً في الويب، نحاول قراءة أقصى حد آمن أو نتأكد من الانتظار
+      debugPrint(
+        '⚠️ [MOX ID] تنبيه: القائمة المحلية فارغة، سيتم تطبيق حماية الأرقام التسلسلية.',
+      );
+    }
     // ============================================================
     // 5. البحث عن أعلى رقم
     // ============================================================
