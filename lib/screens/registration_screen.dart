@@ -30,6 +30,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isPasswordVisible = false;
 
   // ============================================================
+  // موافقة المستخدم على لائحة إدارة بنك موكس
+  // ============================================================
+
+  bool _acceptedMoxRules = false;
+
+  // ============================================================
   // ADMIN REFERRAL ID
   // ============================================================
 
@@ -39,14 +45,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // GENERATE MOX ID
   // ============================================================
   //
-  // moxId يتم توليده من شاشة التسجيل.
-  //
   // المدير:
   // ID-005000
   //
   // أول عميل:
   // ID-005001
   //
+  // ثاني عميل:
+  // ID-005002
+  //
+  // وهكذا...
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
@@ -57,17 +65,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     await StorageService.ensureLoaded();
 
     // ============================================================
-    // 2. حاول تحديث العملاء من السحابة
-    //
-    // مهم:
-    // لا نستخدم loadUsers() هنا لأنها تعيد بناء registeredUsers
-    // من Local Storage فقط.
-    //
-    // syncClientsFromCloud() تعمل Merge:
+    // 2. تحديث العملاء من السحابة قبل توليد الرقم
     //
     // Local + Cloud
     //
-    // ولا تستبدل المحلي بالسحابة.
+    // وليس:
+    // Cloud = Local
     // ============================================================
 
     try {
@@ -107,16 +110,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     // ============================================================
-    // 4. نبدأ بعد ID المدير
+    // 4. المدير:
     //
-    // المدير = ID-005000
-    // أول عميل = ID-005001
+    // ID-005000
+    //
+    // أول عميل:
+    //
+    // ID-005001
     // ============================================================
 
     int nextNumber = 5001;
 
     // ============================================================
-    // 5. ابحث عن أعلى رقم موجود
+    // 5. البحث عن أعلى رقم
     // ============================================================
 
     if (existingNumbers.isNotEmpty) {
@@ -124,10 +130,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     // ============================================================
-    // 6. حماية إضافية
-    //
-    // حتى لو حدثت مشكلة في ترتيب البيانات، لا نعيد أبداً
-    // رقم مستخدم موجود.
+    // 6. حماية إضافية من التكرار
     // ============================================================
 
     while (existingNumbers.contains(nextNumber)) {
@@ -150,6 +153,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     return newMoxId;
   }
+
   // ============================================================
   // LOADING
   // ============================================================
@@ -203,9 +207,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     final address = _addressController.text.trim();
 
-    // ==========================================================
+    // ============================================================
+    // موافقة اللائحة
+    // ============================================================
+
+    if (!_acceptedMoxRules) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "⚠️ يجب الإقرار بالموافقة على لائحة إدارة بنك موكس والموافقة على موجهات الإدارة قبل إتمام التسجيل.",
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      return;
+    }
+
+    // ============================================================
     // PHONE VALIDATION
-    // ==========================================================
+    // ============================================================
 
     final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
 
@@ -222,6 +243,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return;
     }
 
+    // ============================================================
+    // PASSWORD VALIDATION
+    // ============================================================
+
     if (password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -233,9 +258,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return;
     }
 
-    // ==========================================================
+    // ============================================================
     // SHOW LOADING
-    // ==========================================================
+    // ============================================================
 
     _showLoadingDialog();
 
@@ -260,7 +285,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       // CREATE USER
       // ========================================================
 
-      final newUser = UserModel(
+      final UserModel newUser = UserModel(
         phone: phoneInput,
 
         password: password,
@@ -361,9 +386,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     // ============================================================
     // 2. Sync أخير قبل التسجيل
-    //
-    // هذا مهم جداً لمنع استخدام رقم قد يكون أُضيف من جهاز آخر
-    // أثناء بقاء هذه الشاشة مفتوحة.
     // ============================================================
 
     try {
@@ -471,6 +493,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     return true;
   }
+
   // ============================================================
   // CERTIFICATE
   // ============================================================
@@ -557,7 +580,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF28A9CC),
+                      backgroundColor: const Color(0xFF28A9CC),
                       minimumSize: const Size(double.infinity, 48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -635,6 +658,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
             const SizedBox(height: 20),
 
+            // ==================================================
+            // NAME
+            // ==================================================
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -646,6 +672,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
             const SizedBox(height: 15),
 
+            // ==================================================
+            // PHONE
+            // ==================================================
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
@@ -659,6 +688,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
             const SizedBox(height: 15),
 
+            // ==================================================
+            // PASSWORD
+            // ==================================================
             TextField(
               controller: _passwordController,
               obscureText: !_isPasswordVisible,
@@ -683,6 +715,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
             const SizedBox(height: 15),
 
+            // ==================================================
+            // ADDRESS
+            // ==================================================
             TextField(
               controller: _addressController,
               decoration: const InputDecoration(
@@ -789,7 +824,62 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
+
+            // ==================================================
+            // MOX RULES AGREEMENT
+            // ==================================================
+            //
+            // مربع صغير + نص الموافقة
+            // ==================================================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _acceptedMoxRules
+                      ? moxBlue.withValues(alpha: 0.5)
+                      : Colors.grey.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Checkbox(
+                      value: _acceptedMoxRules,
+                      activeColor: moxBlue,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          _acceptedMoxRules = value ?? false;
+                        });
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  const Expanded(
+                    child: Text(
+                      "أقر بموافقتي على لائحة إدارة بنك موكس للتطبيق والالتزام بموجهات الإدارة",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
 
             // ==================================================
             // REGISTER BUTTON
