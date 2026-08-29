@@ -1,4 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+// ignore: unused_import
+import 'package:http/http.dart';
+import 'package:http/http.dart' as http;
+import 'package:mox_digital_app/main.dart';
 
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
@@ -50,43 +56,139 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    /*
-     * نحاول أولاً تحديث البيانات من السحابة
-     * حتى لا نعتمد على ذاكرة الجهاز القديمة.
-     */
+    // ============================================================
+    // 0. الحجز الذري المركزي من السحابة (منع سباق الأجهزة المتعددة)
+    // ============================================================
+
     try {
-      await StorageService.loadUsers();
-    } catch (_) {}
+      final Uri cloudApiUri = Uri.parse(
+        publicStoreApi,
+      ).replace(queryParameters: {'action': 'getNextMoxId'});
 
-    int nextNumber = 5001;
+      final http.Response cloudResponse = await http
+          .get(cloudApiUri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
 
-    final Set<int> existingNumbers = {};
+      if (cloudResponse.statusCode == 200) {
+        final dynamic decodedCloudJson = jsonDecode(cloudResponse.body);
+        if (decodedCloudJson is Map && decodedCloudJson['success'] == true) {
+          final String cloudReservedId =
+              decodedCloudJson['moxId']?.toString().trim().toUpperCase() ?? '';
 
-    for (final user in StorageService.registeredUsers) {
-      final id = user.moxId.trim();
+          if (RegExp(r'^ID-\d{6}$').hasMatch(cloudReservedId)) {
+            debugPrint(
+              '🆔 [CLOUD ATOMIC ID] تم حجز الرقم مركزياً بنجاح: $cloudReservedId',
+            );
+            return cloudReservedId;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        '⚠️ [CLOUD ATOMIC ID EXCEPTION] تعذر الاتصال بالسحابة للحجز الذري، الانتقال للنظام المحلي: $e',
+      );
+    }
 
-      if (!id.startsWith("ID-")) {
+    // ============================================================
+    // 1. تأكد أن الذاكرة المحلية محملة
+    // ============================================================
+
+    await StorageService.ensureLoaded();
+
+    // ============================================================
+    // 2. حاول تحديث العملاء من السحابة
+    //
+    // مهم:
+    // لا نستخدم loadUsers() هنا لأنها تعيد بناء registeredUsers
+    // من Local Storage فقط.
+    //
+    // syncClientsFromCloud() تعمل Merge:
+    //
+    // Local + Cloud
+    //
+    // ولا تستبدل المحلي بالسحابة.
+    // ============================================================
+
+    try {
+      final bool synced = await StorageService.syncClientsFromCloud(
+        saveLocal: true,
+      );
+
+      debugPrint(
+        synced
+            ? '☁️ [MOX ID] تم تحديث العملاء من السحابة قبل توليد الرقم.'
+            : '⚠️ [MOX ID] تعذر تحديث السحابة، سيتم الاعتماد على البيانات المحلية.',
+      );
+    } catch (e) {
+      debugPrint('⚠️ [MOX ID] Cloud Sync Exception: $e');
+    }
+
+    // ============================================================
+    // 3. جمع كل أرقام MOX الموجودة
+    // ============================================================
+
+    final Set<int> existingNumbers = <int>{};
+
+    for (final UserModel user in StorageService.registeredUsers) {
+      final String id = user.moxId.trim().toUpperCase();
+
+      if (!id.startsWith('ID-')) {
         continue;
       }
 
-      final numericPart = id.substring(3);
+      final String numericPart = id.substring(3).trim();
 
-      final parsed = int.tryParse(numericPart);
+      final int? number = int.tryParse(numericPart);
 
-      if (parsed != null && parsed >= 5000) {
-        existingNumbers.add(parsed);
+      if (number != null && number >= 5000) {
+        existingNumbers.add(number);
       }
     }
 
+    // ============================================================
+    // 4. نبدأ بعد ID المدير
+    //
+    // المدير = ID-005000
+    // أول عميل = ID-005001
+    // ============================================================
+
+    int nextNumber = 5001;
+
+    // ============================================================
+    // 5. ابحث عن أعلى رقم موجود
+    // ============================================================
+
     if (existingNumbers.isNotEmpty) {
-      nextNumber = existingNumbers.reduce((a, b) => a > b ? a : b) + 1;
+      nextNumber = existingNumbers.reduce((int a, int b) => a > b ? a : b) + 1;
     }
 
-    final formattedNum = nextNumber.toString().padLeft(6, '0');
+    // ============================================================
+    // 6. حماية إضافية
+    //
+    // حتى لو حدثت مشكلة في ترتيب البيانات، لا نعيد أبداً
+    // رقم مستخدم موجود.
+    // ============================================================
 
-    return "ID-$formattedNum";
+    while (existingNumbers.contains(nextNumber)) {
+      nextNumber++;
+    }
+
+    // ============================================================
+    // 7. تكوين MOX ID
+    // ============================================================
+
+    final String formattedNumber = nextNumber.toString().padLeft(6, '0');
+
+    final String newMoxId = 'ID-$formattedNumber';
+
+    debugPrint(
+      '🆔 [MOX ID] '
+      'Existing IDs: ${existingNumbers.length} '
+      '| Generated: $newMoxId',
+    );
+
+    return newMoxId;
   }
-
   // ============================================================
   // LOADING
   // ============================================================
@@ -290,94 +392,124 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     UserModel newUser,
     String guardianId,
   ) async {
+    // ============================================================
+    // 1. تأكد من تحميل Local Cache
+    // ============================================================
+
     await StorageService.ensureLoaded();
 
-    // ==========================================================
-    // CHECK DUPLICATE PHONE
-    // ==========================================================
+    // ============================================================
+    // 2. Sync أخير قبل التسجيل
+    //
+    // هذا مهم جداً لمنع استخدام رقم قد يكون أُضيف من جهاز آخر
+    // أثناء بقاء هذه الشاشة مفتوحة.
+    // ============================================================
+
+    try {
+      await StorageService.syncClientsFromCloud(saveLocal: true);
+    } catch (e) {
+      debugPrint('⚠️ [Registration] تعذر تحديث السحابة قبل التسجيل: $e');
+    }
+
+    // ============================================================
+    // 3. CHECK DUPLICATE PHONE
+    // ============================================================
+
+    final String newPhone = newUser.phone.trim();
 
     final bool phoneExists = StorageService.registeredUsers.any(
-      (u) => u.phone.trim() == newUser.phone.trim(),
+      (u) => u.phone.trim() == newPhone,
     );
 
     if (phoneExists) {
-      debugPrint("❌ رقم الهاتف موجود مسبقاً.");
+      debugPrint('❌ [Registration] رقم الهاتف موجود مسبقاً: $newPhone');
 
       return false;
     }
 
-    // ==========================================================
-    // CHECK DUPLICATE MOX ID
-    // ==========================================================
+    // ============================================================
+    // 4. CHECK DUPLICATE MOX ID
+    // ============================================================
+
+    final String newMoxId = newUser.moxId.trim().toUpperCase();
 
     final bool moxIdExists = StorageService.registeredUsers.any(
-      (u) => u.moxId.trim() == newUser.moxId.trim(),
+      (u) => u.moxId.trim().toUpperCase() == newMoxId,
     );
 
     if (moxIdExists) {
-      debugPrint("❌ MoxId موجود مسبقاً.");
+      debugPrint('❌ [Registration] Mox ID موجود مسبقاً: $newMoxId');
 
       return false;
     }
 
-    // ==========================================================
-    // FIND GUARDIAN
-    // ==========================================================
+    // ============================================================
+    // 5. FIND GUARDIAN
+    // ============================================================
 
     UserModel? guardian;
 
-    if (guardianId.trim().isNotEmpty) {
+    final String cleanGuardianId = guardianId.trim().toUpperCase();
+
+    if (cleanGuardianId.isNotEmpty) {
       try {
-        guardian = StorageService.registeredUsers.firstWhere(
-          (u) =>
-              u.moxId.trim() == guardianId.trim() ||
-              (u.guardianMoxId?.trim() == guardianId.trim()) ||
-              (u.guardianMoxIdCustomer?.trim() == guardianId.trim()),
-        );
+        guardian = StorageService.registeredUsers.firstWhere((u) {
+          final String moxId = u.moxId.trim().toUpperCase();
+
+          final String guardianMoxId = (u.guardianMoxId ?? '')
+              .trim()
+              .toUpperCase();
+
+          final String guardianMoxIdCustomer = (u.guardianMoxIdCustomer ?? '')
+              .trim()
+              .toUpperCase();
+
+          return moxId == cleanGuardianId ||
+              guardianMoxId == cleanGuardianId ||
+              guardianMoxIdCustomer == cleanGuardianId;
+        });
       } catch (_) {
         guardian = null;
       }
     }
 
-    // ==========================================================
-    // SAVE NEW USER FIRST
-    // ==========================================================
+    // ============================================================
+    // 6. SAVE NEW USER
+    // ============================================================
 
     try {
       await StorageService.addUser(newUser);
     } catch (e) {
-      debugPrint("❌ فشل حفظ العميل: $e");
+      debugPrint('❌ [Registration] فشل حفظ العميل: $e');
 
       return false;
     }
 
-    // ==========================================================
-    // UPDATE GUARDIAN POINTS
-    // ==========================================================
+    // ============================================================
+    // 7. UPDATE GUARDIAN POINTS
+    // ============================================================
 
     if (guardian != null) {
-      final updatedGuardian = guardian.copyWith(points: guardian.points + 100);
+      final UserModel updatedGuardian = guardian.copyWith(
+        points: guardian.points + 100,
+      );
 
       try {
-        /*
-         * هنا كان الخطأ في النسخة السابقة:
-         * كانت النقاط تتغير محلياً فقط.
-         *
-         * الآن نرسل الوصي نفسه إلى Google Sheet.
-         */
         await StorageService.updateUserPartial(updatedGuardian);
 
-        debugPrint("🎁 تم منح الوصي 100 نقطة.");
+        debugPrint('🎁 [Registration] تم منح الوصي 100 نقطة.');
       } catch (e) {
-        debugPrint("⚠️ تم تسجيل العميل لكن فشل تحديث نقاط الوصي: $e");
+        debugPrint(
+          '⚠️ [Registration] تم تسجيل العميل '
+          'لكن فشل تحديث نقاط الوصي: $e',
+        );
       }
     } else {
-      debugPrint("ℹ️ لم يتم العثور على الوصي: $guardianId");
+      debugPrint('ℹ️ [Registration] لم يتم العثور على الوصي: $guardianId');
     }
 
     return true;
   }
-
   // ============================================================
   // CERTIFICATE
   // ============================================================

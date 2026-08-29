@@ -22,14 +22,23 @@ class StorageService {
 
   static const String localUsersVersionKey = 'mox_local_users_version';
 
-  // ============================================================
-  // مهم جداً:
+  // ------------------------------------------------------------
+  // رقم آخر تسجيل تم استخدامه.
   //
-  // هذا الإصدار لا يمسح العملاء.
-  // لا يتم حذف saved_users عند تغيير الإصدار.
+  // مهم:
+  // هذا الرقم لا يمثل عدد العملاء الحاليين.
+  //
+  // هو آخر رقم تسلسلي تم حجزه.
+  // لذلك حتى لو حذفنا عميلاً، الرقم لا يعود للخلف.
+  // ------------------------------------------------------------
+
+  static const String registrationSequenceKey = 'mox_registration_sequence';
+
+  // ============================================================
+  // LOCAL VERSION
   // ============================================================
 
-  static const int currentLocalUsersVersion = 4;
+  static const int currentLocalUsersVersion = 5;
 
   // ============================================================
   // RUNTIME MEMORY
@@ -40,6 +49,8 @@ class StorageService {
   static bool _isLoaded = false;
 
   static bool _cloudSyncRunning = false;
+
+  static bool _registrationSequenceRunning = false;
 
   // ============================================================
   // GOOGLE APPS SCRIPT
@@ -63,21 +74,7 @@ class StorageService {
   static const int storeSubscriptionDays = 365;
 
   // ============================================================
-  // HTML GUARD
-  // ============================================================
-
-  static bool _isHtmlResponse(String body) {
-    final String trimmed = body.trim().toLowerCase();
-
-    return trimmed.startsWith('<') ||
-        trimmed.startsWith('<!doctype') ||
-        trimmed.contains('<html');
-  }
-
-  // ============================================================
   // ADMIN
-  //
-  // منطق المدير محفوظ كما هو.
   // ============================================================
 
   static final UserModel adminUser = UserModel(
@@ -100,12 +97,28 @@ class StorageService {
   );
 
   // ============================================================
-  // NORMALIZE
+  // CLEAN
   // ============================================================
 
   static String _clean(String? value) {
     return value?.trim() ?? '';
   }
+
+  // ============================================================
+  // HTML GUARD
+  // ============================================================
+
+  static bool _isHtmlResponse(String body) {
+    final String trimmed = body.trim().toLowerCase();
+
+    return trimmed.startsWith('<') ||
+        trimmed.startsWith('<!doctype') ||
+        trimmed.contains('<html');
+  }
+
+  // ============================================================
+  // MOX ID VALIDATION
+  // ============================================================
 
   static bool _isValidMoxId(String? value) {
     final String id = _clean(value);
@@ -132,12 +145,6 @@ class StorageService {
 
   // ============================================================
   // CUSTOMER IDENTITY
-  //
-  // العميل أصبح يعتمد على:
-  //
-  // phone + guardianMoxId
-  //
-  // وليس MoxId فقط.
   // ============================================================
 
   static bool _isValidCustomerIdentity(UserModel user) {
@@ -156,15 +163,6 @@ class StorageService {
 
   // ============================================================
   // PERSISTABLE USER
-  //
-  // يسمح بحفظ:
-  //
-  // 1. المدير
-  // 2. مستخدم لديه MoxId
-  // 3. عميل لديه phone + guardianMoxId
-  //
-  // وهذا يمنع سقوط العميل من الذاكرة المحلية إذا لم يكن
-  // MoxId موجوداً في إحدى الاستجابات.
   // ============================================================
 
   static bool _isPersistableUser(UserModel user) {
@@ -174,7 +172,7 @@ class StorageService {
   }
 
   // ============================================================
-  // ADMIN ID CHECK
+  // ADMIN IDENTITY
   // ============================================================
 
   static bool _isAdminIdentity({
@@ -196,6 +194,7 @@ class StorageService {
     return _isAdminIdentity(
       phone: user.phone,
       guardianMoxId: user.guardianMoxId,
+      cleanGuardianMoxId: user.guardianMoxIdCustomer,
     );
   }
 
@@ -253,6 +252,7 @@ class StorageService {
     ]);
 
     setIfFound('myAssets', ['myAssets', 'myassets', 'my_assets']);
+
     setIfFound('points', [
       'points',
       'Points',
@@ -261,7 +261,10 @@ class StorageService {
       'USER_POINTS',
     ]);
 
-    // تأكد من تحويل النقاط إلى قيمة رقمية صحيحة لمنع تلف النوع
+    // ----------------------------------------------------------
+    // POINTS
+    // ----------------------------------------------------------
+
     if (result['points'] != null) {
       result['points'] =
           int.tryParse(result['points'].toString()) ??
@@ -269,8 +272,9 @@ class StorageService {
               ? (result['points'] as double).toInt()
               : 0);
     }
+
     // ----------------------------------------------------------
-    // Assets JSON
+    // ASSETS
     // ----------------------------------------------------------
 
     final dynamic assets = result['myAssets'];
@@ -290,8 +294,6 @@ class StorageService {
 
   // ============================================================
   // LOCAL USER IDENTITY KEY
-  //
-  // تستخدم للمقارنة والدمج بدون حذف العملاء.
   // ============================================================
 
   static String _userIdentityKey(UserModel user) {
@@ -324,10 +326,11 @@ class StorageService {
 
   static bool _sameUser(UserModel a, UserModel b) {
     final String aMox = _clean(a.moxId).toUpperCase();
+
     final String bMox = _clean(b.moxId).toUpperCase();
 
     // ----------------------------------------------------------
-    // 1. إذا كان لدى الاثنين MOX ID صالح ومتطابق
+    // MOX ID
     // ----------------------------------------------------------
 
     if (_isValidMoxId(aMox) && _isValidMoxId(bMox)) {
@@ -335,10 +338,11 @@ class StorageService {
     }
 
     // ----------------------------------------------------------
-    // 2. الهاتف يجب أن يكون موجوداً ومتطابقاً
+    // PHONE
     // ----------------------------------------------------------
 
     final String aPhone = _clean(a.phone);
+
     final String bPhone = _clean(b.phone);
 
     if (aPhone.isEmpty || bPhone.isEmpty || aPhone != bPhone) {
@@ -346,7 +350,7 @@ class StorageService {
     }
 
     // ----------------------------------------------------------
-    // 3. هوية العميل = phone + guardianMoxId
+    // GUARDIAN
     // ----------------------------------------------------------
 
     final String aGuardian = _clean(
@@ -357,11 +361,6 @@ class StorageService {
       b.guardianMoxId ?? b.guardianMoxIdCustomer,
     ).toUpperCase();
 
-    // ----------------------------------------------------------
-    // إذا كان أحدهما لديه Guardian والآخر لا:
-    // لا نعتبرهما نفس المستخدم.
-    // ----------------------------------------------------------
-
     if (aGuardian.isEmpty || bGuardian.isEmpty) {
       return false;
     }
@@ -371,11 +370,6 @@ class StorageService {
 
   // ============================================================
   // PRESERVE USER STATE
-  //
-  // مهم جداً:
-  //
-  // إذا جاءت بيانات من السحابة بدون password
-  // لا نمسح password الموجودة محلياً.
   // ============================================================
 
   static UserModel _preserveUserState({
@@ -394,22 +388,23 @@ class StorageService {
 
     final String oldActivationDate = _clean(oldUser.activationDate);
 
+    final String newPublishDate = _clean(newUser.storePublishDate);
+
+    final String newActivationDate = _clean(newUser.activationDate);
+
     return newUser.copyWith(
       password: newPassword.isNotEmpty ? newPassword : oldPassword,
-      storePublishDate: oldPublishDate.isNotEmpty
-          ? oldPublishDate
-          : newUser.storePublishDate,
-      activationDate: oldActivationDate.isNotEmpty
-          ? oldActivationDate
-          : newUser.activationDate,
+      storePublishDate: newPublishDate.isNotEmpty
+          ? newUser.storePublishDate
+          : oldPublishDate,
+      activationDate: newActivationDate.isNotEmpty
+          ? newUser.activationDate
+          : oldActivationDate,
     );
   }
 
   // ============================================================
-  // MERGE TWO USER LISTS
-  //
-  // لا نستبدل المحلي بالسحابة.
-  // ندمج الاثنين.
+  // MERGE USER LISTS
   // ============================================================
 
   static List<UserModel> _mergeUserLists({
@@ -418,13 +413,25 @@ class StorageService {
   }) {
     final List<UserModel> result = [];
 
+    // ----------------------------------------------------------
+    // LOCAL
+    // ----------------------------------------------------------
+
     for (final UserModel user in existing) {
       if (!_isPersistableUser(user)) {
         continue;
       }
 
-      result.add(user);
+      final int index = result.indexWhere((item) => _sameUser(item, user));
+
+      if (index == -1) {
+        result.add(user);
+      }
     }
+
+    // ----------------------------------------------------------
+    // INCOMING
+    // ----------------------------------------------------------
 
     for (final UserModel incomingUser in incoming) {
       if (!_isPersistableUser(incomingUser)) {
@@ -464,7 +471,7 @@ class StorageService {
   }
 
   // ============================================================
-  // DECODE LOCAL USERS
+  // DECODE USERS
   // ============================================================
 
   static List<UserModel> _decodeUsers(String? encodedData) {
@@ -517,11 +524,6 @@ class StorageService {
 
   // ============================================================
   // LOAD USERS
-  //
-  // 🚨 لا نمسح saved_users.
-  //
-  // وإذا كانت البيانات الأساسية غير موجودة، نحاول استرجاع
-  // النسخة الاحتياطية.
   // ============================================================
 
   static Future<void> loadUsers() async {
@@ -535,7 +537,7 @@ class StorageService {
       String? encodedData = prefs.getString(savedUsersKey);
 
       // --------------------------------------------------------
-      // إذا لم نجد البيانات الأساسية نسترجع النسخة الاحتياطية
+      // RECOVERY
       // --------------------------------------------------------
 
       if (encodedData == null || encodedData.trim().isEmpty) {
@@ -548,22 +550,41 @@ class StorageService {
 
           debugPrint(
             '♻️ [Local Recovery] '
-            'تم استرجاع بيانات العملاء من النسخة الاحتياطية.',
+            'تم استرجاع العملاء من النسخة الاحتياطية.',
           );
         }
       }
 
       final List<UserModel> localUsers = _decodeUsers(encodedData);
 
-      registeredUsers = _mergeUserLists(existing: [], incoming: localUsers);
+      registeredUsers = _mergeUserLists(
+        existing: const [],
+        incoming: localUsers,
+      );
 
       _ensureAdmin();
+
+      // --------------------------------------------------------
+      // IMPORTANT:
+      //
+      // نرفع عداد التسجيل إلى أعلى رقم موجود.
+      //
+      // لكن لا ننقصه أبداً.
+      // --------------------------------------------------------
+
+      await _syncRegistrationSequenceFromUsers(prefs);
 
       _isLoaded = true;
 
       debugPrint(
         '✅ [BOOT] Local users loaded: '
         '${registeredUsers.length}',
+      );
+
+      debugPrint(
+        '🔢 [Registration Sequence] '
+        'آخر رقم: '
+        '${await getLastRegistrationSequence()}',
       );
     } catch (e) {
       debugPrint(
@@ -578,9 +599,7 @@ class StorageService {
   }
 
   // ============================================================
-  // LOCAL MEMORY MIGRATION
-  //
-  // 🚨 لا نحذف saved_users أبداً.
+  // LOCAL MIGRATION
   // ============================================================
 
   static Future<void> _migrateLocalUsersIfNeeded(
@@ -590,7 +609,9 @@ class StorageService {
       final int savedVersion = prefs.getInt(localUsersVersionKey) ?? 0;
 
       // --------------------------------------------------------
-      // حتى لو كان الإصدار حديثاً، لا نحذف أي شيء.
+      // النسخة الحالية:
+      //
+      // لا نحذف البيانات.
       // --------------------------------------------------------
 
       if (savedVersion >= currentLocalUsersVersion) {
@@ -609,15 +630,9 @@ class StorageService {
 
       debugPrint(
         '🔄 [Local Migration] '
-        'تحديث إصدار ذاكرة العملاء '
         '$savedVersion -> '
         '$currentLocalUsersVersion',
       );
-
-      // --------------------------------------------------------
-      // لا نحذف saved_users.
-      // فقط نعمل نسخة احتياطية منه.
-      // --------------------------------------------------------
 
       final String? existingData = prefs.getString(savedUsersKey);
 
@@ -626,7 +641,7 @@ class StorageService {
 
         debugPrint(
           '🛡️ [Local Migration] '
-          'تم إنشاء نسخة احتياطية للعملاء.',
+          'تم إنشاء Backup للعملاء.',
         );
       }
 
@@ -634,8 +649,7 @@ class StorageService {
 
       debugPrint(
         '✅ [Local Migration] '
-        'تم تحديث الإصدار مع الحفاظ '
-        'على بيانات العملاء.',
+        'تم تحديث الإصدار بدون حذف العملاء.',
       );
     } catch (e) {
       debugPrint('❌ [Local Migration] $e');
@@ -683,18 +697,327 @@ class StorageService {
   }
 
   // ============================================================
+  // ============================================================
+  // REGISTRATION SEQUENCE
+  // ============================================================
+  // ============================================================
+
+  // ------------------------------------------------------------
+  // استخراج الرقم من:
+  //
+  // ID-005001
+  // MOX-ID-005001
+  //
+  // ويقبل أيضاً أي قيمة تحتوي على أرقام في النهاية.
+  // ------------------------------------------------------------
+
+  static int? _extractRegistrationNumber(String? moxId) {
+    final String value = _clean(moxId).toUpperCase();
+
+    if (value.isEmpty) {
+      return null;
+    }
+
+    final RegExp regex = RegExp(r'(\d+)$');
+
+    final RegExpMatch? match = regex.firstMatch(value);
+
+    if (match == null) {
+      return null;
+    }
+
+    return int.tryParse(match.group(1)!);
+  }
+
+  // ------------------------------------------------------------
+  // إيجاد أعلى رقم موجود حالياً.
+  //
+  // المدير ID-005000 يدخل في الحساب فقط كحد ابتدائي.
+  // العملاء الحاليون يرفعون الرقم إلى أعلى قيمة.
+  // ------------------------------------------------------------
+
+  static int _getHighestExistingRegistrationNumber() {
+    int highest = _extractRegistrationNumber(adminUser.moxId) ?? 5000;
+
+    for (final UserModel user in registeredUsers) {
+      final int? number = _extractRegistrationNumber(user.moxId);
+
+      if (number != null && number > highest) {
+        highest = number;
+      }
+    }
+
+    return highest;
+  }
+
+  // ------------------------------------------------------------
+  // مزامنة العداد المحلي مع العملاء الموجودين.
+  //
+  // NEVER تقلل الرقم.
+  // ------------------------------------------------------------
+
+  static Future<void> _syncRegistrationSequenceFromUsers(
+    SharedPreferences prefs,
+  ) async {
+    try {
+      final int existingSequence =
+          prefs.getInt(registrationSequenceKey) ?? 5000;
+
+      final int highestExisting = _getHighestExistingRegistrationNumber();
+
+      final int finalSequence = highestExisting > existingSequence
+          ? highestExisting
+          : existingSequence;
+
+      if (finalSequence != existingSequence) {
+        await prefs.setInt(registrationSequenceKey, finalSequence);
+
+        debugPrint(
+          '🔢 [Registration Sequence] '
+          'تم رفع العداد إلى '
+          '$finalSequence '
+          'بناءً على العملاء الموجودين.',
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [Registration Sequence Sync] $e');
+    }
+  }
+
+  // ------------------------------------------------------------
+  // آخر رقم محجوز.
+  // ------------------------------------------------------------
+
+  static Future<int> getLastRegistrationSequence() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    final int saved = prefs.getInt(registrationSequenceKey) ?? 5000;
+
+    final int existing = _getHighestExistingRegistrationNumber();
+
+    return existing > saved ? existing : saved;
+  }
+
+  // ------------------------------------------------------------
+  // الرقم التالي فقط.
+  //
+  // مثال:
+  //
+  // 5000 -> 5001
+  // 5001 -> 5002
+  //
+  // الرقم محفوظ قبل إرجاعه.
+  // لذلك لا يرجع للخلف بعد حذف المستخدم.
+  // ------------------------------------------------------------
+
+  static Future<int> reserveNextRegistrationNumber() async {
+    // ----------------------------------------------------------
+    // حماية من استدعاء الدالة مرتين في نفس اللحظة.
+    // ----------------------------------------------------------
+
+    while (_registrationSequenceRunning) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    _registrationSequenceRunning = true;
+
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      await prefs.reload();
+
+      final int storedSequence = prefs.getInt(registrationSequenceKey) ?? 5000;
+
+      final int highestExisting = _getHighestExistingRegistrationNumber();
+
+      final int base = storedSequence > highestExisting
+          ? storedSequence
+          : highestExisting;
+
+      final int nextNumber = base + 1;
+
+      // --------------------------------------------------------
+      // نحفظ الرقم فوراً.
+      // --------------------------------------------------------
+
+      await prefs.setInt(registrationSequenceKey, nextNumber);
+
+      debugPrint(
+        '🔢 [NEW REGISTRATION] '
+        'تم حجز الرقم: '
+        '$nextNumber',
+      );
+
+      return nextNumber;
+    } finally {
+      _registrationSequenceRunning = false;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // إنشاء MOX ID للتسجيل الجديد.
+  //
+  // 5001 -> ID-005001
+  // 5002 -> ID-005002
+  // ------------------------------------------------------------
+
+  static Future<String> reserveNextMoxId() async {
+    final int number = await reserveNextRegistrationNumber();
+
+    return 'ID-${number.toString().padLeft(6, '0')}';
+  }
+
+  // ------------------------------------------------------------
+  // معرفة عدد العملاء الحاليين.
+  //
+  // المدير مستبعد.
+  // ------------------------------------------------------------
+
+  static int getRegistrationCount() {
+    return registeredUsers
+        .where(
+          (UserModel user) => !_isAdminUser(user) && _isPersistableUser(user),
+        )
+        .length;
+  }
+
+  static String getRegistrationCountText() {
+    return getRegistrationCount().toString();
+  }
+
+  // ============================================================
+  // STORE SUBSCRIPTION COUNTER
+  // ============================================================
+
+  static DateTime? _parseDate(String? value) {
+    final String date = _clean(value);
+
+    if (date.isEmpty ||
+        date.toLowerCase() == 'null' ||
+        date.toLowerCase() == 'undefined') {
+      return null;
+    }
+
+    return DateTime.tryParse(date);
+  }
+
+  // ------------------------------------------------------------
+  // تاريخ بداية الاشتراك.
+  //
+  // storePublishDate هو الأولوية.
+  // activationDate هو fallback.
+  // ------------------------------------------------------------
+
+  static DateTime? getStoreStartDate(UserModel user) {
+    final DateTime? publishDate = _parseDate(user.storePublishDate);
+
+    if (publishDate != null) {
+      return publishDate;
+    }
+
+    return _parseDate(user.activationDate);
+  }
+
+  // ------------------------------------------------------------
+  // تاريخ انتهاء الاشتراك.
+  // ------------------------------------------------------------
+
+  static DateTime? getStoreExpiryDate(UserModel user) {
+    final DateTime? startDate = getStoreStartDate(user);
+
+    if (startDate == null) {
+      return null;
+    }
+
+    return startDate.add(const Duration(days: storeSubscriptionDays));
+  }
+
+  // ------------------------------------------------------------
+  // الأيام المتبقية.
+  //
+  // نعتمد على التاريخ وليس عداداً محفوظاً.
+  // ------------------------------------------------------------
+
+  static int getRemainingSubscriptionDays(UserModel user) {
+    final DateTime? expiryDate = getStoreExpiryDate(user);
+
+    if (expiryDate == null) {
+      return 0;
+    }
+
+    final DateTime now = DateTime.now();
+
+    final DateTime today = DateTime(now.year, now.month, now.day);
+
+    final DateTime expiryDay = DateTime(
+      expiryDate.year,
+      expiryDate.month,
+      expiryDate.day,
+    );
+
+    final int remaining = expiryDay.difference(today).inDays;
+
+    if (remaining < 0) {
+      return 0;
+    }
+
+    return remaining;
+  }
+
+  // ------------------------------------------------------------
+  // الاشتراك فعال؟
+  // ------------------------------------------------------------
+
+  static bool isSubscriptionActive(UserModel user) {
+    return getRemainingSubscriptionDays(user) > 0;
+  }
+
+  // ------------------------------------------------------------
+  // الاشتراك منتهي؟
+  // ------------------------------------------------------------
+
+  static bool isSubscriptionExpired(UserModel user) {
+    return !isSubscriptionActive(user);
+  }
+
+  // ------------------------------------------------------------
+  // نص العداد.
+  // ------------------------------------------------------------
+
+  static String getSubscriptionCounterText(UserModel user) {
+    final int days = getRemainingSubscriptionDays(user);
+
+    if (days <= 0) {
+      return 'انتهى الاشتراك';
+    }
+
+    if (days == 1) {
+      return 'متبقي يوم واحد';
+    }
+
+    if (days == 2) {
+      return 'متبقي يومان';
+    }
+
+    return 'متبقي $days يوم';
+  }
+
+  // ------------------------------------------------------------
+  // تاريخ الانتهاء كنص.
+  // ------------------------------------------------------------
+
+  static String? getStoreExpiryDateString(UserModel user) {
+    final DateTime? expiry = getStoreExpiryDate(user);
+
+    if (expiry == null) {
+      return null;
+    }
+
+    return expiry.toIso8601String();
+  }
+
+  // ============================================================
   // CLOUD PARAMETERS
-  //
-  // 🚨 إصلاح كلمة السر:
-  //
-  // إذا كانت كلمة السر الجديدة فارغة، نستخدم كلمة السر
-  // المحلية القديمة إن كانت موجودة.
-  //
-  // وبالتالي لا يتم إرسال:
-  //
-  // password: ''
-  //
-  // في حالة وجود password محفوظة.
   // ============================================================
 
   static Map<String, String> _userCloudParameters(UserModel user) {
@@ -703,8 +1026,7 @@ class StorageService {
     String passwordToSend = _clean(user.password);
 
     // ----------------------------------------------------------
-    // إذا كانت كلمة السر الجديدة فارغة:
-    // احتفظ بالقديمة.
+    // الحفاظ على كلمة السر القديمة.
     // ----------------------------------------------------------
 
     if (passwordToSend.isEmpty && existingLocalUser != null) {
@@ -760,15 +1082,11 @@ class StorageService {
 
       'digitalSignatureKeyVersion': user.digitalSignatureKeyVersion.toString(),
 
-      // --------------------------------------------------------
-      // هذا يخبر السيرفر ألا يمسح كلمة السر إذا لم توجد.
-      // --------------------------------------------------------
       'preservePassword': passwordToSend.isEmpty ? 'true' : 'false',
     };
 
     // ----------------------------------------------------------
-    // 🚨 لا نضع password في الطلب إطلاقاً إذا لم توجد قيمة.
-    // وإذا وجدت قيمة، نرسلها.
+    // لا نرسل password فارغة.
     // ----------------------------------------------------------
 
     if (passwordToSend.isNotEmpty) {
@@ -779,7 +1097,7 @@ class StorageService {
   }
 
   // ============================================================
-  // SAVE TO CLOUD
+  // SAVE TO GOOGLE CLOUD
   // ============================================================
 
   static Future<bool> _saveToCloud(UserModel user) async {
@@ -790,8 +1108,7 @@ class StorageService {
 
       debugPrint(
         '☁️ [Cloud Save] '
-        'إرسال بيانات: '
-        '${user.moxId}',
+        'إرسال: ${user.moxId}',
       );
 
       final http.Response response = await http
@@ -805,7 +1122,7 @@ class StorageService {
 
       if (response.statusCode != 200) {
         debugPrint(
-          '❌ [Cloud Save] HTTP Error: '
+          '❌ [Cloud Save] '
           '${response.body}',
         );
 
@@ -831,7 +1148,7 @@ class StorageService {
           if (status == 'error' || status == 'failed' || status == 'failure') {
             debugPrint(
               '❌ [Cloud Save] '
-              'Apps Script رفض الحفظ: '
+              'رفض السيرفر: '
               '$decoded',
             );
 
@@ -850,15 +1167,6 @@ class StorageService {
 
   // ============================================================
   // SAVE LOCAL USERS
-  //
-  // 🚨 أهم إصلاح:
-  //
-  // لا نحفظ registeredUsers وحدها.
-  //
-  // نقرأ saved_users الموجودة مسبقاً ثم ندمجها مع الحالية.
-  //
-  // وبالتالي لو حدثت عملية Sync ناقصة أو تغير شكل البيانات،
-  // لا تختفي الحسابات القديمة.
   // ============================================================
 
   static Future<void> saveUsersList() async {
@@ -876,18 +1184,9 @@ class StorageService {
         incoming: registeredUsers,
       );
 
+      registeredUsers = mergedUsers;
+
       _ensureAdmin();
-
-      // --------------------------------------------------------
-      // بعد الدمج نضمن وجود المدير.
-      // --------------------------------------------------------
-
-      final List<UserModel> finalUsers = _mergeUserLists(
-        existing: mergedUsers,
-        incoming: [adminUser],
-      );
-
-      registeredUsers = finalUsers;
 
       final List<Map<String, dynamic>> jsonList = registeredUsers
           .where((u) => _isPersistableUser(u))
@@ -897,7 +1196,7 @@ class StorageService {
       final String encoded = json.encode(jsonList);
 
       // --------------------------------------------------------
-      // أولاً: النسخة الاحتياطية القديمة.
+      // BACKUP
       // --------------------------------------------------------
 
       if (existingEncoded != null && existingEncoded.trim().isNotEmpty) {
@@ -905,14 +1204,18 @@ class StorageService {
       }
 
       // --------------------------------------------------------
-      // ثم البيانات المدمجة الجديدة.
+      // NEW DATA
       // --------------------------------------------------------
 
       await prefs.setString(savedUsersKey, encoded);
 
       // --------------------------------------------------------
-      // وأخيراً نحدث الإصدار.
+      // REGISTRATION SEQUENCE
+      //
+      // لا ننقصه أبداً.
       // --------------------------------------------------------
+
+      await _syncRegistrationSequenceFromUsers(prefs);
 
       await prefs.setInt(localUsersVersionKey, currentLocalUsersVersion);
 
@@ -921,7 +1224,13 @@ class StorageService {
       debugPrint(
         '💾 [Local Save] '
         'تم حفظ ${jsonList.length} '
-        'مستخدم محلياً مع الحفاظ على البيانات القديمة.',
+        'مستخدم.',
+      );
+
+      debugPrint(
+        '👥 [Registration Counter] '
+        'العملاء الحاليون: '
+        '${getRegistrationCount()}',
       );
     } catch (e) {
       debugPrint('❌ [Local Save] $e');
@@ -937,8 +1246,8 @@ class StorageService {
 
     if (!_isPersistableUser(newUser)) {
       debugPrint(
-        '❌ محاولة حفظ مستخدم '
-        'بدون هوية صالحة تم رفضها.',
+        '❌ [Add User] '
+        'هوية المستخدم غير صالحة.',
       );
 
       return;
@@ -951,15 +1260,23 @@ class StorageService {
       newUser: newUser,
     );
 
+    // ----------------------------------------------------------
+    // CLOUD
+    // ----------------------------------------------------------
+
     final bool cloudSaved = await _saveToCloud(protectedUser);
 
     if (!cloudSaved) {
       debugPrint(
         '⚠️ [Add User] '
         'فشل الحفظ السحابي، '
-        'سيتم الاحتفاظ بالنسخة المحلية.',
+        'سيتم الاحتفاظ بالمحلي.',
       );
     }
+
+    // ----------------------------------------------------------
+    // LOCAL
+    // ----------------------------------------------------------
 
     final int index = registeredUsers.indexWhere(
       (u) => _sameUser(u, protectedUser),
@@ -974,6 +1291,12 @@ class StorageService {
     _ensureAdmin();
 
     await saveUsersList();
+
+    debugPrint(
+      '👥 [Registration Counter] '
+      'بعد التسجيل: '
+      '${getRegistrationCount()}',
+    );
   }
 
   // ============================================================
@@ -1013,6 +1336,10 @@ class StorageService {
     _ensureAdmin();
 
     await saveUsersList();
+
+    // ----------------------------------------------------------
+    // UPDATE ACTIVE SESSION
+    // ----------------------------------------------------------
 
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -1074,8 +1401,7 @@ class StorageService {
 
       debugPrint(
         '✅ [Active User] '
-        'تم حفظ المستخدم مع الحفاظ '
-        'على الاشتراك وكلمة السر.',
+        'تم حفظ المستخدم.',
       );
     } catch (e) {
       debugPrint('❌ [Active User] $e');
@@ -1168,11 +1494,6 @@ class StorageService {
       }
     }
 
-    // ----------------------------------------------------------
-    // لا نستبدل البيانات المحلية.
-    // ندمجها.
-    // ----------------------------------------------------------
-
     registeredUsers = _mergeUserLists(
       existing: registeredUsers,
       incoming: users,
@@ -1183,10 +1504,16 @@ class StorageService {
     _isLoaded = true;
 
     await saveUsersList();
+
+    debugPrint(
+      '👥 [Registration Counter] '
+      'بعد Save Clients Data: '
+      '${getRegistrationCount()}',
+    );
   }
 
   // ============================================================
-  // FETCH ALL USERS FROM VERCEL
+  // FETCH VERCEL USERS
   // ============================================================
 
   static Future<List<UserModel>?> _fetchAllUsersFromVercel() async {
@@ -1200,110 +1527,6 @@ class StorageService {
       final http.Response response = await http
           .get(uri, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 15));
-
-      debugPrint(
-        '☁️ [Vercel GetAll] '
-        'HTTP ${response.statusCode}',
-      );
-
-      if (response.statusCode != 200) {
-        return null;
-      }
-
-      if (_isHtmlResponse(response.body)) {
-        debugPrint(
-          '❌ [Vercel GetAll] '
-          'السيرفر أعاد HTML.',
-        );
-
-        return null;
-      }
-
-      final dynamic decoded = json.decode(response.body);
-
-      List<dynamic> rawUsers = [];
-
-      if (decoded is Map && decoded['users'] is List) {
-        rawUsers = List<dynamic>.from(decoded['users']);
-      } else if (decoded is Map && decoded['data'] is List) {
-        rawUsers = List<dynamic>.from(decoded['data']);
-      } else if (decoded is List) {
-        rawUsers = List<dynamic>.from(decoded);
-      } else {
-        debugPrint(
-          '❌ [Vercel GetAll] '
-          'لا توجد قائمة users.',
-        );
-
-        return null;
-      }
-
-      final List<UserModel> cloudUsers = [];
-
-      for (final dynamic item in rawUsers) {
-        if (item is! Map) {
-          continue;
-        }
-
-        try {
-          final Map<String, dynamic> rawMap = Map<String, dynamic>.from(item);
-
-          final Map<String, dynamic> mapItem = _normalizeUserMap(rawMap);
-
-          final UserModel cloudUser = UserModel.fromJson(mapItem);
-
-          if (!_isPersistableUser(cloudUser)) {
-            continue;
-          }
-
-          if (_isAdminUser(cloudUser)) {
-            continue;
-          }
-
-          cloudUsers.add(cloudUser);
-        } catch (e) {
-          debugPrint(
-            '⚠️ [Vercel Cloud User Parse] '
-            '$e',
-          );
-        }
-      }
-
-      debugPrint(
-        '✅ [Vercel GetAll] '
-        'تم تحليل '
-        '${cloudUsers.length} '
-        'عميل.',
-      );
-
-      return cloudUsers;
-    } catch (e) {
-      debugPrint('❌ [Vercel GetAll Exception] $e');
-
-      return null;
-    }
-  }
-
-  // ============================================================
-  // FETCH ALL USERS FROM GOOGLE APPS SCRIPT
-  // ============================================================
-
-  static Future<List<UserModel>?> _fetchAllUsersFromGoogle() async {
-    try {
-      final Uri uri = Uri.parse(
-        _scriptUrl,
-      ).replace(queryParameters: {'action': 'getAll'});
-
-      debugPrint('☁️ [Google GetAll] GET $uri');
-
-      final http.Response response = await http
-          .get(uri, headers: const {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 15));
-
-      debugPrint(
-        '☁️ [Google GetAll] '
-        'HTTP ${response.statusCode}',
-      );
 
       if (response.statusCode != 200) {
         return null;
@@ -1351,18 +1574,92 @@ class StorageService {
 
           cloudUsers.add(cloudUser);
         } catch (e) {
-          debugPrint(
-            '⚠️ [Google Cloud User Parse] '
-            '$e',
-          );
+          debugPrint('⚠️ [Vercel User Parse] $e');
+        }
+      }
+
+      debugPrint(
+        '✅ [Vercel GetAll] '
+        '${cloudUsers.length} عميل.',
+      );
+
+      return cloudUsers;
+    } catch (e) {
+      debugPrint('❌ [Vercel GetAll Exception] $e');
+
+      return null;
+    }
+  }
+
+  // ============================================================
+  // FETCH GOOGLE USERS
+  // ============================================================
+
+  static Future<List<UserModel>?> _fetchAllUsersFromGoogle() async {
+    try {
+      final Uri uri = Uri.parse(
+        _scriptUrl,
+      ).replace(queryParameters: {'action': 'getAll'});
+
+      debugPrint('☁️ [Google GetAll] GET $uri');
+
+      final http.Response response = await http
+          .get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      if (_isHtmlResponse(response.body)) {
+        return null;
+      }
+
+      final dynamic decoded = json.decode(response.body);
+
+      List<dynamic> rawUsers = [];
+
+      if (decoded is Map && decoded['users'] is List) {
+        rawUsers = List<dynamic>.from(decoded['users']);
+      } else if (decoded is Map && decoded['data'] is List) {
+        rawUsers = List<dynamic>.from(decoded['data']);
+      } else if (decoded is List) {
+        rawUsers = List<dynamic>.from(decoded);
+      } else {
+        return null;
+      }
+
+      final List<UserModel> cloudUsers = [];
+
+      for (final dynamic item in rawUsers) {
+        if (item is! Map) {
+          continue;
+        }
+
+        try {
+          final Map<String, dynamic> rawMap = Map<String, dynamic>.from(item);
+
+          final Map<String, dynamic> normalized = _normalizeUserMap(rawMap);
+
+          final UserModel cloudUser = UserModel.fromJson(normalized);
+
+          if (!_isPersistableUser(cloudUser)) {
+            continue;
+          }
+
+          if (_isAdminUser(cloudUser)) {
+            continue;
+          }
+
+          cloudUsers.add(cloudUser);
+        } catch (e) {
+          debugPrint('⚠️ [Google User Parse] $e');
         }
       }
 
       debugPrint(
         '✅ [Google GetAll] '
-        'تم تحليل '
-        '${cloudUsers.length} '
-        'عميل.',
+        '${cloudUsers.length} عميل.',
       );
 
       return cloudUsers;
@@ -1374,7 +1671,7 @@ class StorageService {
   }
 
   // ============================================================
-  // FETCH ALL USERS
+  // FETCH CLOUD USERS
   // ============================================================
 
   static Future<List<UserModel>?> _fetchAllUsersFromCloud() async {
@@ -1386,7 +1683,7 @@ class StorageService {
 
     debugPrint(
       '⚠️ [Cloud GetAll] '
-      'Vercel فشل، نجرب Google Apps Script...',
+      'Vercel فشل، نجرب Google.',
     );
 
     final List<UserModel>? googleUsers = await _fetchAllUsersFromGoogle();
@@ -1405,18 +1702,6 @@ class StorageService {
 
   // ============================================================
   // SYNC CLIENTS
-  //
-  // 🚨 الإصلاح الرئيسي:
-  //
-  // لا نفعل:
-  //
-  // registeredUsers = cloudUsers;
-  //
-  // بل:
-  //
-  // local + cloud = merge
-  //
-  // وبالتالي العميل الموجود محلياً لن يختفي بسبب Sync.
   // ============================================================
 
   static Future<bool> syncClientsFromCloud({bool saveLocal = true}) async {
@@ -1429,10 +1714,6 @@ class StorageService {
     try {
       await ensureLoaded();
 
-      // --------------------------------------------------------
-      // احتفظ بنسخة من المحلي قبل أي Sync.
-      // --------------------------------------------------------
-
       final List<UserModel> localBeforeSync = List<UserModel>.from(
         registeredUsers,
       );
@@ -1442,15 +1723,15 @@ class StorageService {
       if (cloudUsers == null) {
         debugPrint(
           '⚠️ [Cloud Sync] '
-          'فشل جلب العملاء. '
-          'سيتم الاحتفاظ بالـ Local Cache.',
+          'فشل الجلب، '
+          'نحتفظ بالمحلي.',
         );
 
         return false;
       }
 
       // --------------------------------------------------------
-      // دمج المحلي مع السحابة.
+      // LOCAL + CLOUD
       // --------------------------------------------------------
 
       registeredUsers = _mergeUserLists(
@@ -1460,14 +1741,22 @@ class StorageService {
 
       _ensureAdmin();
 
+      // --------------------------------------------------------
+      // تحديث أعلى رقم تسجيل.
+      // --------------------------------------------------------
+
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+      await _syncRegistrationSequenceFromUsers(prefs);
+
       if (saveLocal) {
         await saveUsersList();
       }
 
       debugPrint(
         '☁️ [Cloud Sync] '
-        'تم دمج العملاء من السحابة مع Local Cache: '
-        '${registeredUsers.length - 1} '
+        'تم دمج العملاء: '
+        '${getRegistrationCount()} '
         'عميل.',
       );
 
@@ -1483,8 +1772,6 @@ class StorageService {
 
   // ============================================================
   // ADMIN SYNC
-  //
-  // محفوظ كما هو منطقياً.
   // ============================================================
 
   static Future<bool> syncAdminData() async {
@@ -1524,9 +1811,7 @@ class StorageService {
         await saveUsersList();
       }
 
-      final bool clientsSynced = await syncClientsFromCloud();
-
-      return clientsSynced;
+      return await syncClientsFromCloud();
     } catch (e) {
       debugPrint('⚠️ [Admin Sync] $e');
 
@@ -1580,7 +1865,7 @@ class StorageService {
   }
 
   // ============================================================
-  // ACTIVATE STORE (النسخة النهائية المحدثة)
+  // ACTIVATE STORE
   // ============================================================
 
   static Future<UserModel?> activateStore({
@@ -1614,7 +1899,10 @@ class StorageService {
         },
       );
 
-      debugPrint('🔐 [Store Activation] إرسال طلب التنشيط...');
+      debugPrint(
+        '🔐 [Store Activation] '
+        'إرسال طلب التنشيط...',
+      );
 
       final http.Response response = await http
           .get(uri, headers: const {'Accept': 'application/json'})
@@ -1640,29 +1928,42 @@ class StorageService {
 
       if (status != 'success') {
         final String message = _clean(data['message']?.toString());
+
         throw Exception(
           message.isNotEmpty ? message : 'مفتاح التنشيط غير صالح.',
         );
       }
 
       String publishDate = _clean(data['storePublishDate']?.toString());
+
       String activationDate = _clean(data['activationDate']?.toString());
 
       UserModel activatedUser = user;
+
+      // --------------------------------------------------------
+      // CLOUD USER
+      // --------------------------------------------------------
 
       if (data['user'] is Map) {
         try {
           final Map<String, dynamic> rawUser = Map<String, dynamic>.from(
             data['user'],
           );
+
           final Map<String, dynamic> normalized = _normalizeUserMap(rawUser);
+
           final UserModel cloudUser = UserModel.fromJson(normalized);
 
           activatedUser = _preserveUserState(oldUser: user, newUser: cloudUser);
+
           publishDate = _clean(activatedUser.storePublishDate);
+
           activationDate = _clean(activatedUser.activationDate);
         } catch (e) {
-          debugPrint('⚠️ [Store Activation] تعذر قراءة User: $e');
+          debugPrint(
+            '⚠️ [Store Activation] '
+            'تعذر قراءة User: $e',
+          );
         }
       }
 
@@ -1677,8 +1978,23 @@ class StorageService {
             : publishDate,
       );
 
-      // 🚨 إرسال التحديثات للسحابة والشيت فوراً لضمان طباعة التواريخ
-      await _saveToCloud(activatedUser);
+      // --------------------------------------------------------
+      // CLOUD
+      // --------------------------------------------------------
+
+      final bool cloudSaved = await _saveToCloud(activatedUser);
+
+      if (!cloudSaved) {
+        debugPrint(
+          '⚠️ [Store Activation] '
+          'تعذر تحديث الشيت بعد التنشيط، '
+          'لكن لن نفقد البيانات المحلية.',
+        );
+      }
+
+      // --------------------------------------------------------
+      // LOCAL
+      // --------------------------------------------------------
 
       final int index = registeredUsers.indexWhere(
         (u) => _sameUser(u, activatedUser),
@@ -1694,25 +2010,38 @@ class StorageService {
       }
 
       _ensureAdmin();
+
       await saveUsersList();
 
+      // --------------------------------------------------------
+      // ACTIVE SESSION
+      // --------------------------------------------------------
+
       final SharedPreferences prefs = await SharedPreferences.getInstance();
+
       await prefs.setString(userKey, jsonEncode(activatedUser.toJson()));
 
-      debugPrint('✅ [Store Activation] تم تنشيط المتجر وحفظ التواريخ بنجاح.');
+      debugPrint(
+        '✅ [Store Activation] '
+        'تم التنشيط.',
+      );
+
+      debugPrint(
+        '🏪 [Subscription] '
+        'المتبقي: '
+        '${getRemainingSubscriptionDays(activatedUser)} يوم.',
+      );
 
       return activatedUser;
     } catch (e) {
       debugPrint('❌ [Store Activation] $e');
+
       rethrow;
     }
   }
+
   // ============================================================
   // AUTHENTICATE ASYNC
-  //
-  // ⚠️ منطق المدير القديم محفوظ.
-  //
-  // هذه الدالة تبقى للتوافق مع أي مكان قديم في التطبيق.
   // ============================================================
 
   static Future<UserModel?> authenticateAsync(
@@ -1731,7 +2060,7 @@ class StorageService {
     }
 
     // ----------------------------------------------------------
-    // المدير
+    // ADMIN
     // ----------------------------------------------------------
 
     final bool isAdminLogin = _isAdminIdentity(
@@ -1751,7 +2080,7 @@ class StorageService {
     }
 
     // ----------------------------------------------------------
-    // Local Login
+    // LOCAL
     // ----------------------------------------------------------
 
     try {
@@ -1768,7 +2097,7 @@ class StorageService {
     } catch (_) {}
 
     // ----------------------------------------------------------
-    // Cloud Login
+    // CLOUD
     // ----------------------------------------------------------
 
     try {
@@ -1785,11 +2114,7 @@ class StorageService {
           .get(uri, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode != 200) {
-        return null;
-      }
-
-      if (_isHtmlResponse(response.body)) {
+      if (response.statusCode != 200 || _isHtmlResponse(response.body)) {
         return null;
       }
 
@@ -1816,7 +2141,7 @@ class StorageService {
       );
 
       // --------------------------------------------------------
-      // Cloud Admin
+      // ADMIN
       // --------------------------------------------------------
 
       if (_isAdminUser(cloudUser)) {
@@ -1855,7 +2180,7 @@ class StorageService {
       }
 
       // --------------------------------------------------------
-      // Normal Cloud User
+      // NORMAL USER
       // --------------------------------------------------------
 
       final UserModel? oldUser = _findLocalUser(cloudUser);
@@ -1889,18 +2214,6 @@ class StorageService {
 
   // ============================================================
   // CUSTOMER AUTHENTICATION
-  //
-  // ============================================================
-  //
-  // دخول العميل الجديد:
-  //
-  // phone
-  // +
-  // guardianMoxId
-  // +
-  // password
-  //
-  // هذه هي الدالة التي يجب أن تستخدمها شاشة دخول العميل.
   // ============================================================
 
   static Future<UserModel?> authenticateCustomerAsync({
@@ -1916,27 +2229,12 @@ class StorageService {
 
     final String cleanPassword = password.trim();
 
-    // ----------------------------------------------------------
-    // Validation
-    // ----------------------------------------------------------
-
     if (cleanPhone.isEmpty || cleanGuardian.isEmpty || cleanPassword.isEmpty) {
-      debugPrint(
-        '⚠️ [Customer Login] '
-        'بيانات الدخول غير مكتملة.',
-      );
-
       return null;
     }
 
     // ----------------------------------------------------------
-    // Local Customer Login
-    //
-    // يجب تطابق الثلاثة:
-    //
-    // phone
-    // guardianMoxId
-    // password
+    // LOCAL CUSTOMER
     // ----------------------------------------------------------
 
     try {
@@ -1958,70 +2256,32 @@ class StorageService {
             u.password.trim() == cleanPassword;
       });
 
-      debugPrint(
-        '✅ [Customer Local Login] '
-        'تم تسجيل دخول العميل محلياً.',
-      );
+      debugPrint('✅ [Customer Local Login]');
 
       return localUser;
     } catch (_) {}
 
     // ----------------------------------------------------------
-    // Cloud Customer Login
+    // CLOUD CUSTOMER
     // ----------------------------------------------------------
 
     try {
       final Uri uri = Uri.parse(_scriptUrl).replace(
         queryParameters: {
           'action': 'login',
-
-          // ----------------------------------------------------
-          // نرسل phone صراحة.
-          // ----------------------------------------------------
           'phone': cleanPhone,
-
-          // ----------------------------------------------------
-          // guardianMoxId هو المعرف الثاني.
-          // ----------------------------------------------------
           'guardianMoxId': cleanGuardian,
-
-          // ----------------------------------------------------
-          // نرسل input أيضاً للتوافق مع Apps Script الحالي.
-          // ----------------------------------------------------
           'input': cleanPhone,
-
           'password': cleanPassword,
-
           'isMoxId': 'false',
         },
-      );
-
-      debugPrint(
-        '☁️ [Customer Login] '
-        'التحقق من العميل: '
-        '$cleanPhone / '
-        '$cleanGuardian',
       );
 
       final http.Response response = await http
           .get(uri, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 10));
 
-      debugPrint(
-        '☁️ [Customer Login] '
-        'HTTP ${response.statusCode}',
-      );
-
-      if (response.statusCode != 200) {
-        return null;
-      }
-
-      if (_isHtmlResponse(response.body)) {
-        debugPrint(
-          '❌ [Customer Login] '
-          'السيرفر أعاد HTML.',
-        );
-
+      if (response.statusCode != 200 || _isHtmlResponse(response.body)) {
         return null;
       }
 
@@ -2034,23 +2294,12 @@ class StorageService {
       final Map<String, dynamic> map = Map<String, dynamic>.from(decoded);
 
       if (map['status'] != 'success') {
-        debugPrint(
-          '⚠️ [Customer Login] '
-          'رفض تسجيل الدخول: '
-          '${map['message'] ?? ''}',
-        );
-
         return null;
       }
 
       final dynamic rawUser = map['user'];
 
       if (rawUser is! Map) {
-        debugPrint(
-          '❌ [Customer Login] '
-          'لم تصل بيانات المستخدم.',
-        );
-
         return null;
       }
 
@@ -2059,7 +2308,7 @@ class StorageService {
       );
 
       // --------------------------------------------------------
-      // تأكيد الهوية القادمة من السحابة.
+      // VERIFY IDENTITY
       // --------------------------------------------------------
 
       final String returnedPhone = cloudUser.phone.trim();
@@ -2079,20 +2328,11 @@ class StorageService {
           returnedGuardianCustomer == cleanGuardian;
 
       if (!phoneMatches || !guardianMatches) {
-        debugPrint(
-          '❌ [Customer Login] '
-          'بيانات الهوية القادمة من السحابة '
-          'لا تطابق بيانات الدخول.',
-        );
-
         return null;
       }
 
       // --------------------------------------------------------
-      // مهم:
-      //
-      // إذا لم ترسل السحابة كلمة السر في response،
-      // لا نضع null/فراغ مكان القديمة.
+      // PRESERVE PASSWORD
       // --------------------------------------------------------
 
       final UserModel? oldUser = _findLocalUser(cloudUser);
@@ -2105,10 +2345,6 @@ class StorageService {
               : cleanPassword,
         ),
       );
-
-      // --------------------------------------------------------
-      // حفظ محلي
-      // --------------------------------------------------------
 
       final int index = registeredUsers.indexWhere(
         (u) => _sameUser(u, protectedUser),
@@ -2124,17 +2360,13 @@ class StorageService {
 
       await saveUsersList();
 
-      // --------------------------------------------------------
-      // حفظ جلسة المستخدم
-      // --------------------------------------------------------
-
       final SharedPreferences prefs = await SharedPreferences.getInstance();
 
       await prefs.setString(userKey, jsonEncode(protectedUser.toJson()));
 
       debugPrint(
         '✅ [Customer Cloud Login] '
-        'تم تسجيل دخول العميل وحفظه محلياً.',
+        'تم تسجيل الدخول.',
       );
 
       return protectedUser;
@@ -2147,8 +2379,6 @@ class StorageService {
 
   // ============================================================
   // AUTHENTICATE SYNC
-  //
-  // المدير القديم محفوظ.
   // ============================================================
 
   static UserModel? authenticate(String input, String password, bool isMoxId) {
@@ -2178,7 +2408,7 @@ class StorageService {
   }
 
   // ============================================================
-  // GET USER BY MOX ID / GUARDIAN
+  // GET USER BY MOX ID / PHONE / GUARDIAN
   // ============================================================
 
   static Future<UserModel?> getUserByMoxId(String identifier) async {
@@ -2199,18 +2429,8 @@ class StorageService {
           .get(uri, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 15));
 
-      debugPrint(
-        '🌐 [Public Store] '
-        'HTTP ${response.statusCode}',
-      );
-
       if (response.statusCode == 200) {
-        if (_isHtmlResponse(response.body)) {
-          debugPrint(
-            '⚠️ [Public Store] '
-            'الاستجابة HTML.',
-          );
-        } else {
+        if (!_isHtmlResponse(response.body)) {
           final dynamic decoded = json.decode(response.body);
 
           if (decoded is Map) {
@@ -2231,11 +2451,9 @@ class StorageService {
             }
 
             if (rawUser != null) {
-              final Map<String, dynamic> normalized = _normalizeUserMap(
-                rawUser,
+              final UserModel cloudUser = UserModel.fromJson(
+                _normalizeUserMap(rawUser),
               );
-
-              final UserModel cloudUser = UserModel.fromJson(normalized);
 
               if (_isPersistableUser(cloudUser)) {
                 if (!_isAdminUser(cloudUser)) {
@@ -2274,7 +2492,7 @@ class StorageService {
     }
 
     // ----------------------------------------------------------
-    // Local fallback
+    // LOCAL FALLBACK
     // ----------------------------------------------------------
 
     try {
