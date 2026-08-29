@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
 
@@ -29,33 +30,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String _selectedAccountType = "فردي";
 
   bool _isPasswordVisible = false;
+
   bool _isRegistering = false;
-  // ============================================================
-  // موافقة المستخدم على لائحة إدارة بنك موكس
-  // ============================================================
 
   bool _acceptedMoxRules = false;
 
   // ============================================================
-  // ADMIN REFERRAL ID
+  // DEFAULT GUARDIAN
   // ============================================================
 
   static const String _defaultGuardianId = "MOX249-00010001";
 
   // ============================================================
-  // GENERATE MOX ID
+  // LOADING STATE
   // ============================================================
-  //
-  // المدير:
-  // ID-005000
-  //
-  // أول عميل:
-  // ID-005001
-  //
-  // ثاني عميل:
-  // ID-005002
-  //
-  // وهكذا...
+
+  bool _loadingDialogVisible = false;
+
+  // ============================================================
+  // GENERATE CENTRAL MOX ID
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
@@ -69,61 +62,89 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           },
         );
 
-    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google...');
+    debugPrint('🆔 [MOX ID] طلب رقم مركزي جديد من Google...');
+
+    final http.Response response = await http
+        .get(uri)
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode != 200) {
+      throw Exception('كود الخطأ من Google: ${response.statusCode}');
+    }
+
+    final String body = response.body.trim();
+
+    debugPrint('📥 [MOX ID Raw Response] $body');
+
+    dynamic decoded;
 
     try {
-      final http.Response response = await http
-          .get(uri)
-          .timeout(const Duration(seconds: 15));
-
-      if (response.statusCode != 200) {
-        throw Exception('كود الخطأ من قوقل: ${response.statusCode}');
-      }
-
-      final String body = response.body.trim();
-      debugPrint('📥 [MOX ID Raw Response] $body');
-
-      final dynamic decoded = jsonDecode(body);
-
-      if (decoded is Map) {
-        final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
-
-        // إذا كان الكائن يعيد معلومات الـ API، نبحث عن الرقم في أماكن أخرى أو نولد رقماً تتابعياً احتياطياً مؤقتاً لضمان عدم توقف النظام
-        final String moxId =
-            (data['moxId'] ?? data['id'] ?? data['number'] ?? '')
-                .toString()
-                .trim()
-                .toUpperCase();
-
-        if (moxId.isNotEmpty && !moxId.contains('MOX STORE API')) {
-          if (RegExp(r'^\d+$').hasMatch(moxId)) {
-            return 'ID-${moxId.padLeft(6, '0')}';
-          }
-          return moxId;
-        }
-      }
-
-      // حل احتياطي تكتيكي: إذا أعاد قوقل استجابة عامة، نولد رقماً تسلسلياً بناءً على عدد المستخدمين المحلي لتكتمل الشهادة برقم حقيقي فوري
-      int nextSeq = 5001 + StorageService.registeredUsers.length;
-      String fallbackId = 'ID-${nextSeq.toString().padLeft(6, '0')}';
-      debugPrint('⚠️ [MOX ID Fallback] تم توليد الرقم احتياطياً: $fallbackId');
-      return fallbackId;
+      decoded = jsonDecode(body);
     } catch (e) {
-      debugPrint('🚨 خطأ تفصيلي أثناء جلب الـ ID: $e');
-      int nextSeq = 5001 + StorageService.registeredUsers.length;
-      return 'ID-${nextSeq.toString().padLeft(6, '0')}';
+      throw Exception('استجابة Google ليست JSON صحيحة: $body');
     }
+
+    if (decoded is! Map) {
+      throw Exception('استجابة Google غير صحيحة.');
+    }
+
+    final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+
+    final bool success =
+        data['success'] == true ||
+        data['status'].toString().toLowerCase() == 'success';
+
+    if (!success) {
+      throw Exception(
+        data['message']?.toString() ?? 'تعذر الحصول على رقم MOX مركزي.',
+      );
+    }
+
+    String moxId = (data['moxId'] ?? data['id'] ?? '')
+        .toString()
+        .trim()
+        .toUpperCase();
+
+    if (moxId.isEmpty) {
+      throw Exception('Google لم يرجع رقم MOX.');
+    }
+
+    // ==========================================================
+    // NORMALIZE NUMERIC RESPONSE
+    // ==========================================================
+
+    if (RegExp(r'^\d+$').hasMatch(moxId)) {
+      moxId = 'ID-${moxId.padLeft(6, '0')}';
+    }
+
+    // ==========================================================
+    // VALIDATE FORMAT
+    // ==========================================================
+
+    if (!RegExp(r'^ID-\d{6}$').hasMatch(moxId)) {
+      throw Exception('رقم MOX غير صالح: $moxId');
+    }
+
+    debugPrint('✅ [MOX ID] تم استلام الرقم المركزي: $moxId');
+
+    return moxId;
   }
 
   // ============================================================
-  // LOADING
+  // SHOW LOADING
   // ============================================================
 
   void _showLoadingDialog() {
+    if (!mounted || _loadingDialogVisible) {
+      return;
+    }
+
+    _loadingDialogVisible = true;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -152,7 +173,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
         );
       },
-    );
+    ).then((_) {
+      _loadingDialogVisible = false;
+    });
+  }
+
+  // ============================================================
+  // CLOSE LOADING SAFELY
+  // ============================================================
+
+  void _closeLoadingDialog() {
+    if (!mounted || !_loadingDialogVisible) {
+      return;
+    }
+
+    _loadingDialogVisible = false;
+
+    Navigator.of(context).pop();
   }
 
   // ============================================================
@@ -160,89 +197,104 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<void> _register() async {
+    // ==========================================================
+    // PROTECT DOUBLE CLICK
+    // ==========================================================
+
     if (_isRegistering) {
+      debugPrint('⚠️ [Registration] التسجيل قيد التنفيذ بالفعل.');
       return;
     }
 
-    _isRegistering = true;
+    setState(() {
+      _isRegistering = true;
+    });
 
     try {
-      final phoneInput = _phoneController.text.trim();
+      final String phoneInput = _phoneController.text.trim();
 
-      final password = _passwordController.text.trim();
+      final String password = _passwordController.text.trim();
 
-      final name = _nameController.text.trim();
+      final String name = _nameController.text.trim();
 
-      final address = _addressController.text.trim();
+      final String address = _addressController.text.trim();
 
-      // ============================================================
-      // موافقة اللائحة
-      // ============================================================
+      // ========================================================
+      // RULES
+      // ========================================================
 
       if (!_acceptedMoxRules) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "⚠️ يجب الإقرار بالموافقة على لائحة إدارة بنك موكس والموافقة على موجهات الإدارة قبل إتمام التسجيل.",
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "⚠️ يجب الإقرار بالموافقة على لائحة إدارة بنك موكس والموافقة على موجهات الإدارة قبل إتمام التسجيل.",
+              ),
+              backgroundColor: Colors.red,
             ),
-            backgroundColor: Colors.red,
-          ),
-        );
+          );
+        }
 
         return;
       }
 
-      // ============================================================
-      // PHONE VALIDATION
-      // ============================================================
+      // ========================================================
+      // PHONE
+      // ========================================================
 
       final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
 
       if (name.isEmpty || !isPhoneValid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249xxxxxxxxx).",
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "⚠️ يرجى إدخال الاسم كاملاً، ورقم الهاتف بالصيغة الصحيحة (249xxxxxxxxx).",
+              ),
+              backgroundColor: Colors.red,
             ),
-            backgroundColor: Colors.red,
-          ),
-        );
+          );
+        }
 
         return;
       }
 
-      // ============================================================
-      // PASSWORD VALIDATION
-      // ============================================================
+      // ========================================================
+      // PASSWORD
+      // ========================================================
 
       if (password.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("⚠️ يرجى إدخال كلمة السر."),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("⚠️ يرجى إدخال كلمة السر."),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
 
         return;
       }
 
-      // ============================================================
+      // ========================================================
       // SHOW LOADING
-      // ============================================================
+      // ========================================================
 
       _showLoadingDialog();
 
       // ========================================================
-      // GENERATE MOX ID
+      // GET CENTRAL MOX ID
       // ========================================================
 
       final String newMoxId = await _generateSequentialMoxId();
+
+      debugPrint('🆔 [Registration] MOX ID المحجوز: $newMoxId');
 
       // ========================================================
       // GUARDIAN
       // ========================================================
 
-      final inputGuardian = _guardianController.text.trim();
+      final String inputGuardian = _guardianController.text.trim();
 
       final String finalCustomerGuardianId = inputGuardian.isEmpty
           ? _defaultGuardianId
@@ -285,7 +337,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       );
 
       // ========================================================
-      // SAVE USER + REFERRAL
+      // SAVE USER
       // ========================================================
 
       final bool success = await _addUserWithReferral(
@@ -293,10 +345,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         finalCustomerGuardianId,
       );
 
-      if (!success) {
-        if (mounted) {
-          Navigator.pop(context);
+      // ========================================================
+      // SAVE FAILED
+      // ========================================================
 
+      if (!success) {
+        _closeLoadingDialog();
+
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("❌ تعذر اعتماد الحساب في قاعدة البيانات السحابية."),
@@ -312,21 +368,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       // CLOSE LOADING
       // ========================================================
 
+      _closeLoadingDialog();
+
+      // ========================================================
+      // SHOW CERTIFICATE
+      // ========================================================
+
       if (!mounted) {
         return;
       }
 
-      Navigator.pop(context);
-
-      // ========================================================
-      // CERTIFICATE
-      // ========================================================
-
       _showSovereignCertificate(newUser, newMoxId);
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
+      // ========================================================
+      // CLOSE LOADING IF OPEN
+      // ========================================================
 
+      _closeLoadingDialog();
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("❌ حدث خطأ أثناء التسجيل: $e"),
@@ -334,10 +394,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
         );
       }
+
+      debugPrint('🚨 [Registration Error] $e');
     } finally {
-      _isRegistering = false;
+      if (mounted) {
+        setState(() {
+          _isRegistering = false;
+        });
+      }
     }
   }
+
   // ============================================================
   // ADD USER + REFERRAL
   // ============================================================
@@ -346,15 +413,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     UserModel newUser,
     String guardianId,
   ) async {
-    // ============================================================
-    // 1. تأكد من تحميل Local Cache
-    // ============================================================
+    // ==========================================================
+    // 1. LOAD LOCAL CACHE
+    // ==========================================================
 
     await StorageService.ensureLoaded();
 
-    // ============================================================
-    // 2. Sync أخير قبل التسجيل
-    // ============================================================
+    // ==========================================================
+    // 2. SYNC CLOUD
+    // ==========================================================
 
     try {
       await StorageService.syncClientsFromCloud(saveLocal: true);
@@ -362,9 +429,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       debugPrint('⚠️ [Registration] تعذر تحديث السحابة قبل التسجيل: $e');
     }
 
-    // ============================================================
+    // ==========================================================
     // 3. CHECK DUPLICATE PHONE
-    // ============================================================
+    // ==========================================================
 
     final String newPhone = newUser.phone.trim();
 
@@ -378,9 +445,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return false;
     }
 
-    // ============================================================
+    // ==========================================================
     // 4. CHECK DUPLICATE MOX ID
-    // ============================================================
+    // ==========================================================
 
     final String newMoxId = newUser.moxId.trim().toUpperCase();
 
@@ -394,9 +461,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return false;
     }
 
-    // ============================================================
+    // ==========================================================
     // 5. FIND GUARDIAN
-    // ============================================================
+    // ==========================================================
 
     UserModel? guardian;
 
@@ -424,9 +491,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
     }
 
-    // ============================================================
+    // ==========================================================
     // 6. SAVE NEW USER
-    // ============================================================
+    // ==========================================================
 
     try {
       await StorageService.addUser(newUser);
@@ -436,9 +503,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return false;
     }
 
-    // ============================================================
-    // 7. UPDATE GUARDIAN POINTS
-    // ============================================================
+    // ==========================================================
+    // 7. UPDATE GUARDIAN
+    // ==========================================================
 
     if (guardian != null) {
       final UserModel updatedGuardian = guardian.copyWith(
@@ -451,8 +518,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         debugPrint('🎁 [Registration] تم منح الوصي 100 نقطة.');
       } catch (e) {
         debugPrint(
-          '⚠️ [Registration] تم تسجيل العميل '
-          'لكن فشل تحديث نقاط الوصي: $e',
+          '⚠️ [Registration] تم تسجيل العميل لكن فشل تحديث نقاط الوصي: $e',
         );
       }
     } else {
@@ -467,26 +533,36 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   void _showSovereignCertificate(UserModel registeredUser, String moxId) {
+    if (!mounted) {
+      return;
+    }
+
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
       barrierLabel: "شهادة اعتماد",
-      pageBuilder: (context, animation, secondaryAnimation) {
+
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
           ),
+
           child: Container(
             constraints: const BoxConstraints(maxHeight: 550),
+
             padding: const EdgeInsets.all(20),
+
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(25),
               border: Border.all(color: moxBlue, width: 3),
             ),
+
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+
                 children: [
                   const Icon(
                     Icons.verified_user,
@@ -521,13 +597,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
                   Container(
                     padding: const EdgeInsets.all(12),
+
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(10),
                     ),
+
                     child: Text(
                       "كود الهوية الرقمية:\n$moxId",
+
                       textAlign: TextAlign.center,
+
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 17,
@@ -554,11 +634,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.pop(context);
 
-                      Navigator.pop(context);
+                    // ==================================================
+                    // IMPORTANT:
+                    // POP THE CERTIFICATE ONLY ONCE
+                    // ==================================================
+                    onPressed: () {
+                      if (!mounted) {
+                        return;
+                      }
+
+                      Navigator.of(dialogContext).pop();
                     },
+
                     child: const Text(
                       "استمرار",
                       style: TextStyle(
@@ -610,12 +698,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           "تسجيل عميل سيادي",
           style: TextStyle(color: Colors.white),
         ),
+
         backgroundColor: moxBlue,
+
         centerTitle: true,
       ),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(25),
+
         child: Column(
           children: [
             const Icon(
@@ -661,17 +752,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             // ==================================================
             TextField(
               controller: _passwordController,
+
               obscureText: !_isPasswordVisible,
+
               decoration: InputDecoration(
                 labelText: "كلمة السر",
+
                 border: const OutlineInputBorder(),
+
                 prefixIcon: const Icon(Icons.lock),
+
                 suffixIcon: IconButton(
                   icon: Icon(
                     _isPasswordVisible
                         ? Icons.visibility
                         : Icons.visibility_off,
                   ),
+
                   onPressed: () {
                     setState(() {
                       _isPasswordVisible = !_isPasswordVisible;
@@ -702,13 +799,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             // ==================================================
             Container(
               padding: const EdgeInsets.all(12),
+
               decoration: BoxDecoration(
                 color: Colors.grey[50],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: moxBlue.withValues(alpha: 0.4)),
               ),
+
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+
                 children: [
                   const Text(
                     "💡 بطاقة الوصي أو المرشد (اختياري)",
@@ -734,6 +834,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
                   TextField(
                     controller: _guardianController,
+
                     decoration: const InputDecoration(
                       labelText: "رقم MOX للوصي",
                       hintText: "MOX249-00010001",
@@ -755,15 +856,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             // ==================================================
             DropdownButtonFormField<String>(
               initialValue: _selectedGender,
+
               items: [
                 "ذكر",
                 "أنثى",
               ].map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
+
               onChanged: (v) {
                 if (v != null) {
                   setState(() => _selectedGender = v);
                 }
               },
+
               decoration: const InputDecoration(
                 labelText: "الجنس",
                 border: OutlineInputBorder(),
@@ -777,15 +881,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             // ==================================================
             DropdownButtonFormField<String>(
               initialValue: _selectedAccountType,
+
               items: [
                 "فردي",
                 "تجاري",
               ].map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
+
               onChanged: (v) {
                 if (v != null) {
                   setState(() => _selectedAccountType = v);
                 }
               },
+
               decoration: const InputDecoration(
                 labelText: "نوع الحساب",
                 border: OutlineInputBorder(),
@@ -795,34 +902,42 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             const SizedBox(height: 20),
 
             // ==================================================
-            // MOX RULES AGREEMENT
-            // ==================================================
-            //
-            // مربع صغير + نص الموافقة
+            // MOX RULES
             // ==================================================
             Container(
               width: double.infinity,
+
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+
               decoration: BoxDecoration(
                 color: Colors.grey[50],
+
                 borderRadius: BorderRadius.circular(10),
+
                 border: Border.all(
                   color: _acceptedMoxRules
                       ? moxBlue.withValues(alpha: 0.5)
                       : Colors.grey.withValues(alpha: 0.35),
                 ),
               ),
+
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
+
                 children: [
                   SizedBox(
                     width: 28,
                     height: 28,
+
                     child: Checkbox(
                       value: _acceptedMoxRules,
+
                       activeColor: moxBlue,
+
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+
                       visualDensity: VisualDensity.compact,
+
                       onChanged: (bool? value) {
                         setState(() {
                           _acceptedMoxRules = value ?? false;
@@ -855,17 +970,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: moxBlue,
+
                 minimumSize: const Size(double.infinity, 50),
               ),
-              onPressed: _register,
-              child: const Text(
-                "إتمام التسجيل السيادي",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+
+              onPressed: _isRegistering ? null : _register,
+
+              child: _isRegistering
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      "إتمام التسجيل السيادي",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
 
             const SizedBox(height: 40),
