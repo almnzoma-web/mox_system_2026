@@ -59,12 +59,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    // تمرير action في الرابط مباشرة ليتوافق مع doGet ويمنع حظر CORS
+    // 👈 ضعه هنا في البداية لتجاوز قيود CORS على الويب
     final Uri uri = Uri.parse(
-      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
-    ).replace(queryParameters: {'action': 'getNextMoxId'});
+      // ignore: prefer_interpolation_to_compose_strings
+      'https://corsproxy.io/?' +
+          Uri.encodeComponent(
+            'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec?action=getNextMoxId',
+          ),
+    );
 
-    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد عبر GET لتجنب CORS...');
+    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد عبر الوكيل...');
 
     final http.Response response = await http
         .get(uri)
