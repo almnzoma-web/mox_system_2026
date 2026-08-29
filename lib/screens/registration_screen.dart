@@ -59,24 +59,20 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
+    // تمرير action في الرابط مباشرة ليتوافق مع doGet ويمنع حظر CORS
     final Uri uri = Uri.parse(
       'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
-    );
+    ).replace(queryParameters: {'action': 'getNextMoxId'});
 
-    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google عبر POST...');
+    debugPrint('🆔 [MOX ID] طلب رقم عميل جديد عبر GET لتجنب CORS...');
 
-    // استخدام http.post مع إرسال action في الـ Body
     final http.Response response = await http
-        .post(
-          uri,
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'action': 'getNextMoxId'}),
-        )
+        .get(uri)
         .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception(
-        'تعذر الحصول على رقم MOX جديد من Google. كود الخطأ: ${response.statusCode}',
+        'تعذر الحصول على رقم MOX جديد. كود الخطأ: ${response.statusCode}',
       );
     }
 
@@ -85,7 +81,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     if (body.isEmpty ||
         body.startsWith('<') ||
         body.toLowerCase().contains('<html')) {
-      throw Exception('Google أعاد استجابة غير صالحة. الاستجابة: $body');
+      throw Exception('Google أعاد استجابة غير صالحة.');
     }
 
     final dynamic decoded = jsonDecode(body);
