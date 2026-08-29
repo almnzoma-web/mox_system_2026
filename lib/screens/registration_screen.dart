@@ -59,57 +59,38 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    final Uri uri = Uri.parse(
-      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
-    ).replace(queryParameters: {'action': 'getNextMoxId'});
+    final Uri uri =
+        Uri.parse(
+          'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
+        ).replace(
+          queryParameters: {
+            'action': 'getNextMoxId',
+            't': DateTime.now().millisecondsSinceEpoch.toString(),
+          },
+        );
 
     debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google...');
 
-    final http.Response response = await http
-        .get(uri, headers: const {'Accept': 'application/json'})
-        .timeout(const Duration(seconds: 15));
+    try {
+      final http.Response response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 15));
 
-    if (response.statusCode != 200) {
-      throw Exception('تعذر الحصول على رقم MOX جديد من Google.');
+      if (response.statusCode != 200) {
+        throw Exception('كود الخطأ من قوقل: ${response.statusCode}');
+      }
+
+      final String body = response.body.trim();
+      final dynamic decoded = jsonDecode(body);
+      final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+
+      final String moxId = data['moxId']?.toString().trim().toUpperCase() ?? '';
+      debugPrint('✅ [MOX ID] تم بنجاح الحصول على الرقم: $moxId');
+      return moxId;
+    } catch (e) {
+      debugPrint('🚨 خطأ تفصيلي أثناء جلب الـ ID: $e');
+      rethrow;
     }
-
-    final String body = response.body.trim();
-
-    if (body.isEmpty ||
-        body.startsWith('<') ||
-        body.toLowerCase().contains('<html')) {
-      throw Exception('Google أعاد استجابة غير صالحة أثناء توليد MOX ID.');
-    }
-
-    final dynamic decoded = jsonDecode(body);
-
-    if (decoded is! Map) {
-      throw Exception('استجابة Google غير صالحة.');
-    }
-
-    final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
-
-    if (data['success'] != true || data['status'] != 'success') {
-      throw Exception(data['message']?.toString() ?? 'فشل توليد رقم MOX.');
-    }
-
-    final String moxId = data['moxId']?.toString().trim().toUpperCase() ?? '';
-
-    if (!RegExp(r'^ID-\d{6}$').hasMatch(moxId)) {
-      throw Exception('Google أعاد MOX ID غير صالح: $moxId');
-    }
-
-    if (response.statusCode != 200) {
-      // 👈 اطبع استجابة قوقل الفعلية لنعرف سبب الرفض
-      debugPrint('🚨 خطأ من قوقل: ${response.statusCode} - ${response.body}');
-      throw Exception(
-        'تعذر الحصول على رقم MOX. كود الخطأ: ${response.statusCode}',
-      );
-    }
-
-    debugPrint('✅ [MOX ID] Google منح الرقم: $moxId');
-
-    return moxId;
   }
   // ============================================================
   // LOADING
