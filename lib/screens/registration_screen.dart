@@ -1,10 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-// ignore: unused_import
-import 'package:http/http.dart';
-import 'package:http/http.dart' as http;
-import 'package:mox_digital_app/main.dart';
 
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
@@ -56,39 +50,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    // ============================================================
-    // 0. الحجز الذري المركزي من السحابة (منع سباق الأجهزة المتعددة)
-    // ============================================================
-
-    try {
-      final Uri cloudApiUri = Uri.parse(
-        publicStoreApi,
-      ).replace(queryParameters: {'action': 'getNextMoxId'});
-
-      final http.Response cloudResponse = await http
-          .get(cloudApiUri, headers: const {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 15));
-
-      if (cloudResponse.statusCode == 200) {
-        final dynamic decodedCloudJson = jsonDecode(cloudResponse.body);
-        if (decodedCloudJson is Map && decodedCloudJson['success'] == true) {
-          final String cloudReservedId =
-              decodedCloudJson['moxId']?.toString().trim().toUpperCase() ?? '';
-
-          if (RegExp(r'^ID-\d{6}$').hasMatch(cloudReservedId)) {
-            debugPrint(
-              '🆔 [CLOUD ATOMIC ID] تم حجز الرقم مركزياً بنجاح: $cloudReservedId',
-            );
-            return cloudReservedId;
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint(
-        '⚠️ [CLOUD ATOMIC ID EXCEPTION] تعذر الاتصال بالسحابة للحجز الذري، الانتقال للنظام المحلي: $e',
-      );
-    }
-
     // ============================================================
     // 1. تأكد أن الذاكرة المحلية محملة
     // ============================================================
