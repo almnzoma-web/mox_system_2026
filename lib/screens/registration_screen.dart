@@ -34,15 +34,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isRegistering = false;
 
   void _checkPlatformAndRegister() {
-    bool isDesktopOrWeb = kIsWeb;
+    bool isWindowsDevice = false;
     try {
-      if (!kIsWeb &&
-          (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-        isDesktopOrWeb = true;
+      if (!kIsWeb && Platform.isWindows) {
+        isWindowsDevice = true;
       }
     } catch (_) {}
 
-    if (isDesktopOrWeb) {
+    if (isWindowsDevice) {
       showDialog(
         context: context,
         builder: (BuildContext context) {
@@ -58,7 +57,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
             content: const Text(
-              "عذراً، التسجيل غير متاح عبر نسختي الوندوز أو الكمبيوتر. يُرجى إتمام عملية التسجيل حصرياً عبر تطبيق الهاتف المحمول الخاص ببنك موكس.",
+              "عذراً، التسجيل عبر نسخة الوندوز محظور. يُرجى إتمام عملية التسجيل حصرياً عبر تطبيق الهاتف المحمول (أندرويد).",
               style: TextStyle(fontSize: 15, height: 1.4),
             ),
             actions: [
