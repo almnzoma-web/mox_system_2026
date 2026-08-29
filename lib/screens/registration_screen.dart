@@ -81,11 +81,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
 
       final String body = response.body.trim();
+      debugPrint('📥 [MOX ID Response] $body');
+
       final dynamic decoded = jsonDecode(body);
       final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
 
-      final String moxId = data['moxId']?.toString().trim().toUpperCase() ?? '';
-      debugPrint('✅ [MOX ID] تم بنجاح الحصول على الرقم: $moxId');
+      // استخراج الـ moxId بضمان تام مع التعامل مع الحالات المختلفة
+      final String moxId =
+          (data['moxId'] ?? data['id'] ?? data['data']?['moxId'])
+              ?.toString()
+              .trim()
+              .toUpperCase() ??
+          '';
+
+      if (moxId.isEmpty) {
+        throw Exception('لم يتم العثور على moxId في استجابة قوقل.');
+      }
+
+      debugPrint('✅ [MOX ID] تم بنجاح الحصول على الرقم وطباعته: $moxId');
       return moxId;
     } catch (e) {
       debugPrint('🚨 خطأ تفصيلي أثناء جلب الـ ID: $e');
