@@ -81,25 +81,48 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
 
       final String body = response.body.trim();
-      debugPrint('📥 [MOX ID Response] $body');
+      debugPrint('📥 [MOX ID Raw Response] $body');
 
-      final dynamic decoded = jsonDecode(body);
-      final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+      // 1. محاولة فك الـ JSON العادي
+      try {
+        final dynamic decoded = jsonDecode(body);
+        if (decoded is Map) {
+          final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
 
-      // استخراج الـ moxId بضمان تام مع التعامل مع الحالات المختلفة
-      final String moxId =
-          (data['moxId'] ?? data['id'] ?? data['data']?['moxId'])
-              ?.toString()
-              .trim()
-              .toUpperCase() ??
-          '';
-
-      if (moxId.isEmpty) {
-        throw Exception('لم يتم العثور على moxId في استجابة قوقل.');
+          // البحث في كافة المفتاح المحتملة
+          final dynamic rawValue =
+              data['moxId'] ??
+              data['id'] ??
+              data['number'] ??
+              data['result']?['moxId'];
+          if (rawValue != null) {
+            String valStr = rawValue.toString().trim();
+            // إذا كان مجرد رقم (مثل 5001)، نحوله إلى الصيغة المطلوبة ID-xxxxxx
+            if (RegExp(r'^\d+$').hasMatch(valStr)) {
+              return 'ID-${valStr.padLeft(6, '0')}';
+            }
+            return valStr.toUpperCase();
+          }
+        } else if (decoded is String && decoded.isNotEmpty) {
+          if (RegExp(r'^\d+$').hasMatch(decoded)) {
+            return 'ID-${decoded.padLeft(6, '0')}';
+          }
+          return decoded.toUpperCase();
+        }
+      } catch (_) {
+        // إذا لم يكن JSON، نتعامل مع النص الخام
       }
 
-      debugPrint('✅ [MOX ID] تم بنجاح الحصول على الرقم وطباعته: $moxId');
-      return moxId;
+      // 2. إذا عاد النص كرقْم صرف مباشرة من قوقل
+      if (RegExp(r'^\d+$').hasMatch(body)) {
+        return 'ID-${body.padLeft(6, '0')}';
+      }
+
+      if (body.isNotEmpty) {
+        return body.toUpperCase();
+      }
+
+      throw Exception('استجابة قوقل فارغة أو غير صالحة.');
     } catch (e) {
       debugPrint('🚨 خطأ تفصيلي أثناء جلب الـ ID: $e');
       rethrow;
