@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../services/storage_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -30,6 +32,58 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   bool _isPasswordVisible = false;
   bool _isRegistering = false;
+
+  void _checkPlatformAndRegister() {
+    bool isDesktopOrWeb = kIsWeb;
+    try {
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+        isDesktopOrWeb = true;
+      }
+    } catch (_) {}
+
+    if (isDesktopOrWeb) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              "⚠️ تنبيه نظام موكس",
+              style: TextStyle(
+                color: Color(0xFF28A9CC),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: const Text(
+              "عذراً، التسجيل غير متاح عبر نسختي الوندوز أو الكمبيوتر. يُرجى إتمام عملية التسجيل حصرياً عبر تطبيق الهاتف المحمول الخاص ببنك موكس.",
+              style: TextStyle(fontSize: 15, height: 1.4),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF28A9CC),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  "حسناً",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    _register();
+  }
   // ============================================================
   // موافقة المستخدم على لائحة إدارة بنك موكس
   // ============================================================
@@ -850,6 +904,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             const SizedBox(height: 20),
 
             // ==================================================
+            // ==================================================
             // REGISTER BUTTON
             // ==================================================
             ElevatedButton(
@@ -857,15 +912,24 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 backgroundColor: moxBlue,
                 minimumSize: const Size(double.infinity, 50),
               ),
-              onPressed: _register,
-              child: const Text(
-                "إتمام التسجيل السيادي",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              onPressed: _isRegistering ? null : _checkPlatformAndRegister,
+              child: _isRegistering
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      "إتمام التسجيل السيادي",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
 
             const SizedBox(height: 40),
