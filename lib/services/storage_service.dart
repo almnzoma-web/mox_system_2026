@@ -1799,12 +1799,19 @@ class StorageService {
 
   static Future<UserModel?> _fetchAdminFromCloud() async {
     try {
+      final String cleanGuardian = _clean(adminUser.guardianMoxId);
+      final String cleanPhone = _clean(adminUser.phone);
+      final String cleanMoxId = _clean(adminUser.moxId);
+
       final Uri uri = Uri.parse(_scriptUrl).replace(
         queryParameters: {
           'action': 'login',
-          'input': adminUser.guardianMoxId ?? '',
+          'input': cleanGuardian.isNotEmpty ? cleanGuardian : cleanPhone,
           'password': '',
           'isMoxId': 'true',
+          'moxId': cleanMoxId,
+          'guardianMoxId': cleanGuardian,
+          'phone': cleanPhone,
         },
       );
 
