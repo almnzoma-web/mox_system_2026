@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../services/storage_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'dart:io' show Platform;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -17,31 +18,58 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final Color moxBlue = const Color(0xFF28A9CC);
 
   final TextEditingController _nameController = TextEditingController();
-
   final TextEditingController _phoneController = TextEditingController();
-
   final TextEditingController _passwordController = TextEditingController();
-
   final TextEditingController _addressController = TextEditingController();
-
   final TextEditingController _guardianController = TextEditingController();
 
   String _selectedGender = "ذكر";
-
   String _selectedAccountType = "فردي";
 
   bool _isPasswordVisible = false;
   bool _isRegistering = false;
 
+  // ============================================================
+  // موافقة المستخدم على لائحة إدارة بنك موكس
+  // ============================================================
+
+  bool _acceptedMoxRules = false;
+
+  // ============================================================
+  // ADMIN REFERRAL ID
+  // ============================================================
+  //
+  // مهم:
+  // هذا الرقم يستخدم فقط كإحالة افتراضية.
+  //
+  // لا يتم تخزينه داخل حساب العميل الجديد.
+  // ولا يتم إنشاء علاقة guardian بين العميل والمدير.
+  //
+  // وظيفته فقط:
+  // إذا لم يكتب العميل كود إحالة، يتم اعتبار هذا هو
+  // صاحب الإحالة، ويستحق 100 نقطة عند نجاح التسجيل.
+  // ============================================================
+
+  static const String _defaultGuardianId = "MOX249-00010001";
+
+  // ============================================================
+  // GOOGLE APPS SCRIPT ENDPOINT
+  // ============================================================
+
+  static const String _cloudEndpoint =
+      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec';
+
+  // ============================================================
+  // PLATFORM CHECK
+  // ============================================================
+
   void _checkPlatformAndRegister() {
     bool isWindowsDevice = false;
 
-    // الطريقة الأولى الفحص المباشر عبر تارجت الفلاتر
     if (defaultTargetPlatform == TargetPlatform.windows) {
       isWindowsDevice = true;
     }
 
-    // الطريقة الثانية الفحص التقليدي إن وجد
     try {
       if (!kIsWeb && Platform.isWindows) {
         isWindowsDevice = true;
@@ -85,16 +113,27 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           );
         },
       );
+
       return;
     }
 
     _register();
   }
 
+  // ============================================================
+  // CLOUD SYNC
+  // ============================================================
+  //
+  // ملاحظة أمنية مهمة:
+  //
+  // guardianMoxIdCustomer يتم إرساله فارغاً دائماً.
+  //
+  // السبب:
+  // رقم الوصي ليس علاقة دائمة بحساب العميل.
+  // ============================================================
+
   Future<void> _syncNewUserToCloud(UserModel user) async {
-    final Uri uri = Uri.parse(
-      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
-    );
+    final Uri uri = Uri.parse(_cloudEndpoint);
 
     try {
       await http.post(
@@ -108,54 +147,38 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           'address': user.address,
           'gender': user.gender,
           'accountType': user.accountType,
-          'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
+
+          // ====================================================
+          // مهم جداً:
+          // لا نحفظ علاقة إحالة داخل العميل الجديد.
+          // ====================================================
+          'guardianMoxIdCustomer': '',
+          'guardianMoxId': '',
+          'role': 'user',
+          'points': user.points.toString(),
         },
       );
+
       debugPrint('☁️ [Cloud Sync] تم رفع العميل الجديد بنجاح إلى قوقل.');
     } catch (e) {
       debugPrint(
-        '⚠️ [Cloud Sync] تعذر الرفع الفوري لقوقل، وتم الاكتفاء بالحفظ المحلي: $e',
+        '⚠️ [Cloud Sync] تعذر الرفع الفوري لقوقل، '
+        'وتم الاكتفاء بالحفظ المحلي: $e',
       );
     }
   }
-  // ============================================================
-  // موافقة المستخدم على لائحة إدارة بنك موكس
-  // ============================================================
-
-  bool _acceptedMoxRules = false;
-
-  // ============================================================
-  // ADMIN REFERRAL ID
-  // ============================================================
-
-  static const String _defaultGuardianId = "MOX249-00010001";
 
   // ============================================================
   // GENERATE MOX ID
   // ============================================================
-  //
-  // المدير:
-  // ID-005000
-  //
-  // أول عميل:
-  // ID-005001
-  //
-  // ثاني عميل:
-  // ID-005002
-  //
-  // وهكذا...
-  // ============================================================
 
   Future<String> _generateSequentialMoxId() async {
-    final Uri uri =
-        Uri.parse(
-          'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
-        ).replace(
-          queryParameters: {
-            'action': 'getNextMoxId',
-            't': DateTime.now().millisecondsSinceEpoch.toString(),
-          },
-        );
+    final Uri uri = Uri.parse(_cloudEndpoint).replace(
+      queryParameters: {
+        'action': 'getNextMoxId',
+        't': DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+    );
 
     debugPrint('🆔 [MOX ID] طلب رقم عميل جديد من Google...');
 
@@ -169,6 +192,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
 
       final String body = response.body.trim();
+
       debugPrint('📥 [MOX ID Raw Response] $body');
 
       final dynamic decoded = jsonDecode(body);
@@ -176,7 +200,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       if (decoded is Map) {
         final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
 
-        // إذا كان الكائن يعيد معلومات الـ API، نبحث عن الرقم في أماكن أخرى أو نولد رقماً تتابعياً احتياطياً مؤقتاً لضمان عدم توقف النظام
         final String moxId =
             (data['moxId'] ?? data['id'] ?? data['number'] ?? '')
                 .toString()
@@ -187,18 +210,27 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           if (RegExp(r'^\d+$').hasMatch(moxId)) {
             return 'ID-${moxId.padLeft(6, '0')}';
           }
+
           return moxId;
         }
       }
 
-      // حل احتياطي تكتيكي: إذا أعاد قوقل استجابة عامة، نولد رقماً تسلسلياً بناءً على عدد المستخدمين المحلي لتكتمل الشهادة برقم حقيقي فوري
-      int nextSeq = 5001 + StorageService.registeredUsers.length;
-      String fallbackId = 'ID-${nextSeq.toString().padLeft(6, '0')}';
+      // ========================================================
+      // FALLBACK
+      // ========================================================
+
+      final int nextSeq = 5001 + StorageService.registeredUsers.length;
+
+      final String fallbackId = 'ID-${nextSeq.toString().padLeft(6, '0')}';
+
       debugPrint('⚠️ [MOX ID Fallback] تم توليد الرقم احتياطياً: $fallbackId');
+
       return fallbackId;
     } catch (e) {
       debugPrint('🚨 خطأ تفصيلي أثناء جلب الـ ID: $e');
-      int nextSeq = 5001 + StorageService.registeredUsers.length;
+
+      final int nextSeq = 5001 + StorageService.registeredUsers.length;
+
       return 'ID-${nextSeq.toString().padLeft(6, '0')}';
     }
   }
@@ -255,17 +287,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     _isRegistering = true;
 
     try {
-      final phoneInput = _phoneController.text.trim();
+      final String phoneInput = _phoneController.text.trim();
 
-      final password = _passwordController.text.trim();
+      final String password = _passwordController.text.trim();
 
-      final name = _nameController.text.trim();
+      final String name = _nameController.text.trim();
 
-      final address = _addressController.text.trim();
+      final String address = _addressController.text.trim();
 
-      // ============================================================
+      // ========================================================
       // موافقة اللائحة
-      // ============================================================
+      // ========================================================
 
       if (!_acceptedMoxRules) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -280,9 +312,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
 
-      // ============================================================
+      // ========================================================
       // PHONE VALIDATION
-      // ============================================================
+      // ========================================================
 
       final bool isPhoneValid = RegExp(r'^249\d{9}$').hasMatch(phoneInput);
 
@@ -299,9 +331,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
 
-      // ============================================================
+      // ========================================================
       // PASSWORD VALIDATION
-      // ============================================================
+      // ========================================================
 
       if (password.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -314,9 +346,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         return;
       }
 
-      // ============================================================
+      // ========================================================
       // SHOW LOADING
-      // ============================================================
+      // ========================================================
 
       _showLoadingDialog();
 
@@ -327,45 +359,61 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       final String newMoxId = await _generateSequentialMoxId();
 
       // ========================================================
-      // GUARDIAN
+      // REFERRAL CODE
+      // ========================================================
+      //
+      // هذا الرقم لا يصبح guardian للعميل.
+      //
+      // نستخدمه فقط لمعرفة صاحب الإحالة الذي يستحق 100 نقطة.
       // ========================================================
 
-      final inputGuardian = _guardianController.text.trim();
+      final String inputGuardian = _guardianController.text.trim();
 
-      final String finalCustomerGuardianId = inputGuardian.isEmpty
+      final String referralMoxId = inputGuardian.isEmpty
           ? _defaultGuardianId
           : inputGuardian;
 
       // ========================================================
       // CREATE USER
       // ========================================================
+      //
+      // أهم نقطة في النسخة الجديدة:
+      //
+      // role = user
+      //
+      // guardianMoxId = ''
+      //
+      // guardianMoxIdCustomer = ''
+      //
+      // وبالتالي لا يوجد ارتباط وصاية داخل الحساب.
+      // ========================================================
 
       final UserModel newUser = UserModel(
         phone: phoneInput,
-
         password: password,
-
         name: name,
-
         moxId: newMoxId,
-
         address: address,
 
         balance: 0.0,
-
         commission: 0.0,
 
         gender: _selectedGender,
-
         accountType: _selectedAccountType,
 
+        // ======================================================
+        // صلاحية العميل
+        // ======================================================
         role: "user",
 
         customWhatsApp: null,
 
+        // ======================================================
+        // لا توجد علاقة وصاية محفوظة
+        // ======================================================
         guardianMoxId: "",
 
-        guardianMoxIdCustomer: finalCustomerGuardianId,
+        guardianMoxIdCustomer: "",
 
         points: 0,
 
@@ -373,13 +421,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       );
 
       // ========================================================
-      // SAVE USER + REFERRAL
+      // SAVE USER + REFERRAL REWARD
       // ========================================================
 
-      final bool success = await _addUserWithReferral(
-        newUser,
-        finalCustomerGuardianId,
-      );
+      final bool success = await _addUserWithReferral(newUser, referralMoxId);
 
       if (!success) {
         if (mounted) {
@@ -394,6 +439,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         }
 
         return;
+      }
+
+      // ========================================================
+      // تثبيت العميل الجديد كجلسة حالية
+      // ========================================================
+      //
+      // مهم:
+      // الجلسة تحمل newUser الذي role فيه = user.
+      //
+      // لا نضع المدير ولا بيانات المدير هنا.
+      // ========================================================
+
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+        await prefs.setString('mox_current_user', jsonEncode(newUser.toJson()));
+
+        debugPrint('🔐 [SESSION] تم تثبيت العميل الجديد كمستخدم حالي.');
+
+        debugPrint('👤 [SESSION ROLE] ${newUser.role}');
+
+        debugPrint('🆔 [SESSION MOX] ${newUser.moxId}');
+      } catch (e) {
+        debugPrint('⚠️ خطأ في تثبيت الجلسة المحلية: $e');
       }
 
       // ========================================================
@@ -426,23 +495,41 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       _isRegistering = false;
     }
   }
+
   // ============================================================
   // ADD USER + REFERRAL
+  // ============================================================
+  //
+  // القاعدة الجديدة:
+  //
+  // 1. العميل الجديد لا يحصل على guardian.
+  //
+  // 2. رقم الوصي/الإحالة لا يتم حفظه في العميل.
+  //
+  // 3. نبحث فقط عن صاحب moxId المطابق.
+  //
+  // 4. إذا وجدناه:
+  //    points = points + 100
+  //
+  // 5. إذا لم نجده:
+  //    العميل يسجل عادي بدون نقاط إحالة.
+  //
+  // 6. لا يتم تعديل guardianMoxId للعميل الجديد.
   // ============================================================
 
   Future<bool> _addUserWithReferral(
     UserModel newUser,
-    String guardianId,
+    String referralMoxId,
   ) async {
-    // ============================================================
+    // ==========================================================
     // 1. تأكد من تحميل Local Cache
-    // ============================================================
+    // ==========================================================
 
     await StorageService.ensureLoaded();
 
-    // ============================================================
+    // ==========================================================
     // 2. Sync أخير قبل التسجيل
-    // ============================================================
+    // ==========================================================
 
     try {
       await StorageService.syncClientsFromCloud(saveLocal: true);
@@ -450,9 +537,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       debugPrint('⚠️ [Registration] تعذر تحديث السحابة قبل التسجيل: $e');
     }
 
-    // ============================================================
+    // ==========================================================
     // 3. CHECK DUPLICATE PHONE
-    // ============================================================
+    // ==========================================================
 
     final String newPhone = newUser.phone.trim();
 
@@ -466,9 +553,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return false;
     }
 
-    // ============================================================
+    // ==========================================================
     // 4. CHECK DUPLICATE MOX ID
-    // ============================================================
+    // ==========================================================
 
     final String newMoxId = newUser.moxId.trim().toUpperCase();
 
@@ -482,71 +569,105 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return false;
     }
 
-    // ============================================================
-    // 5. FIND GUARDIAN
-    // ============================================================
-
-    UserModel? guardian;
-
-    final String cleanGuardianId = guardianId.trim().toUpperCase();
-
-    if (cleanGuardianId.isNotEmpty) {
-      try {
-        guardian = StorageService.registeredUsers.firstWhere((u) {
-          final String moxId = u.moxId.trim().toUpperCase();
-
-          final String guardianMoxId = (u.guardianMoxId ?? '')
-              .trim()
-              .toUpperCase();
-
-          final String guardianMoxIdCustomer = (u.guardianMoxIdCustomer ?? '')
-              .trim()
-              .toUpperCase();
-
-          return moxId == cleanGuardianId ||
-              guardianMoxId == cleanGuardianId ||
-              guardianMoxIdCustomer == cleanGuardianId;
-        });
-      } catch (_) {
-        guardian = null;
-      }
-    }
-
-    // ============================================================
-    // 6. SAVE NEW USER (Local & Cloud Sync)
-    // ============================================================
+    // ==========================================================
+    // 5. SAVE NEW USER
+    // ==========================================================
+    //
+    // قبل مكافأة الإحالة.
+    //
+    // العميل الجديد يتم حفظه بدون guardian.
+    // ==========================================================
 
     try {
       await StorageService.addUser(newUser);
 
-      // الإضافة الهامة هنا: إرسال بيانات العميل الجديد مباشرة إلى قوقل لضمان عدم ضياعه أو تداخله
       await _syncNewUserToCloud(newUser);
     } catch (e) {
       debugPrint('❌ [Registration] فشل حفظ العميل: $e');
+
       return false;
     }
 
-    // ============================================================
-    // 7. UPDATE GUARDIAN POINTS
-    // ============================================================
+    // ==========================================================
+    // 6. REFERRAL REWARD ONLY
+    // ==========================================================
+    //
+    // نبحث عن صاحب الرقم نفسه فقط.
+    //
+    // لا نبحث في guardianMoxId.
+    // لا نبحث في guardianMoxIdCustomer.
+    //
+    // السبب:
+    // المطلوب هو:
+    //
+    // "من يملك رقم MOX الذي أدخله العميل؟"
+    //
+    // وليس:
+    //
+    // "من لديه هذا الرقم في حقل وصاية؟"
+    // ==========================================================
 
-    if (guardian != null) {
-      final UserModel updatedGuardian = guardian.copyWith(
-        points: guardian.points + 100,
+    final String cleanReferralId = referralMoxId.trim().toUpperCase();
+
+    if (cleanReferralId.isEmpty) {
+      debugPrint('ℹ️ [Referral] لا يوجد كود إحالة.');
+
+      return true;
+    }
+
+    UserModel? referralOwner;
+
+    try {
+      referralOwner = StorageService.registeredUsers.firstWhere(
+        (u) => u.moxId.trim().toUpperCase() == cleanReferralId,
+      );
+    } catch (_) {
+      referralOwner = null;
+    }
+
+    // ==========================================================
+    // 7. IF OWNER FOUND → +100 POINTS
+    // ==========================================================
+
+    if (referralOwner != null) {
+      final int oldPoints = referralOwner.points;
+
+      final int newPoints = oldPoints + 100;
+
+      final UserModel updatedReferralOwner = referralOwner.copyWith(
+        points: newPoints,
       );
 
       try {
-        await StorageService.updateUserPartial(updatedGuardian);
+        await StorageService.updateUserPartial(updatedReferralOwner);
 
-        debugPrint('🎁 [Registration] تم منح الوصي 100 نقطة.');
+        debugPrint(
+          '🎁 [Referral] صاحب $cleanReferralId '
+          'حصل على 100 نقطة.',
+        );
+
+        debugPrint('📊 [Referral] النقاط القديمة: $oldPoints');
+
+        debugPrint('📊 [Referral] النقاط الجديدة: $newPoints');
       } catch (e) {
         debugPrint(
-          '⚠️ [Registration] تم تسجيل العميل '
-          'لكن فشل تحديث نقاط الوصي: $e',
+          '⚠️ [Referral] تم تسجيل العميل '
+          'لكن فشل تحديث نقاط صاحب الإحالة: $e',
         );
       }
     } else {
-      debugPrint('ℹ️ [Registration] لم يتم العثور على الوصي: $guardianId');
+      // ========================================================
+      // رقم غير موجود
+      // ========================================================
+
+      debugPrint(
+        'ℹ️ [Referral] لم يتم العثور على صاحب '
+        'الكود: $cleanReferralId',
+      );
+
+      // العميل يستمر في التسجيل بشكل طبيعي.
+      // لا يتم إنشاء علاقة.
+      // لا توجد نقاط إحالة.
     }
 
     return true;
@@ -646,7 +767,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     onPressed: () {
                       Navigator.pop(context);
-
                       Navigator.pop(context);
                     },
                     child: const Text(
@@ -674,13 +794,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-
     _phoneController.dispose();
-
     _passwordController.dispose();
-
     _addressController.dispose();
-
     _guardianController.dispose();
 
     super.dispose();
@@ -788,7 +904,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             const SizedBox(height: 20),
 
             // ==================================================
-            // GUARDIAN
+            // REFERRAL / GUARDIAN CODE
+            // ==================================================
+            //
+            // ملاحظة:
+            // الاسم في الواجهة يمكن أن يبقى "الوصي أو المرشد"
+            // لكن وظيفته الحقيقية الآن "كود إحالة".
+            //
+            // لا يتم إنشاء علاقة guardian.
             // ==================================================
             Container(
               padding: const EdgeInsets.all(12),
@@ -801,7 +924,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "💡 بطاقة الوصي أو المرشد (اختياري)",
+                    "💡 بطاقة الإحالة أو المرشد (اختياري)",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -812,7 +935,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   const SizedBox(height: 6),
 
                   const Text(
-                    "إذا أخبرك عميل عن موكس، ضع رقم MOX الخاص به. وإذا تركته فارغاً، سيُسجل المدير كمرشد افتراضي.",
+                    "إذا أخبرك عميل عن موكس، ضع رقم MOX الخاص به. عند نجاح التسجيل يحصل صاحب الرقم على 100 نقطة. لا يتم إنشاء أي علاقة وصاية بين الحسابين.",
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.black87,
@@ -824,8 +947,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
                   TextField(
                     controller: _guardianController,
+                    textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
-                      labelText: "رقم MOX للوصي",
+                      labelText: "رقم MOX للإحالة",
                       hintText: "MOX249-00010001",
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(
@@ -887,9 +1011,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             // ==================================================
             // MOX RULES AGREEMENT
             // ==================================================
-            //
-            // مربع صغير + نص الموافقة
-            // ==================================================
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -939,7 +1060,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
             const SizedBox(height: 20),
 
-            // ==================================================
             // ==================================================
             // REGISTER BUTTON
             // ==================================================
