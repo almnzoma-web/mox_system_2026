@@ -497,39 +497,65 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   // ============================================================
-  // ADD USER + REFERRAL
+  // ADD POINTS TO STORAGE & CLOUD (دالة إضافة النقاط الموحدة)
   // ============================================================
-  //
-  // القاعدة الجديدة:
-  //
-  // 1. العميل الجديد لا يحصل على guardian.
-  //
-  // 2. رقم الوصي/الإحالة لا يتم حفظه في العميل.
-  //
-  // 3. نبحث فقط عن صاحب moxId المطابق.
-  //
-  // 4. إذا وجدناه:
-  //    points = points + 100
-  //
-  // 5. إذا لم نجده:
-  //    العميل يسجل عادي بدون نقاط إحالة.
-  //
-  // 6. لا يتم تعديل guardianMoxId للعميل الجديد.
+
+  Future<bool> _addPointsToStorage(String targetMoxId, int pointsToAdd) async {
+    final String cleanId = targetMoxId.trim().toUpperCase();
+    if (cleanId.isEmpty) return false;
+
+    await StorageService.ensureLoaded();
+
+    try {
+      UserModel? owner = StorageService.registeredUsers.firstWhere(
+        (u) => u.moxId.trim().toUpperCase() == cleanId,
+      );
+
+      final int updatedPoints = owner.points + pointsToAdd;
+
+      final UserModel updatedOwner = owner.copyWith(points: updatedPoints);
+
+      await StorageService.updateUserPartial(updatedOwner);
+
+      try {
+        final Uri uri = Uri.parse(_cloudEndpoint);
+        await http.post(
+          uri,
+          body: {
+            'action': 'updateUserPoints',
+            'moxId': updatedOwner.moxId,
+            'points': updatedOwner.points.toString(),
+          },
+        );
+        debugPrint(
+          '☁️ [Cloud Points] تم تحديث النقاط سحابياً بنجاح للعميل: $cleanId',
+        );
+      } catch (cloudError) {
+        debugPrint(
+          '⚠️ [Cloud Points] تعذر الرفع السحابي، وتم حفظها محلياً: $cloudError',
+        );
+      }
+
+      debugPrint(
+        '🎁 [Storage Points] تمت إضافة $pointsToAdd نقطة بنجاح. الإجمالي: $updatedPoints',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('🚨 [Storage Points Error] خطأ أثناء إضافة النقاط: $e');
+    }
+
+    return false;
+  }
+
+  // ============================================================
+  // ADD USER + REFERRAL
   // ============================================================
 
   Future<bool> _addUserWithReferral(
     UserModel newUser,
     String referralMoxId,
   ) async {
-    // ==========================================================
-    // 1. تأكد من تحميل Local Cache
-    // ==========================================================
-
     await StorageService.ensureLoaded();
-
-    // ==========================================================
-    // 2. Sync أخير قبل التسجيل
-    // ==========================================================
 
     try {
       await StorageService.syncClientsFromCloud(saveLocal: true);
@@ -537,137 +563,50 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       debugPrint('⚠️ [Registration] تعذر تحديث السحابة قبل التسجيل: $e');
     }
 
-    // ==========================================================
-    // 3. CHECK DUPLICATE PHONE
-    // ==========================================================
-
     final String newPhone = newUser.phone.trim();
-
     final bool phoneExists = StorageService.registeredUsers.any(
       (u) => u.phone.trim() == newPhone,
     );
 
     if (phoneExists) {
       debugPrint('❌ [Registration] رقم الهاتف موجود مسبقاً: $newPhone');
-
       return false;
     }
 
-    // ==========================================================
-    // 4. CHECK DUPLICATE MOX ID
-    // ==========================================================
-
     final String newMoxId = newUser.moxId.trim().toUpperCase();
-
     final bool moxIdExists = StorageService.registeredUsers.any(
       (u) => u.moxId.trim().toUpperCase() == newMoxId,
     );
 
     if (moxIdExists) {
       debugPrint('❌ [Registration] Mox ID موجود مسبقاً: $newMoxId');
-
       return false;
     }
-
-    // ==========================================================
-    // 5. SAVE NEW USER
-    // ==========================================================
-    //
-    // قبل مكافأة الإحالة.
-    //
-    // العميل الجديد يتم حفظه بدون guardian.
-    // ==========================================================
 
     try {
       await StorageService.addUser(newUser);
-
       await _syncNewUserToCloud(newUser);
     } catch (e) {
       debugPrint('❌ [Registration] فشل حفظ العميل: $e');
-
       return false;
     }
-
-    // ==========================================================
-    // 6. REFERRAL REWARD ONLY
-    // ==========================================================
-    //
-    // نبحث عن صاحب الرقم نفسه فقط.
-    //
-    // لا نبحث في guardianMoxId.
-    // لا نبحث في guardianMoxIdCustomer.
-    //
-    // السبب:
-    // المطلوب هو:
-    //
-    // "من يملك رقم MOX الذي أدخله العميل؟"
-    //
-    // وليس:
-    //
-    // "من لديه هذا الرقم في حقل وصاية؟"
-    // ==========================================================
 
     final String cleanReferralId = referralMoxId.trim().toUpperCase();
 
     if (cleanReferralId.isEmpty) {
       debugPrint('ℹ️ [Referral] لا يوجد كود إحالة.');
-
       return true;
     }
 
-    UserModel? referralOwner;
+    // استخدام دالة إضافة النقاط المنظمة مباشرة
+    final bool pointsAdded = await _addPointsToStorage(cleanReferralId, 100);
 
-    try {
-      referralOwner = StorageService.registeredUsers.firstWhere(
-        (u) => u.moxId.trim().toUpperCase() == cleanReferralId,
-      );
-    } catch (_) {
-      referralOwner = null;
-    }
-
-    // ==========================================================
-    // 7. IF OWNER FOUND → +100 POINTS
-    // ==========================================================
-
-    if (referralOwner != null) {
-      final int oldPoints = referralOwner.points;
-
-      final int newPoints = oldPoints + 100;
-
-      final UserModel updatedReferralOwner = referralOwner.copyWith(
-        points: newPoints,
-      );
-
-      try {
-        await StorageService.updateUserPartial(updatedReferralOwner);
-
-        debugPrint(
-          '🎁 [Referral] صاحب $cleanReferralId '
-          'حصل على 100 نقطة.',
-        );
-
-        debugPrint('📊 [Referral] النقاط القديمة: $oldPoints');
-
-        debugPrint('📊 [Referral] النقاط الجديدة: $newPoints');
-      } catch (e) {
-        debugPrint(
-          '⚠️ [Referral] تم تسجيل العميل '
-          'لكن فشل تحديث نقاط صاحب الإحالة: $e',
-        );
-      }
+    if (pointsAdded) {
+      debugPrint('🎁 [Referral] صاحب $cleanReferralId حصل على 100 نقطة بنجاح.');
     } else {
-      // ========================================================
-      // رقم غير موجود
-      // ========================================================
-
       debugPrint(
-        'ℹ️ [Referral] لم يتم العثور على صاحب '
-        'الكود: $cleanReferralId',
+        'ℹ️ [Referral] لم يتم العثور على صاحب الكود: $cleanReferralId أو فشلت الإضافة.',
       );
-
-      // العميل يستمر في التسجيل بشكل طبيعي.
-      // لا يتم إنشاء علاقة.
-      // لا توجد نقاط إحالة.
     }
 
     return true;
@@ -905,13 +844,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
             // ==================================================
             // REFERRAL / GUARDIAN CODE
-            // ==================================================
-            //
-            // ملاحظة:
-            // الاسم في الواجهة يمكن أن يبقى "الوصي أو المرشد"
-            // لكن وظيفته الحقيقية الآن "كود إحالة".
-            //
-            // لا يتم إنشاء علاقة guardian.
             // ==================================================
             Container(
               padding: const EdgeInsets.all(12),
