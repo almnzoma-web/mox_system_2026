@@ -37,7 +37,7 @@ class WelcomeScreen extends StatelessWidget {
             const SizedBox(height: 50),
 
             // بوابة MOX
-            _buildOptionButton(context, "تمتلك رقم MOX", "🔑", () {
+            _buildOptionButton(context, "تمتلك رقم موكس", "🔑", () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
