@@ -1667,8 +1667,10 @@ class MoxAlertsCard extends StatefulWidget {
 
 class _MoxAlertsCardState extends State<MoxAlertsCard> {
   int _currentIndex = 0;
-  late UserModel _currentUser;
-  late List<String> _alerts;
+  UserModel? _currentUser;
+  List<String> _alerts = [];
+  // ignore: unused_field
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -1679,10 +1681,16 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
   }
 
   void _updateAlerts() {
+    final user = _currentUser;
+    if (user == null) {
+      _alerts = ["⚠️ جاري تحميل بيانات الهوية الرقمية..."];
+      return;
+    }
+
     _alerts = [
-      "🚨 تنبيه MOX: لديك ${_currentUser.points} نقطة مكتسبة في شبكة الإحالة السيادية.",
-      _currentUser.guardianMoxId!.isNotEmpty
-          ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${_currentUser.guardianMoxId}"
+      "🚨 تنبيه MOX: لديك ${user.points} نقطة مكتسبة في شبكة الإحالة السيادية.",
+      (user.guardianMoxId != null && user.guardianMoxId!.isNotEmpty)
+          ? "🌟 تم تفعيل هويتك الرقمية برقم MOX: ${user.guardianMoxId}"
           : "⚠️ حسابك لم يُرقَّ بعد، شارك رابط الترقية لتوثيق أصولك.",
       "📌 متجر موكس جاهز لاستقبال طلبات بطاقات العرض والخدمات الرقمية.",
       "🏛️ المنظومة أونلاين: تأكد من تحديث وسائط التواصل لضمان تدفق الأرباح والأصول.",
@@ -1690,18 +1698,40 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
   }
 
   Future<void> _refreshUserData() async {
-    await StorageService.ensureLoaded();
-    final freshUser = await StorageService.getUserByMoxId(_currentUser.moxId);
-    if (freshUser != null && mounted) {
-      setState(() {
-        _currentUser = freshUser;
-        _updateAlerts();
-      });
+    try {
+      await StorageService.ensureLoaded();
+
+      // الخطوة الأهم: التأكد من جلب المستخدم النشط فعلياً من المخزن بناءً على الجلسة الحالية
+      // أو باستخدام الـ MoxId الخاص بالودجت مع التحقق من عدم رجوعه للمدير بالخطأ
+      final targetMoxId = widget.currentUser.moxId;
+      final freshUser = await StorageService.getUserByMoxId(targetMoxId);
+
+      if (freshUser != null && mounted) {
+        setState(() {
+          _currentUser = freshUser;
+          _updateAlerts();
+          _isLoading = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_currentUser == null) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1732,7 +1762,9 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 500),
                     child: Text(
-                      _alerts[_currentIndex],
+                      _alerts.isNotEmpty
+                          ? _alerts[_currentIndex % _alerts.length]
+                          : "",
                       key: ValueKey<int>(_currentIndex),
                       style: const TextStyle(
                         color: Colors.brown,
@@ -1751,7 +1783,9 @@ class _MoxAlertsCardState extends State<MoxAlertsCard> {
                   tooltip: "التنبيه التالي وتحديث البيانات",
                   onPressed: () {
                     setState(() {
-                      _currentIndex = (_currentIndex + 1) % _alerts.length;
+                      if (_alerts.isNotEmpty) {
+                        _currentIndex = (_currentIndex + 1) % _alerts.length;
+                      }
                     });
                     _refreshUserData();
                   },

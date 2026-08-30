@@ -90,6 +90,34 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     _register();
   }
+
+  Future<void> _syncNewUserToCloud(UserModel user) async {
+    final Uri uri = Uri.parse(
+      'https://script.google.com/macros/s/AKfycbyjUvfKEcii4ck2klEIgPjSXDzss3AipUV6nHpVlqsoJ7gdhefx_Ua8AdHENIbX8HGg/exec',
+    );
+
+    try {
+      await http.post(
+        uri,
+        body: {
+          'action': 'registerUser',
+          'moxId': user.moxId,
+          'name': user.name,
+          'phone': user.phone,
+          'password': user.password,
+          'address': user.address,
+          'gender': user.gender,
+          'accountType': user.accountType,
+          'guardianMoxIdCustomer': user.guardianMoxIdCustomer ?? '',
+        },
+      );
+      debugPrint('☁️ [Cloud Sync] تم رفع العميل الجديد بنجاح إلى قوقل.');
+    } catch (e) {
+      debugPrint(
+        '⚠️ [Cloud Sync] تعذر الرفع الفوري لقوقل، وتم الاكتفاء بالحفظ المحلي: $e',
+      );
+    }
+  }
   // ============================================================
   // موافقة المستخدم على لائحة إدارة بنك موكس
   // ============================================================
@@ -485,14 +513,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     // ============================================================
-    // 6. SAVE NEW USER
+    // 6. SAVE NEW USER (Local & Cloud Sync)
     // ============================================================
 
     try {
       await StorageService.addUser(newUser);
+
+      // الإضافة الهامة هنا: إرسال بيانات العميل الجديد مباشرة إلى قوقل لضمان عدم ضياعه أو تداخله
+      await _syncNewUserToCloud(newUser);
     } catch (e) {
       debugPrint('❌ [Registration] فشل حفظ العميل: $e');
-
       return false;
     }
 

@@ -1428,7 +1428,8 @@ class StorageService {
 
       final UserModel user = UserModel.fromJson(jsonDecode(userJson));
 
-      if (_isAdminUser(user)) {
+      // التعديل الآمن: التحقق حصرياً برقم الـ MoxId أو الـ Role الحقيقي للمدير فقط
+      if (user.moxId == "ID-005000" || user.role == "admin") {
         return adminUser;
       }
 
